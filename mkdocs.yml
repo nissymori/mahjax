@@ -1,7 +1,7 @@
 site_name: MahJax Documentation
 site_description: GPU-accelerated Riichi Mahjong simulators for reinforcement learning
 site_author: Soichiro Nishimori
-site_url: https://mahjax.readthedocs.io
+site_url: https://nissymori.github.io/mahjax
 repo_name: nissymori/mahjax
 repo_url: https://github.com/nissymori/mahjax
 copyright: Copyright © MahJax Authors

@@ -1,0 +1,35 @@
+name: Publish docs via GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+      - master
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.11
+
+      - name: Install dependencies
+        run: |
+          pip install mkdocs-material "mkdocstrings[python]"
+          # もしrequirements.txtがあるなら以下も
+          # pip install -r requirements.txt
+          
+          # 【重要】あなたのライブラリ(mahjax)自体もインストールする必要があります
+          # docstringを読み取るためです
+          pip install . 
+
+      - name: Deploy to GitHub Pages
+        run: mkdocs gh-deploy --force
