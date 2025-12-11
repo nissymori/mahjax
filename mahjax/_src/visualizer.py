@@ -178,7 +178,7 @@ class Visualizer:
 
     def _set_config_by_state(self, _state: State, use_english=False):  # noqa: C901
         assert _state.env_id == "mahjong"
-        from mahjax._src.dwg.mahjong import (_make_mahjong_dwg_en,
+        from mahjax._src.dwg.mahjong_visualizer import (_make_mahjong_dwg_en,
                                              _make_mahjong_dwg_jp)
 
         self.config["GRID_SIZE"] = 10
