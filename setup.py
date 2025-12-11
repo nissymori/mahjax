@@ -3,7 +3,7 @@ from pathlib import Path
 
 setup(
     name="mahjax",
-    description="GPU-accelerated parallel mahjong simulators for reinforcement learning (RL)",
+    description="GPU-accelerated vectorized mahjong simulators for reinforcement learning",
     long_description_content_type="text/markdown",
     author="Soichiro Nishimori",
     author_email="gatikiti.630@gmail.com",

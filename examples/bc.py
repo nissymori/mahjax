@@ -18,8 +18,8 @@ from mahjax._src.visualizer import save_svg_animation
 from mahjax.no_red_mahjong.env import Mahjong
 from mahjax.no_red_mahjong.rule_based_players import rule_based_player
 
-# 修正: 定義された新しいNetworkをImport
-from .network import ACNet
+# Import ACNet
+from network import ACNet
 
 @dataclass
 class TrainConfig:

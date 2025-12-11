@@ -21,8 +21,8 @@ import wandb
 from mahjax.wrappers.auto_reset_wrapper import auto_reset
 from mahjax.no_red_mahjong.env import Mahjong
 
-from .network import ACNet
-from .bc import visualize_game
+from network import ACNet
+from bc import visualize_game
 
 # Constants
 MAX_REWARD = 320.0  # Normalization factor for reward
