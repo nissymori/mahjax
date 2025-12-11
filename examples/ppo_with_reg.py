@@ -52,7 +52,7 @@ class PPOWithRegArgs(BaseModel):
     # Magnet hyperparameters
     mag_coef: float = 0.2
     mag_divergence_type: Literal["kl", "l2"] = "kl"
-    pretrained_path: Optional[str] = None
+    pretrained_path: Optional[str] = "bc_params.pkl"
     # For logging and saving
     wandb_project: str = "mahjax-ppo-with-reg"
     save_model: bool = True
@@ -102,6 +102,8 @@ def collect_rollout(network: nn.Module, params, env_state, key):
         logits = jnp.where(action_mask, logits, NEG)
         dist = distrax.Categorical(logits=logits)
         action, log_prob = dist.sample_and_log_prob(seed=action_key)
+
+        action, log_prob, value = action.squeeze(0), log_prob.squeeze(0), value.squeeze(0)
         next_state = step_fn(state, action, env_key)
         # Reward comes from the transition to the next state
         reward = jnp.asarray(next_state.rewards, dtype=jnp.float32) / MAX_REWARD  # (B, 4)
@@ -320,7 +322,7 @@ def train(rng_key):
     # Initialize environment states
     env_state = jax.vmap(BASE_ENV.init)(jax.random.split(key_reset, args.num_envs))
     # Runner state: (train_state, magnet_params, env_state, rng)
-    runner_state = (train_state, magnet_params, env_state, rng)
+    runner_state = (train_state, env_state, rng)
     # JIT functions
     update_step_fn = jax.jit(make_update_fn(network, magnet_params))
     evaluator_fn = jax.jit(make_evaluator(network, args.eval_num_envs, magnet_params))
