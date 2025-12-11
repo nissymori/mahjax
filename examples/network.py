@@ -191,8 +191,7 @@ class FeatureExtractor(nn.Module):
 
         
 # --- Full Network (Policy + Critic) ---
-class MahjongNetwork(nn.Module):
-    critic_type: Literal["value", "q"] = "value"
+class ACNet(nn.Module):
     """Combines Policy and Critic Feature Extractors and Heads."""
     
     def setup(self):
@@ -211,12 +210,6 @@ class MahjongNetwork(nn.Module):
             nn.Dense(1, kernel_init=orthogonal_init())
         ])
 
-        self.q_critic_mlp = nn.Sequential([
-            nn.Dense(FINAL_MLP_DIM, kernel_init=orthogonal_init()),
-            nn.relu,
-            nn.Dense(NUM_ACTIONS, kernel_init=orthogonal_init())
-        ])
-
     def __call__(self, obs):
         return self.get_action_logits(obs), self.get_value(obs)
 
@@ -226,89 +219,6 @@ class MahjongNetwork(nn.Module):
 
     def get_value(self, obs):
         features = self.critic_extractor(obs)
-        if self.critic_type == "value":
-            return self.value_critic_mlp(features).squeeze(-1)
-        elif self.critic_type == "q":
-            return self.q_critic_mlp(features)
+        return self.value_critic_mlp(features).squeeze(-1)
 
 
-# --- Agent Wrapper (Compatibility Layer) ---
-class MahjongAgent:
-    """
-    Linen model and parameters, providing the same interface as the previous nnx version Agent.
-    """
-    def __init__(self, key: jax.Array, critic_type: Literal["value", "q"] = "value", params=None):
-        self.model = MahjongNetwork(critic_type=critic_type)
-        
-        if params is None:
-            # create dummy input for initialization
-            key, init_key = jax.random.split(key)
-            dummy_obs = self._make_dummy_obs()
-            self.params = self.model.init(init_key, dummy_obs)
-        else:
-            self.params = params
-
-    def _make_dummy_obs(self):
-        # create dummy data for initialization
-        B = 1
-        return {
-            "hand": jnp.zeros((B, 14), dtype=jnp.int32),
-            "action_history": jnp.zeros((B, MAX_HISTORY_LENGTH, 2), dtype=jnp.int32),
-            "shanten_count": jnp.zeros((B,), dtype=jnp.float32),
-            "furiten": jnp.zeros((B,), dtype=jnp.float32),
-            "scores": jnp.zeros((B, 4), dtype=jnp.float32),
-            "round": jnp.zeros((B,), dtype=jnp.float32),
-            "honba": jnp.zeros((B,), dtype=jnp.float32),
-            "kyotaku": jnp.zeros((B,), dtype=jnp.float32),
-            "round_wind": jnp.zeros((B,), dtype=jnp.float32),
-            "seat_wind": jnp.zeros((B,), dtype=jnp.float32),
-            "dora_indicators": jnp.zeros((B, 5), dtype=jnp.int32),
-        }
-
-    @partial(jax.jit, static_argnums=(0,))
-    def get_value(self, observations: Dict[str, jnp.ndarray]) -> jax.Array:
-        # self.params を引数として apply に渡す
-        return self.model.apply(self.params, observations, method=self.model.get_value)
-
-    @partial(jax.jit, static_argnums=(0,))
-    def get_action(self, observations: Dict[str, jnp.ndarray], key: jax.Array, action_masks: jax.Array = None) -> jax.Array:
-        dist = self.get_action_distribution(observations, action_masks)
-        return dist.sample(seed=key)
-
-    @partial(jax.jit, static_argnums=(0,))
-    def get_action_and_value(self, observations: Dict[str, jnp.ndarray], key: jax.Array, action_masks: jax.Array = None):
-        values = self.get_value(observations)
-        dist = self.get_action_distribution(observations, action_masks)
-        actions, log_probs = dist.sample_and_log_prob(seed=key)
-        return actions, log_probs, values
-
-    # Note: JITはDistributionを返せないので、このメソッド自体はJITしない
-    def get_action_distribution(self, observations: Dict[str, jnp.ndarray], action_masks: jax.Array = None) -> distrax.Distribution:
-        # 配列計算部分だけJIT内部で実行されるように apply を呼ぶ
-        logits = self._get_logits_fn(self.params, observations)
-        if action_masks is not None:
-            logits = jnp.where(action_masks, logits, NEG)
-        return distrax.Categorical(logits=logits)
-    
-    @partial(jax.jit, static_argnums=(0,))
-    def _get_logits_fn(self, params, observations):
-        return self.model.apply(params, observations, method=self.model.get_action_logits)
-
-    def save_checkpoint(self, checkpoint_dir: str, step: int):
-        checkpoint_path = Path(checkpoint_dir).resolve() / f"checkpoint_{step}"
-        checkpoint_path.mkdir(parents=True, exist_ok=True)
-        checkpointer = ocp.PyTreeCheckpointer()
-        checkpointer.save(checkpoint_path / 'params', self.params)
-
-    @classmethod
-    def load_checkpoint(cls, checkpoint_dir: str, step: int, key: jax.Array) -> "MahjongAgent":
-        checkpoint_path = Path(checkpoint_dir).resolve() / f"checkpoint_{step}"
-        if not checkpoint_path.exists():
-            raise FileNotFoundError(f"Checkpoint not found at {checkpoint_path}")
-        
-        # 抽象的なAgentを作成して構造定義を取得
-        agent = cls(key)
-        checkpointer = ocp.PyTreeCheckpointer()
-        restored_params = checkpointer.restore(checkpoint_path / 'params', agent.params)
-        
-        return cls(key, params=restored_params)

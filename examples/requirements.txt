@@ -1,0 +1,6 @@
+flax
+optax
+distrax
+omegaconf
+pydantic
+wandb

@@ -71,13 +71,13 @@ def compute_returns(rewards, dones, current_players, gamma):
     T, B, P = rewards.shape
     returns = np.zeros((T, B), dtype=np.float32)
     
-    # 簡易的なモンテカルロリターン計算 (逆順)
-    # ※ 本来はBootstrappingが必要だが、今回は完走データを使うためMCで近似
-    # 各環境ごとに計算
+    # Monte Carlo Return Calculation (Reverse Order)
+    # Note: Bootstrapping is required, but we use complete data for this purpose, so we approximate it with MC.
+    # Calculate for each environment
     for b in range(B):
-        running_ret = np.zeros(P, dtype=np.float32) # 各プレイヤーのG_t
+        running_ret = np.zeros(P, dtype=np.float32) # G_t for each player
         for t in reversed(range(T)):
-            # 現在のステップの報酬
+            # Reward at the current step
             r_t = rewards[t, b] # [P]
             d_t = dones[t, b]   # bool
             
@@ -87,9 +87,9 @@ def compute_returns(rewards, dones, current_players, gamma):
             # G_t = r_t + gamma * G_{t+1}
             running_ret = r_t + gamma * running_ret
             
-            # このステップで行動したプレイヤーのReturnを記録
-            # (行動選択時点での価値 = 即時報酬 + 将来価値)
-            # ※ 注意: 即時報酬を含めるかどうかは定義によるが、Q学習的には含める
+            # Record the Return for the player who acted at this step
+            # (Value at the action selection point = immediate reward + future value)
+            # Note: Whether to include the immediate reward or not depends on the definition, but in Q-learning, it is included.
             p = current_players[t, b]
             returns[t, b] = running_ret[p]
             
@@ -122,12 +122,10 @@ def main():
     total_steps = 0
     start_time = time.time()
     
-    # 連続性を保つためのCarry (前回のチャンクからの続き)
-    # 本格的なオフラインRL用データセット作成では、エピソード境界を跨ぐ計算が必要だが、
-    # 簡易的にチャンク内で完結させる、または十分長いエピソードとして扱う。
-    # ここでは「チャンク内で計算し、境界は無視する（多少の誤差許容）」簡易実装とします。
-    # ※ 厳密にやるなら全履歴をオンメモリで保持して最後に計算する必要がありますが、
-    # メモリ制約(79GB error)があるため、チャンク処理を優先します。
+    # Carry for continuity (from the previous chunk)
+    # In a full offline RL dataset creation, calculations across episode boundaries are required, but here we simplify it by calculating within a chunk or treating it as a sufficiently long episode.
+    # Here, we implement a simplified version that calculates within a chunk and ignores the boundary (with some tolerance for error).
+    # Note: If you want to do it strictly, you need to keep all history in memory and calculate at the end, but due to memory constraints (79GB error), we prioritize chunk processing.
     
     for _ in tqdm(range(num_chunks), desc="Collecting", mininterval=10.0):
         rng, k_chunk = jax.random.split(rng)
@@ -135,7 +133,7 @@ def main():
         
         state, (obs_seq, act_seq, mask_seq, rew_seq, done_seq, cp_seq) = jit_rollout(state, keys)
         
-        # CPU転送
+        # CPU Transfer
         obs_cpu = jax.tree_map(np.array, obs_seq)
         act_cpu = np.array(act_seq)
         mask_cpu = np.array(mask_seq)
@@ -144,20 +142,15 @@ def main():
         cp_cpu = np.array(cp_seq)
         
         # --- Return Calculation (CPU) ---
-        # このチャンク内でのリターンを計算
-        # 注意: チャンク末尾で切れるため、Bootstrapできない分だけ誤差が出るが、
-        # num_stepsがエピソード長より短いためバイアスがかかる。
-        # -> オフラインRLとしては「エピソード完了まで待つ」バッファリングが必要だが、
-        # ここでは実装の複雑さを避けるため、Mahjongの1局が短い(avg 50-60 steps)ことを利用し、
-        # num_steps=32だと切れやすいので、本当はもっと大きくしたいがメモリ制約がある。
-        
-        # 妥協案: Return計算は諦めて「報酬(reward)」を保存し、
-        # 学習時にRewardからReturnを計算する、あるいは
-        # 単純に「このチャンク内での収益」とする。
-        # 今回は「正規化されたリターン」を教師データとしたいので、ここで計算します。
+        # Calculate the return within this chunk
+        # Note: Due to the truncation at the end of the chunk, there is an error because Bootstrap cannot be performed.
+        # Since num_steps is shorter than the episode length, there is a bias.
+        # -> For offline RL, buffering until the episode is complete is necessary, but here we avoid the complexity of implementation by utilizing the fact that the Mahjong game is short (avg 50-60 steps), and num_steps=32 is easy to truncate.
+        # In this case, we compromise by saving the reward and calculating the return during learning, or simply using the return within this chunk.
+        # This time, we want to use the normalized return as teacher data, so we calculate it here.
         returns_chunk = compute_returns(rew_cpu, done_cpu, cp_cpu, cfg.gamma)
-        
-        # 正規化 (Max Rewardで割る)
+
+        # Normalize (Divide by Max Reward)
         returns_chunk = returns_chunk / cfg.max_reward
 
         # Flatten & Store
@@ -186,7 +179,7 @@ def main():
         "observation": {k: v[:N] for k, v in full_obs.items()},
         "action": full_act[:N],
         "legal_action_mask": full_mask[:N],
-        "return": full_ret[:N] # 追加
+        "return": full_ret[:N] # New: Returns
     }
     
     if cfg.save_path:
