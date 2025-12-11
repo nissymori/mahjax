@@ -35,17 +35,15 @@ class TestSpecialCase(unittest.TestCase):
         """
         state = self.state
         legal_action_mask = jnp.zeros((4,Action.DUMMY+1), dtype=jnp.bool_).at[0, Action.RON].set(True).at[1, Action.RON].set(True)
-        current_wind = jnp.array([0, 1, 2, 3], dtype=jnp.int8)  # 0 is the closest player to the discarded player
-        next_player, _ = jitted_next_meld_player(legal_action_mask, current_wind)
+        next_player, _ = jitted_next_meld_player(legal_action_mask, 3)
         self.assertTrue(next_player == 0)
-        current_wind = jnp.array([1, 2, 3, 0], dtype=jnp.int8)  # 1 is the closest player to the discarded player
-        next_player, _ = jitted_next_meld_player(legal_action_mask, current_wind)
-        self.assertTrue(next_player == 1)
-        current_wind = jnp.array([2, 3, 0, 1], dtype=jnp.int8)  # 0 is the closest player to the discarded player
-        next_player, _ = jitted_next_meld_player(legal_action_mask, current_wind)
-        self.assertTrue(next_player ==0)
-        current_wind = jnp.array([3, 0, 1, 2], dtype=jnp.int8)  # 0 is the closest player to the discarded player
-        next_player, _ = jitted_next_meld_player(legal_action_mask, current_wind)
+        next_player, _ = jitted_next_meld_player(legal_action_mask, 2)
+        self.assertTrue(next_player == 0)
+
+        legal_action_mask = jnp.zeros((4,Action.DUMMY+1), dtype=jnp.bool_).at[0, Action.RON].set(True).at[2, Action.RON].set(True)
+        next_player, _ = jitted_next_meld_player(legal_action_mask, 1)
+        self.assertTrue(next_player ==2)
+        next_player, _ = jitted_next_meld_player(legal_action_mask, 3)
         self.assertTrue(next_player == 0)
 
 
