@@ -8,8 +8,6 @@ build:
 python:
   install:
     - requirements: requirements.txt
-    # ↓ここが重要！あなたのパッケージ自体をインストールして
-    # docstringを読めるようにします
     - method: pip
       path: .
 
