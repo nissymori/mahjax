@@ -29,7 +29,7 @@ jobs:
           pip install -U pip
           pip install jax jaxlib
           make install
-          pip install pytest svgwrite
+          pip install pytest svgwrite typing_extensions>=4.2.0
 
       - name: Run test suite (excluding test_play)
         env:
