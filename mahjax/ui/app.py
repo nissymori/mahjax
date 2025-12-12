@@ -38,6 +38,12 @@ class AutoRequest(BaseModel):
     steps: int = Field(1, ge=1, le=32)
 
 
+class VisibilityRequest(BaseModel):
+    hide_opponent_hands: bool = Field(
+        False, description="Hide opponent hands without restarting the game"
+    )
+
+
 def create_app() -> FastAPI:
     app = FastAPI(title="MahJax Human vs AI UI", version="0.1.0")
     manager = GameManager()
@@ -151,6 +157,16 @@ def create_app() -> FastAPI:
             except KeyError as err:
                 raise HTTPException(status_code=404, detail=str(err)) from err
             session.continue_after_round()
+            return session.to_view()
+
+    @app.post("/api/game/{game_id}/visibility")
+    async def update_visibility(game_id: str, req: VisibilityRequest):
+        async with manager_lock:
+            try:
+                session = manager.get(game_id)
+            except KeyError as err:
+                raise HTTPException(status_code=404, detail=str(err)) from err
+            session.set_hide_opponent_hands(req.hide_opponent_hands)
             return session.to_view()
 
     @app.delete("/api/game/{game_id}")
