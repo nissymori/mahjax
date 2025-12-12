@@ -42,6 +42,28 @@ Action IDs follow the environment definition: 0–33 are discards, 34–67 are K
 - Register agents by calling `AgentRegistry.add_agent`, `load_callable_agent`, or `load_callable_from_path` after `create_app()`. The callable receives `(state: State, rng: jnp.ndarray)` and must return a valid action ID.
 - Customize the frontend by editing `mahjax/ui/static/app.js` (localization strings, behavior) and `styles.css` (layout). No Node.js build step is required; FastAPI serves the files directly.
 
+### Adding Your Own Agent
+
+To make a newly trained agent appear in the dropdown:
+
+1. Expose a callable that takes `(state: State, rng: jnp.ndarray)` and returns a legal action ID.
+2. Create a thin wrapper module that instantiates the UI app and registers the callable before serving.
+
+```python
+# my_ui_app.py
+from pathlib import Path
+from mahjax.ui.app import create_app
+
+app = create_app()
+app.state.manager.registry.load_callable_from_path(
+    file_path=Path("path/to/my_agent_impl.py"),
+    attribute="act",
+    description="My Custom Agent",
+)
+```
+
+3. Run `uvicorn my_ui_app:app --host 0.0.0.0 --port 8000`. The newly registered agent is returned by `/api/agents`, so it shows up immediately in the UI selector.
+
 ## Troubleshooting & Limits
 
 - Blank board? Ensure `mahjax/ui/static` exists and FastAPI can mount it. Check console for 404s on `/static`.

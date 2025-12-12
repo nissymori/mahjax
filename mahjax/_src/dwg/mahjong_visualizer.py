@@ -769,53 +769,42 @@ def _make_players_dwg_en(
     ):
         """Draws a tile at x,y. Uses tile_w/tile_h global vars."""
         w, h = tile_w, tile_h
-
-        # Group for transformations
-        t_g = dwg.g()
-
-        # Determine Fill/Stroke
-        bg_color = "#fff" if not is_back else "#444"  # Dark gray for back
-        stroke_c = "#999"
         opacity = 0.6 if transparent else 1.0
+        bg_color = "#fff" if not is_back else "#444"
+        stroke_c = "#999"
 
-        # Draw Body
-        t_g.add(
-            dwg.rect(
-                insert=(x, y),
-                size=(w, h),
-                fill=bg_color,
-                stroke=stroke_c,
-                stroke_width="1",
-                rx="3",
-                ry="3",
-                opacity=opacity,
-            )
+        def _place(element):
+            if rotate:
+                element.rotate(-90, center=(x, y))
+                element.translate(x - tile_h + 4, y + 1)
+            else:
+                element.translate(x, y)
+            element.update({"opacity": opacity})
+            group.add(element)
+
+        body = dwg.rect(
+            insert=(0, 0),
+            size=(w, h),
+            fill=bg_color,
+            stroke=stroke_c,
+            stroke_width="1",
+            rx="3",
+            ry="3",
         )
+        _place(body)
 
-        # Draw Content (if face up)
         if not is_back and tile_idx is not None:
             txt, color = _get_tile_text_color(tile_idx)
-            t_g.add(
-                dwg.text(
-                    txt,
-                    insert=(x + w / 2, y + h / 2 + 6),
-                    fill=color,
-                    font_size="20px",
-                    font_family="Arial, sans-serif",
-                    font_weight="bold",
-                    text_anchor="middle",
-                    opacity=opacity,
-                )
+            text = dwg.text(
+                txt,
+                insert=(w / 2, h / 2 + 6),
+                fill=color,
+                font_size="20px",
+                font_family="Arial, sans-serif",
+                font_weight="bold",
+                text_anchor="middle",
             )
-
-        # Handle Rotation
-        if rotate:
-            # Rotate -90 degrees (standard for riichi/melds)
-            # Adjust position so the top-left corner matches the visual flow
-            t_g.rotate(-90, center=(x, y + h))
-            t_g.translate(w, -w)  # Correction
-
-        group.add(t_g)
+            _place(text)
 
     # --- Wind ---
     wind_en = ["E", "S", "W", "N"]

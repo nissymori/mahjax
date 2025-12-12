@@ -267,6 +267,13 @@ class GameSession:
                     return True
         return False
 
+    def set_hide_opponent_hands(self, hide: bool) -> None:
+        """Toggle whether opponent hands are hidden in subsequent views."""
+        self.hide_opponent_hands = hide
+        if hide:
+            # Re-apply masking immediately until a new reveal condition is met.
+            self._reveal_hidden_hands = False
+
     # -------------------- View helpers --------------------
     def consume_events(self) -> List[Dict[str, Any]]:
         events = [e.to_dict(self.player_names) for e in self._pending_events]

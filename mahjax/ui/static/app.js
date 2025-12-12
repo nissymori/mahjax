@@ -81,8 +81,8 @@ const I18N = {
       humanSeat: 'Human Seat',
       seed: 'Seed',
       humanName: 'Human',
-      aiName: 'AI Base Name',
-      aiDelay: 'AI Delay(ms)',
+      aiName: 'Agent Base Name',
+      aiDelay: 'Agent Delay(ms)',
       hideOpponents: '相手の手牌を隠す',
       start: 'Start Game',
       end: 'End Game',
@@ -120,7 +120,7 @@ const I18N = {
       noGame: 'No active game.',
       gameEnded: 'Game ended.',
       awaitingHuman: 'あなたの手番です。',
-      awaitingAI: 'AI 思考中…',
+      awaitingAI: 'Agent 思考中…',
       roundSummaryPending: '結果を確認して「次の局へ」を押してください。',
       roundSummaryPrompt: (label) => `「${label}」を押して結果を表示してください。`,
       finished: 'Game finished.',
@@ -179,8 +179,8 @@ const I18N = {
       humanSeat: 'Seat',
       seed: 'Seed',
       humanName: 'Human',
-      aiName: 'AI Base Name',
-      aiDelay: 'AI Delay (ms)',
+      aiName: 'Agent Base Name',
+      aiDelay: 'Agent Delay (ms)',
       hideOpponents: 'Hide opponent hands',
       start: 'Start Game',
       end: 'End Game',
@@ -218,7 +218,7 @@ const I18N = {
       noGame: 'No active game.',
       gameEnded: 'Game ended.',
       awaitingHuman: 'Your turn.',
-      awaitingAI: 'AI is thinking...',
+      awaitingAI: 'Agent is thinking...',
       roundSummaryPending: 'Review the result and press "Next Round".',
       roundSummaryPrompt: (label) => `Press "${label}" to view the result.`,
       finished: 'Game finished.',
@@ -259,6 +259,7 @@ let eventHistory = [];
 let aiTimer = null;
 let latestState = null;
 let isPendingAction = false;
+let isUpdatingHideOpponents = false;
 const pendingButtons = new Set();
 let pendingDiscardVisual = null;
 let pendingSummaryData = null;
@@ -285,6 +286,16 @@ document.addEventListener('click', (event) => {
   }
 });
 
+if (hideOpponentsInput) {
+  hideOpponentsInput.addEventListener('change', () => {
+    if (!currentGameId) {
+      return;
+    }
+    const desired = Boolean(hideOpponentsInput.checked);
+    updateHideOpponentsSetting(desired);
+  });
+}
+
 function getLocale(lang = currentLanguage) {
   return I18N[lang] || I18N.ja;
 }
@@ -299,8 +310,16 @@ function updateLanguageButtons() {
     } else {
       btn.classList.remove('active');
     }
-    btn.disabled = isPendingAction || lang === currentLanguage;
+    btn.disabled = lang === currentLanguage;
   });
+}
+
+function syncHideOpponentsControl(state) {
+  if (!hideOpponentsInput) return;
+  if (state && typeof state.hideOpponentHands === 'boolean') {
+    hideOpponentsInput.checked = Boolean(state.hideOpponentHands);
+  }
+  hideOpponentsInput.disabled = isUpdatingHideOpponents;
 }
 
 function applyLocaleToStaticElements() {
@@ -343,7 +362,6 @@ function setTextContent(element, text) {
 }
 
 function setLanguage(lang) {
-  if (isPendingAction) return;
   if (!Object.values(Languages).includes(lang)) return;
   if (lang === currentLanguage) return;
   currentLanguage = lang;
@@ -442,11 +460,12 @@ async function fetchAgents() {
 
 function populateAgents(agents) {
   agentCache = [...agents];
+  if (!agentSelect) return;
   agentSelect.innerHTML = '';
   agents.forEach((agent) => {
     const option = document.createElement('option');
     option.value = agent.id;
-    option.textContent = `${agent.name}`;
+    option.textContent = agent.name;
     agentSelect.appendChild(option);
   });
   if (agentSelect.options.length > 0) {
@@ -464,7 +483,7 @@ function populateAgents(agents) {
 }
 
 function collectGameRequest() {
-  const agentId = agentSelect.value;
+  const agentId = agentSelect?.value;
   if (!agentId) {
     throw new Error('Agent is required');
   }
@@ -541,6 +560,10 @@ function clearBoard() {
   summaryRevealRequested = false;
   renderEventList();
   updateLanguageButtons();
+  isUpdatingHideOpponents = false;
+  if (hideOpponentsInput) {
+    hideOpponentsInput.disabled = false;
+  }
 }
 
 async function sendAction(action, options = {}) {
@@ -604,6 +627,43 @@ async function continueRound() {
   renderState(state);
 }
 
+async function updateHideOpponentsSetting(hide) {
+  if (!currentGameId || isUpdatingHideOpponents) return;
+  const previousValue = latestState?.hideOpponentHands ?? !hide;
+  isUpdatingHideOpponents = true;
+  if (hideOpponentsInput) {
+    hideOpponentsInput.disabled = true;
+  }
+  try {
+    const res = await fetch(`/api/game/${currentGameId}/visibility`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hide_opponent_hands: hide }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.detail || 'Failed to update visibility');
+    }
+    const state = await res.json();
+    renderState(state, {
+      preservePending: true,
+      skipEvents: true,
+      skipAutoTimerReset: true,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    setStatus(null, { message });
+    if (hideOpponentsInput) {
+      hideOpponentsInput.checked = previousValue;
+    }
+  } finally {
+    isUpdatingHideOpponents = false;
+    if (hideOpponentsInput) {
+      hideOpponentsInput.disabled = false;
+    }
+  }
+}
+
 function renderState(state, options = {}) {
   if (!state) return;
   const { preservePending = false, skipEvents = false, skipAutoTimerReset = false } = options;
@@ -624,6 +684,7 @@ function renderState(state, options = {}) {
   renderRoundSummary(state);
   renderAdvance(state);
   renderScoreboard(state);
+  syncHideOpponentsControl(state);
   if (skipEvents) {
     renderEventList();
   } else {
@@ -1111,15 +1172,16 @@ aiNameInput.addEventListener('input', () => {
 humanNameInput.addEventListener('input', () => {
   humanNameInput.dataset.autoFilled = 'false';
 });
-agentSelect.addEventListener('change', () => {
-  if (aiNameInput.dataset.autoFilled === 'false') return;
-  const selected = agentCache.find((agent) => agent.id === agentSelect.value);
-  if (selected) {
-    aiNameInput.value = selected.name;
-    aiNameInput.dataset.autoFilled = 'true';
-  }
-});
-
+if (agentSelect) {
+  agentSelect.addEventListener('change', () => {
+    if (aiNameInput.dataset.autoFilled === 'false') return;
+    const selected = agentCache.find((agent) => agent.id === agentSelect.value);
+    if (selected) {
+      aiNameInput.value = selected.name;
+      aiNameInput.dataset.autoFilled = 'true';
+    }
+  });
+}
 (async function init() {
   try {
     const agents = await fetchAgents();
