@@ -1,5 +1,6 @@
 """
 PPO with Regularization trainer for MahJax.
+(Refactored to separate Rollout / Data Prep / Update steps)
 """
 
 import sys
@@ -33,15 +34,15 @@ Observation = Dict[str, jnp.ndarray]  # Observation type
 class PPOWithRegArgs(BaseModel):
     algo: str = "ppo_with_reg"
     # Environment
-    env_name: str = "mahjax/no_red_mahjong"
+    env_name: str = "no_red_mahjong"
     one_round: bool = True
     seed: int = 0
     # Training setup
-    num_envs: int = 32
-    num_steps: int = 128
-    total_timesteps: int = 4e7
+    num_envs: int = 1024
+    num_steps: int = 256
+    total_timesteps: int = 1e8
     update_epochs: int = 4
-    minibatch_size: int = 1024
+    minibatch_size: int = 4096
     # PPO hyperparameters
     gamma: float = 1.0
     gae_lambda: float = 0.95
@@ -57,9 +58,11 @@ class PPOWithRegArgs(BaseModel):
     wandb_project: str = "mahjax-ppo-with-reg"
     save_model: bool = True
     do_eval: bool = True
-    eval_interval: int = 50
-    eval_num_envs: int = 500
+    eval_interval: int = 10
+    eval_num_envs: int = 1000
     viz_max_steps: int = 1000
+    viz_out_dir: str = "fig"
+    viz_filename: str = "ppo_with_reg_agent_game.svg"
     class args: extra = "forbid"
 
 args = PPOWithRegArgs(**OmegaConf.to_object(OmegaConf.from_cli()))
@@ -86,38 +89,42 @@ class Transition(NamedTuple):
 def masked_mean(x: jnp.ndarray, mask: jnp.ndarray) -> jnp.ndarray:
     return (x * mask.astype(jnp.float32)).sum() / jnp.maximum(mask.astype(jnp.float32).sum(), 1.0)
 
-def collect_rollout(network: nn.Module, params, env_state, key):
-    def step_fn_scan(carry, _):
-        state, rng = carry
-        rng, action_key, env_key = jax.random.split(rng, 3)
-        # PREPARE observation and action mask
-        observation = BASE_ENV.observe(state)
-        action_mask = state.legal_action_mask.astype(jnp.bool_)
-        current_player = jnp.asarray(state.current_player, dtype=jnp.int32)
-        # Check if the episode is new
-        is_new_episode = jnp.asarray(state.terminated | state.truncated, dtype=jnp.bool_)
+# --- 1. COLLECT ROLLOUT ---
+def make_collect_rollout_fn(network: nn.Module):
+    def collect_rollout(params, env_state, key):
+        def step_fn_scan(carry, _):
+            state, rng = carry
+            rng, action_key, env_key = jax.random.split(rng, 3)
+            # PREPARE observation and action mask
+            observation = BASE_ENV.observe(state)
+            action_mask = state.legal_action_mask.astype(jnp.bool_)
+            current_player = jnp.asarray(state.current_player, dtype=jnp.int32)
+            # Check if the episode is new
+            is_new_episode = jnp.asarray(state.terminated | state.truncated, dtype=jnp.bool_)
 
-        # STEP ENV
-        logits, value = network.apply(params, observation)
-        logits = jnp.where(action_mask, logits, NEG)
-        dist = distrax.Categorical(logits=logits)
-        action, log_prob = dist.sample_and_log_prob(seed=action_key)
+            # STEP ENV
+            logits, value = network.apply(params, observation)
+            logits = jnp.where(action_mask, logits, NEG)
+            dist = distrax.Categorical(logits=logits)
+            action, log_prob = dist.sample_and_log_prob(seed=action_key)
 
-        action, log_prob, value = action.squeeze(0), log_prob.squeeze(0), value.squeeze(0)
-        next_state = step_fn(state, action, env_key)
-        # Reward comes from the transition to the next state
-        reward = jnp.asarray(next_state.rewards, dtype=jnp.float32) / MAX_REWARD  # (B, 4)
+            action, log_prob, value = action.squeeze(0), log_prob.squeeze(0), value.squeeze(0)
+            next_state = step_fn(state, action, env_key)
+            # Reward comes from the transition to the next state
+            reward = jnp.asarray(next_state.rewards, dtype=jnp.float32) / MAX_REWARD  # (B, 4)
 
-        transition = Transition(
-            is_new_episode=is_new_episode, action=action, value=jnp.squeeze(value), reward=reward,
-            log_prob=log_prob, observation=observation, action_mask=action_mask, current_player=current_player
-        )
-        return (next_state, rng), transition
+            transition = Transition(
+                is_new_episode=is_new_episode, action=action, value=jnp.squeeze(value), reward=reward,
+                log_prob=log_prob, observation=observation, action_mask=action_mask, current_player=current_player
+            )
+            return (next_state, rng), transition
 
-    batched_rollout = jax.vmap(lambda c, x: lax.scan(step_fn_scan, c, None, length=args.num_steps))
-    keys = jax.random.split(key, args.num_envs)
-    (env_state, _), transitions = batched_rollout((env_state, keys), None)
-    return env_state, transitions
+        batched_rollout = jax.vmap(lambda c, x: lax.scan(step_fn_scan, c, None, length=args.num_steps))
+        keys = jax.random.split(key, args.num_envs)
+        (env_state, _), transitions = batched_rollout((env_state, keys), None)
+        return env_state, transitions
+    return collect_rollout
+
 
 def calculate_gae(transitions: Transition):
     """
@@ -163,23 +170,28 @@ def calculate_gae(transitions: Transition):
     return jax.vmap(single_env_gae)(transitions)
 
 
-def make_update_fn(network: nn.Module, magnet_params: Optional[Dict[str, Any]] = None):
-    def update_step(runner_state, update_idx):
-        train_state, env_state, rng = runner_state
-        rng, key = jax.random.split(rng)
-        
-        env_state, transitions = collect_rollout(network, train_state.params, env_state, key)
-        advantages, targets, valid_mask = calculate_gae(transitions)
-        
-        # Flatten (B, T, ...) -> (B*T, ...)
-        flat_transitions = jax.tree.map(lambda x: x.reshape((BATCH_SIZE,) + x.shape[2:]), transitions)
-        advantages = advantages.reshape((BATCH_SIZE, NUM_PLAYERS))
-        targets = targets.reshape((BATCH_SIZE, NUM_PLAYERS))
-        valid_mask = valid_mask.reshape((BATCH_SIZE, NUM_PLAYERS))
+# --- 2. DATA PREPARATION (GAE + Flatten + Norm) ---
+def process_trajectory(transitions: Transition):
+    # Calculate GAE
+    advantages, targets, valid_mask = calculate_gae(transitions)
+    
+    # Flatten (B, T, ...) -> (B*T, ...)
+    flat_transitions = jax.tree.map(lambda x: x.reshape((BATCH_SIZE,) + x.shape[2:]), transitions)
+    advantages = advantages.reshape((BATCH_SIZE, NUM_PLAYERS))
+    targets = targets.reshape((BATCH_SIZE, NUM_PLAYERS))
+    valid_mask = valid_mask.reshape((BATCH_SIZE, NUM_PLAYERS))
 
-        mask_float = valid_mask.astype(jnp.float32)
-        # Normalize Advantage
-        advantages = (advantages - masked_mean(advantages, mask_float)) / (jnp.sqrt(masked_mean((advantages - masked_mean(advantages, mask_float))**2, mask_float)) + 1e-8)
+    mask_float = valid_mask.astype(jnp.float32)
+    # Normalize Advantage
+    advantages = (advantages - masked_mean(advantages, mask_float)) / (jnp.sqrt(masked_mean((advantages - masked_mean(advantages, mask_float))**2, mask_float)) + 1e-8)
+    
+    return flat_transitions, advantages, targets, valid_mask
+
+
+# --- 3. PARAMETER UPDATE ---
+def make_update_fn(network: nn.Module, magnet_params: Optional[Dict[str, Any]] = None):
+    def update_parameters(train_state, key, batch_data):
+        flat_transitions, advantages, targets, valid_mask = batch_data
 
         def train_epoch(epoch_carry, _):
             train_state_inner, rng_inner = epoch_carry
@@ -240,11 +252,10 @@ def make_update_fn(network: nn.Module, magnet_params: Optional[Dict[str, Any]] =
             new_train_state, metrics = lax.scan(train_minibatch, train_state_inner, minibatches)
             return (new_train_state, rng_inner), jax.tree.map(jnp.mean, metrics)
 
-        (train_state, rng), metrics = lax.scan(train_epoch, (train_state, rng), None, length=args.update_epochs)
+        (train_state, _), metrics = lax.scan(train_epoch, (train_state, key), None, length=args.update_epochs)
         
-        stats = {"avg_episode_len": jnp.mean(transitions.is_new_episode.astype(jnp.float32)), "avg_reward": jnp.mean(transitions.reward[..., 0])}
-        return (train_state, env_state, rng), (jax.tree.map(jnp.mean, metrics), stats)
-    return update_step
+        return train_state, jax.tree.map(jnp.mean, metrics)
+    return update_parameters
 
 
 def make_evaluator(network: nn.Module, num_eval_envs, baseline_params):
@@ -321,10 +332,12 @@ def train(rng_key):
         print("Using random anchor.", flush=True); magnet_params = params
     # Initialize environment states
     env_state = jax.vmap(BASE_ENV.init)(jax.random.split(key_reset, args.num_envs))
-    # Runner state: (train_state, magnet_params, env_state, rng)
-    runner_state = (train_state, env_state, rng)
-    # JIT functions
+    
+    # --- JIT FUNCTIONS ---
+    collect_rollout_fn = jax.jit(make_collect_rollout_fn(network))
+    process_traj_fn = jax.jit(process_trajectory)
     update_step_fn = jax.jit(make_update_fn(network, magnet_params))
+    
     evaluator_fn = jax.jit(make_evaluator(network, args.eval_num_envs, magnet_params))
     steps, start_time = 0, time.time()
 
@@ -335,12 +348,22 @@ def train(rng_key):
         return rng
 
     if args.do_eval:
-        runner_state = (*runner_state[:-1], eval_and_log(runner_state[-1], steps, 0, runner_state[0].params))
+        rng = eval_and_log(rng, steps, 0, train_state.params)
 
     for i in range(NUM_UPDATES):
-        runner_state, (loss_metrics, stats) = update_step_fn(runner_state, jnp.array(i, dtype=jnp.int32))
+        # 1. Collect Data
+        rng, key_rollout = jax.random.split(rng)
+        env_state, transitions = collect_rollout_fn(train_state.params, env_state, key_rollout)
+        # 2. Prepare Data (Calculate GAE, Flatten, Normalize)
+        batch_data = process_traj_fn(transitions)
+        # 3. Update Parameters
+        rng, key_update = jax.random.split(rng)
+        train_state, loss_metrics = update_step_fn(train_state, key_update, batch_data)
+        
         steps += BATCH_SIZE
-        inv_len = stats["avg_episode_len"]
+        inv_len = jnp.mean(transitions.is_new_episode.astype(jnp.float32))
+        avg_reward = jnp.mean(transitions.reward[..., 0])
+
         wandb.log({
             "steps": steps, "update": i + 1,
             "train/loss_total": float(loss_metrics["total_loss"]),
@@ -351,16 +374,16 @@ def train(rng_key):
             "train/mag_kl": float(loss_metrics["mag_kl"]),
             "train/clip_frac": float(loss_metrics["clip_frac"]),
             "train/explained_var": float(loss_metrics["explained_var"]),
-            "train/avg_reward": float(stats["avg_reward"]),
+            "train/avg_reward": float(avg_reward),
             "train/avg_eps_len": float(1.0/inv_len) if inv_len > 0 else float('nan'),
-            "train/avg_return": float(stats["avg_reward"]/inv_len) if inv_len > 0 else float('nan')
+            "train/avg_return": float(avg_reward/inv_len) if inv_len > 0 else float('nan')
         })
 
         if args.do_eval and ((i + 1) % args.eval_interval == 0 or i + 1 == NUM_UPDATES):
-            runner_state = (*runner_state[:-1], eval_and_log(runner_state[-1], steps, i + 1, runner_state[0].params))
-
+            rng = eval_and_log(rng, steps, i + 1, train_state.params)
+    print(f"Training time: {time.time() - start_time} seconds", flush=True)
     wandb.log({"train_time": time.time() - start_time, "steps": steps})
-    return runner_state[0]
+    return train_state
 
 if __name__ == "__main__":
     wandb.init(project=args.wandb_project, config=args.dict())
