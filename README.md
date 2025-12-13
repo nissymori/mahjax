@@ -21,6 +21,11 @@ We aim to complement this by offering a full-scale Japanese Riichi Mahjong envir
 For more details, please refer to the [Documentation](link_to_docs) (**TODO links**).
 
 # Quick Start
+### Install
+Mahjax is available on PyPI. Please make sure that your Python environment has jax and jaxlib installed, depending on your hardware specification.
+```bash
+pip install mahjax
+```
 
 ### Basic Usage
 We basically follow the [Pgx](https://github.com/sotetsuk/pgx) API design.
@@ -119,6 +124,7 @@ Jax based environments
 - [habara-k](https://github.com/habara-k): For developing core JAX components such as shanten and Yaku calculation.
 - [OkanoShinri](https://github.com/OkanoShinri): For the initial implementation of MahJax and its SVG visualization.
 - [easonyu0203](easonyu0203): For advise on PPO implementation in multi-player imperfect information game.
+
 
 
 
