@@ -80,9 +80,10 @@ Open http://localhost:8000 to start playing.
 
 ### Playing Against Your Agent
 You can register your trained agent to appear in the UI's agent selector.
-Create a python script (e.g., `my_actor.py`) and register your agent's act function:
+Create a python script (e.g., `my_app.py`) and register your agent's act function:
 
 ```py
+### my_app.py
 from pathlib import Path
 from mahjax.ui.app import create_app
 
@@ -95,7 +96,7 @@ app.state.manager.registry.load_callable_from_path(
     description="My Custom Agent",
 )
 ```
-**TODO: write**
+Run `uvicorn my_ui:app --port 8000`.    
 
 # See also
 
@@ -118,6 +119,7 @@ Jax based environments
 - [habara-k](https://github.com/habara-k): For developing core JAX components such as shanten and Yaku calculation.
 - [OkanoShinri](https://github.com/OkanoShinri): For the initial implementation of MahJax and its SVG visualization.
 - [easonyu0203](easonyu0203): For advise on PPO implementation in multi-player imperfect information game.
+
 
 
 
