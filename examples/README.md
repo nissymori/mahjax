@@ -3,9 +3,9 @@
 This repository provides a complete pipeline for training Mahjong agents in a **single-round** "no red dora" setting (the game ends after one round regardless of the outcome).
 
 The code covers three main steps:
-1. **Data Collection:** Collecting gameplay data using a rule-based agent (`collect_offline_data.py`).
-2. **Behavior Cloning (BC):** Training a baseline model using supervised learning (`bc.py`).
-3. **Reinforcement Learning (RL):** Training a PPO agent with regularization towards the BC model (`ppo_with_reg.py`).
+1. **Data Collection:** Collecting gameplay data using a rule-based agent ([`collect_offline_data.py`](collect_offline_data).
+2. **Behavior Cloning (BC):** Training a baseline model using supervised learning ([`bc.py`](https://github.com/nissymori/mahjax/blob/main/examples/bc.py).
+3. **Reinforcement Learning (RL):** Training a PPO agent with regularization towards the BC model ([`ppo_with_reg.py`](https://github.com/nissymori/mahjax/blob/main/examples/ppo_reg.py).
 
 <div align="center">
 <img src="https://github.com/nissymori/mahjax/blob/main/examples/assets/results.png" width="90%">
@@ -15,7 +15,7 @@ The code covers three main steps:
 We collect training data using a hand-crafted rule-based agent (designed to minimize shanten, etc.). Please refer to [`mahjax/no_red_mahjong/rule_based_players.py`](https://github.com/nissymori/mahjax/blob/main/mahjax/no_red_mahjong/rule_based_players.py) for implementation details.
 
 In this example, we adopt a Transformer architecture that utilizes dictionary-based observations.
-- **Network Architecture:** Refer to `networks.py` for details.
+- **Network Architecture:** Refer to [`networks.py`](https://github.com/nissymori/mahjax/blob/main/examples/network.py) for details.
 - **Observation Semantics:** Documentation is available [here](https://github.com/nissymori/mahjax/blob/ea6aa59521d1bbdae0876638af5a200b992c8bb7/mahjax/no_red_mahjong/env.py#L1810).
 - **Note for CNN Users:** If you prefer to train CNN-based agents (common in the Mahjong AI community), please use [`observe_2D`](https://github.com/nissymori/mahjax/blob/ea6aa59521d1bbdae0876638af5a200b992c8bb7/mahjax/no_red_mahjong/env.py#L1871) instead.
 
