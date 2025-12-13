@@ -12,12 +12,12 @@ The code covers three main steps:
 </div>
 
 ### Data Collection
-We collect training data using a hand-crafted rule-based agent (designed to minimize shanten, etc.). Please refer to [`mahjax/no_red_mahjong/rule_based_players.py`]() for implementation details.
+We collect training data using a hand-crafted rule-based agent (designed to minimize shanten, etc.). Please refer to [`mahjax/no_red_mahjong/rule_based_players.py`](https://github.com/nissymori/mahjax/blob/main/mahjax/no_red_mahjong/rule_based_players.py) for implementation details.
 
 In this example, we adopt a Transformer architecture that utilizes dictionary-based observations.
-- **Network Architecture:** Refer to [`networks.py`]() for details.
-- **Observation Semantics:** Documentation is available [here]().
-- **Note for CNN Users:** If you prefer to train CNN-based agents (common in the Mahjong AI community), please use [`observe_2D`]() instead.
+- **Network Architecture:** Refer to `networks.py` for details.
+- **Observation Semantics:** Documentation is available [here](https://github.com/nissymori/mahjax/blob/ea6aa59521d1bbdae0876638af5a200b992c8bb7/mahjax/no_red_mahjong/env.py#L1810).
+- **Note for CNN Users:** If you prefer to train CNN-based agents (common in the Mahjong AI community), please use [`observe_2D`](https://github.com/nissymori/mahjax/blob/ea6aa59521d1bbdae0876638af5a200b992c8bb7/mahjax/no_red_mahjong/env.py#L1871) instead.
 
 ### Behavior Cloning and RL with Regularization
 As shown in the figure, our BC agent achieves reasonable accuracy (**TODO: Note on overfitting**).
