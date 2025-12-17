@@ -169,6 +169,8 @@ class Env(abc.ABC):
         Returns:
             State: initial state of environment
         """
+        ...
+
 
     def step(
         self,
@@ -186,6 +188,8 @@ class Env(abc.ABC):
         Returns:
             State: State after processing the action
         """
+        ...
+
 
     def observe(self, state: State) -> Array:
         """
@@ -197,6 +201,7 @@ class Env(abc.ABC):
         Returns:
             Array: Observation of the state
         """
+        ...
 
 
     @property
