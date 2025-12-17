@@ -191,7 +191,7 @@ class Mahjong:
 
     @property
     def id(self) -> str:
-        return "mahjong"  # type:ignore
+        return "no_red_mahjong"  # type:ignore
 
     @property
     def version(self) -> str:

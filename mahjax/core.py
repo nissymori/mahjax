@@ -168,10 +168,7 @@ class Env(abc.ABC):
 
         Returns:
             State: initial state of environment
-
         """
-        state = self._init(key)
-        return state
 
     def step(
         self,
@@ -179,62 +176,28 @@ class Env(abc.ABC):
         action: Array,
         key: Optional[Array] = None,
     ) -> State:
-        """Step function."""
-        is_illegal = ~state.legal_action_mask[action]
-        current_player = state.current_player
+        """Step function.
 
-        # If the state is already terminated or truncated, environment does not take usual step,
-        # but return the same state with zero-rewards for all players
-        state = jax.lax.cond(
-            (state.terminated | state.truncated),
-            lambda: state.replace(rewards=jnp.zeros_like(state.rewards)),  # type: ignore
-            lambda: self._step(state.replace(_step_count=state._step_count + 1), action, key),  # type: ignore
-        )
+        Args:
+            state: State: Current state of the game
+            action: Array: Action to be performed
+            key: PRNGKey: Pseudo-random generator key in JAX
 
-        # Taking illegal action leads to immediate game terminal with negative reward
-        state = jax.lax.cond(
-            is_illegal,
-            lambda: self._step_with_illegal_action(state, current_player),
-            lambda: state,
-        )
+        Returns:
+            State: State after processing the action
+        """
 
-        # All legal_action_mask elements are **TRUE** at terminal state
-        # This is to avoid zero-division error when normalizing action probability
-        # Taking any action at terminal state does not give any effect to the state
-        state = jax.lax.cond(
-            state.terminated,
-            lambda: state.replace(legal_action_mask=jnp.ones_like(state.legal_action_mask)),  # type: ignore
-            lambda: state,
-        )
+    def observe(self, state: State) -> Array:
+        """
+        Observation function.
 
-        return state
+        Args:
+            state: State: Current state of the game
 
-    def observe(self, state: State, player_id: Optional[Array] = None) -> Array:
-        """Observation function."""
-        if player_id is None:
-            player_id = state.current_player
-        else:
-            warnings.warn(
-                "[Mahjax] `player_id` in `observe` is deprecated. This argument will be removed in the future.",
-                DeprecationWarning,
-            )
-        obs = self._observe(state, player_id)
-        return jax.lax.stop_gradient(obs)
+        Returns:
+            Array: Observation of the state
+        """
 
-    @abc.abstractmethod
-    def _init(self, key: PRNGKey) -> State:
-        """Implement game-specific init function here."""
-        ...
-
-    @abc.abstractmethod
-    def _step(self, state, action, key) -> State:
-        """Implement game-specific step function here."""
-        ...
-
-    @abc.abstractmethod
-    def _observe(self, state: State, player_id: Array) -> Array:
-        """Implement game-specific observe function here."""
-        ...
 
     @property
     @abc.abstractmethod
@@ -265,9 +228,7 @@ class Env(abc.ABC):
     @property
     def observation_shape(self) -> Tuple[int, ...]:
         """Return the matrix shape of observation"""
-        state = self.init(jax.random.PRNGKey(0))
-        obs = self._observe(state, state.current_player)
-        return obs.shape
+
 
     @property
     def _illegal_action_penalty(self) -> float:
@@ -275,10 +236,8 @@ class Env(abc.ABC):
         return -1.0
 
     def _step_with_illegal_action(self, state: State, loser: Array) -> State:
-        penalty = self._illegal_action_penalty
-        reward = jnp.ones_like(state.rewards) * (-1 * penalty) * (self.num_players - 1)
-        reward = reward.at[loser].set(penalty)
-        return state.replace(rewards=reward, terminated=TRUE)  # type: ignore
+        """Step function with illegal action."""
+
 
 
 def available_envs() -> Tuple[EnvId, ...]:
