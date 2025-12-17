@@ -18,8 +18,8 @@ from typing import Dict, List, Optional, Tuple
 import jax
 import jax.numpy as jnp
 
-from mahjax.core import Env
 from mahjax._src.types import Array, PRNGKey
+from mahjax.core import Env
 from mahjax.no_red_mahjong.action import Action
 from mahjax.no_red_mahjong.hand import Hand
 from mahjax.no_red_mahjong.meld import Meld
@@ -1528,7 +1528,7 @@ def _tsumo(state: State):
     is_pure_first_turn = _is_first_turn(state._next_deck_ix) & (
         state._n_meld.sum() == 0
     )
-    is_hand_yakuman = (state._fu[c_p, 0] == 0)
+    is_hand_yakuman = state._fu[c_p, 0] == 0
     is_yakuman = is_hand_yakuman | is_pure_first_turn
     fan = state._fan[c_p, 0]
     fan = jnp.where(
@@ -1538,7 +1538,7 @@ def _tsumo(state: State):
             is_pure_first_turn,  # Blessing of the Heaven(天和) and Earth(地和)
             1,
             fan,
-        )
+        ),
     )
     fan = jnp.where(
         is_yakuman,
@@ -1696,14 +1696,22 @@ def _next_round(state: State):
         hora = s._has_won  # (4,)
         is_tempai = s._can_win.any(axis=-1)  # (4,)
         dealer = s._dealer
-        is_eight_consecutive_deals = s._honba >= 8  # 8 consecutive deals means the honba moves to the next round
+        is_eight_consecutive_deals = (
+            s._honba >= 8
+        )  # 8 consecutive deals means the honba moves to the next round
         has_other_than_dealer_won = hora.any() & ~hora[dealer]
-        will_dealer_continue = jnp.logical_or(is_tempai[dealer] & ~has_other_than_dealer_won, hora[dealer])
+        will_dealer_continue = jnp.logical_or(
+            is_tempai[dealer] & ~has_other_than_dealer_won, hora[dealer]
+        )
         will_dealer_continue = will_dealer_continue & ~is_eight_consecutive_deals
         next_round = jnp.where(will_dealer_continue, s._round, s._round + 1)
         has_winner = hora.any()
-        next_honba = jnp.where(~has_winner | will_dealer_continue, s._honba + 1, 0)  # if there is no winner or the dealer continues, the honba is incremented
-        next_dealer = jnp.where(will_dealer_continue, dealer, (dealer + 1) % 4)  # if the dealer continues, the dealer is kept, otherwise the dealer is incremented
+        next_honba = jnp.where(
+            ~has_winner | will_dealer_continue, s._honba + 1, 0
+        )  # if there is no winner or the dealer continues, the honba is incremented
+        next_dealer = jnp.where(
+            will_dealer_continue, dealer, (dealer + 1) % 4
+        )  # if the dealer continues, the dealer is kept, otherwise the dealer is incremented
 
         rng, subkey = jax.random.split(s._rng_key)
 
@@ -1847,7 +1855,7 @@ def _observe_dict(state: State) -> Dict:
     hand_c_p_34 = state._hand[c_p]
     hand_c_p_14 = hand_counts_to_idx(hand_c_p_34)
     # action histories
-    player_history = state._action_history[0, :].astype(jnp.int32) # (200,)
+    player_history = state._action_history[0, :].astype(jnp.int32)  # (200,)
     valid_history = player_history >= 0  # default value is -1, so we need to mask it
     relative_player_history = jnp.mod(player_history - jnp.int32(c_p), 4).astype(
         state._action_history.dtype
@@ -1866,9 +1874,8 @@ def _observe_dict(state: State) -> Dict:
     kyotaku = state._kyotaku
     prevalent_wind = state._seat_wind[c_p]
     seat_wind = state._init_wind[c_p]
-    dora_indicators = state._dora_indicators[:4] # (4,)
+    dora_indicators = state._dora_indicators[:4]  # (4,)
     return {
-
         "hand": hand_c_p_14,
         "action_history": action_history,
         "shanten_count": shanten_c_p,

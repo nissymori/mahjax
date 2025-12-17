@@ -31,12 +31,10 @@ FALSE = jnp.bool_(False)
 
 
 def auto_reset(step_fn, init_fn):
-    """Auto reset wrapper.
-    """
+    """Auto reset wrapper."""
 
     def wrapped_step_fn(state: State, action: Array, key: Optional[PRNGKey] = None):
-        assert key is not None, (
-        )
+        assert key is not None, ()
 
         key1, key2 = jax.random.split(key)
         state = jax.lax.cond(

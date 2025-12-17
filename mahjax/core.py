@@ -241,6 +241,7 @@ class Env(abc.ABC):
         """Step function with illegal action."""
         ...
 
+
 def available_envs() -> Tuple[EnvId, ...]:
     """List up all environment id available in `mahjax.make` function.
 
