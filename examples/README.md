@@ -20,7 +20,7 @@ In this example, we adopt a Transformer architecture that utilizes dictionary-ba
 - **Note for CNN Users:** If you prefer to train CNN-based agents (common in the Mahjong AI community), please use [`observe_2D`](https://github.com/nissymori/mahjax/blob/ea6aa59521d1bbdae0876638af5a200b992c8bb7/mahjax/no_red_mahjong/env.py#L1871) instead.
 
 ### Behavior Cloning and RL with Regularization
-As shown in the figure, our BC agent achieves reasonable accuracy (**TODO: Note on overfitting**).
+As shown in the figure, our BC agent achieves reasonable accuracy.
 
 For the RL phase, we use the pretrained BC agent as a regularizer to enhance sample efficiency. In addition to the standard PPO loss, we add a KL-divergence penalty that keeps the policy close to the BC agent during training.
 
