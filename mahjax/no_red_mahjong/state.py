@@ -19,7 +19,6 @@ import jax.numpy as jnp
 import mahjax.core as core
 from mahjax._src.struct import dataclass
 from mahjax._src.types import Array, PRNGKey
-from mahjax.no_red_mahjong.action import Action
 from mahjax.no_red_mahjong.meld import EMPTY_MELD
 from mahjax.no_red_mahjong.tile import EMPTY_RIVER, Tile
 

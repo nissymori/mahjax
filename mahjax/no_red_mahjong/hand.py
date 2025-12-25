@@ -42,6 +42,13 @@ powers_of_5_full = jnp.concatenate(
 
 
 class Hand:
+    """
+    Hand class
+
+    Hand is assumed to be a count vector of 34 tiles.
+    e.g. if hand is 1112225678999m, then
+    hand = [3, 3, 0, 0, 1, 1, 1, 1, 3, 0, ...]
+    """
     # Load the cache
     CACHE = load_hand_cache()
     # Mask for kyuushu
@@ -107,8 +114,11 @@ class Hand:
         return (Hand.CACHE[code >> 5] >> (code & 0b11111)) & 1
 
     @staticmethod
-    def can_chi(hand: Array, tile, action) -> bool:
-        """Judge whether it is possible to play chi"""
+    def can_chi(hand: Array, tile: Array, action: Array) -> bool:
+        """
+        Judge whether it is possible to play chi
+        - We need to have tiles to form a set with the target tile
+        """
         can_black_chi = jax.lax.switch(
             action - Action.CHI_L,
             [
@@ -130,22 +140,33 @@ class Hand:
 
     @staticmethod
     def can_pon(hand: Array, tile) -> bool:
-        """Judge whether it is possible to play pon"""
+        """
+        Judge whether it is possible to play pon
+        - The tile count should be 2
+        """
         return hand[tile] >= 2  # type: ignore
 
     @staticmethod
     def can_open_kan(hand: Array, tile) -> bool:
-        """Judge whether it is possible to play open kan"""
+        """
+        Judge whether it is possible to play open kan
+        """
         return hand[tile] == 3
 
     @staticmethod
     def can_added_kan(hand: Array, tile) -> bool:
-        """Judge whether it is possible to play added kan"""
+        """
+        Judge whether it is possible to play added kan
+        - The tile count should be 1
+        """
         return hand[tile] == 1  # type: ignore
 
     @staticmethod
     def can_closed_kan(hand: Array, tile) -> bool:
-        """Judge whether it is possible to play closed kan"""
+        """
+        Judge whether it is possible to play closed kan
+        - The tile count should be 4
+        """
         return hand[tile] == 4
 
     @staticmethod
@@ -171,27 +192,14 @@ class Hand:
         return can_closed_kan & _check_identity()
 
     @staticmethod
-    def is_tenpai(hand: Array):
-        """Judge whether the hand is tenpai (hand is 13 tiles)"""
-        return jax.vmap(
-            lambda tile_type: (hand[tile_type] != 4) & Hand.can_ron(hand, tile_type)
-        )(jnp.arange(Tile.NUM_TILE_TYPE)).any()
-
-    @staticmethod
-    def can_ron(hand: Array, tile):
-        """Whether the hand can be won by the tile"""
-        return Hand.can_tsumo(Hand.add(hand, tile))
-
-    @staticmethod
-    def can_riichi(hand: Array):
-        """Judge whether it is possible to play riichi (hand is 14 tiles)"""
-        return jax.vmap(lambda i: (hand[i] != 0) & Hand.is_tenpai(Hand.sub(hand, i)))(
-            jnp.arange(Tile.NUM_TILE_TYPE)
-        ).any()
-
-    @staticmethod
     def can_tsumo(hand: Array):
-        """Judge whether it is possible to win by drawing a tile"""
+        """
+        Judge whether it is possible to win by drawing a tile (hand is 14 tiles)
+        The possible winning hands are:
+        - thirteen orphan e.g. 19m19p19sESWNWGR
+        - seven pairs e.g. 11223344556677s
+        - 1head + 4 sets e.g. 1112345678m123p11s
+        """
         thirteen_orphan = (hand[THIRTEEN_ORPHAN_IDX] > 0).all() & (
             hand[THIRTEEN_ORPHAN_IDX].sum() == 14
         )
@@ -212,16 +220,55 @@ class Hand:
         return ((valid & (heads == 1)) | thirteen_orphan | seven_pairs) == 1
 
     @staticmethod
+    def can_ron(hand: Array, tile):
+        """
+        Judge whether the hand can be won by the tile (hand has 14 tiles)
+        It is done by checking if the hand added by the tile can be won by tsumo.
+        """
+        return Hand.can_tsumo(Hand.add(hand, tile))
+
+    @staticmethod
+    def is_tenpai(hand: Array):
+        """
+        Judge whether the hand is tenpai, ready to win (hand has 14 tiles)
+        It is done by checking if any tile can be discarded to make the hand ron.
+        e.g.
+        - 1112345678999m ... => True
+        - 111234567899mE ... => False
+        """
+        return jax.vmap(
+            lambda tile_type: (hand[tile_type] != 4) & Hand.can_ron(hand, tile_type)
+        )(jnp.arange(Tile.NUM_TILE_TYPE)).any()
+
+    @staticmethod
+    def can_riichi(hand: Array):
+        """
+        Judge whether it is possible to play riichi (hand has 14 tiles)
+        It is done by checking if any tile can be discarded to make the hand tenpai.
+        """
+        return jax.vmap(lambda i: (hand[i] != 0) & Hand.is_tenpai(Hand.sub(hand, i)))(
+            jnp.arange(Tile.NUM_TILE_TYPE)
+        ).any()
+
+    @staticmethod
     def add(hand: Array, tile, x=1) -> Array:
+        """
+        Add x tiles to the hand
+        """
         return hand.at[tile].set(hand[tile] + x)
 
     @staticmethod
     def sub(hand: Array, tile, x=1) -> Array:
+        """
+        Subtract x tiles from the hand
+        """
         return Hand.add(hand, tile, -x)
 
     @staticmethod
     def chi(hand: Array, tile, action) -> Array:
-        """Apply the results of chi to the hand"""
+        """
+        Apply the results of chi to the hand
+        """
         chi_idx = action - Action.CHI_L
         start = tile - chi_idx
         hand = hand.at[jnp.array([start, start + 1, start + 2])].add(-1)
@@ -230,20 +277,28 @@ class Hand:
 
     @staticmethod
     def pon(hand: Array, tile) -> Array:
-        """Apply the results of pon to the hand"""
+        """
+        Apply the results of pon to the hand
+        """
         return Hand.sub(hand, tile, 2)
 
     @staticmethod
     def open_kan(hand: Array, tile) -> Array:
-        """Apply the results of open kan to the hand"""
+        """
+        Apply the results of open kan to the hand
+        """
         return Hand.sub(hand, tile, 3)
 
     @staticmethod
     def added_kan(hand: Array, tile) -> Array:
-        """Apply the results of added kan to the hand"""
+        """
+        Apply the results of added kan to the hand
+        """
         return Hand.sub(hand, tile)
 
     @staticmethod
     def closed_kan(hand: Array, tile) -> Array:
-        """Apply the results of closed kan to the hand"""
+        """
+        Apply the results of closed kan to the hand
+        """
         return Hand.sub(hand, tile, 4)

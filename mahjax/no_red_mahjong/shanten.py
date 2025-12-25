@@ -15,6 +15,7 @@
 
 import json
 import os
+from typing import Tuple
 
 import jax
 import jax.numpy as jnp
@@ -48,7 +49,7 @@ class Shanten:
 
         return jax.vmap(f)(jnp.arange(34, dtype=jnp.int32))
 
-    def detailed_discard(hand: Array):
+    def detailed_discard(hand: Array) -> Array:
         def f(i):
             i = jnp.int32(i)
             return jax.lax.cond(
@@ -60,7 +61,7 @@ class Shanten:
         return jax.vmap(f)(jnp.arange(34, dtype=jnp.int32))  # (34, 3)
 
     @staticmethod
-    def number(hand: Array):
+    def number(hand: Array) -> Array:
         return (
             jnp.min(
                 jnp.array(
@@ -75,7 +76,7 @@ class Shanten:
         )  # Standard shanten number notation
 
     @staticmethod
-    def detailed_number(hand: Array):
+    def detailed_number(hand: Array) -> Array:
         return jnp.array(
             [
                 Shanten.normal(hand),
@@ -85,21 +86,21 @@ class Shanten:
         )
 
     @staticmethod
-    def seven_pairs(hand: Array):
+    def seven_pairs(hand: Array) -> Array:
         n_pair = jnp.sum(hand >= 2)
         n_kind = jnp.sum(hand > 0)
         return 7 - n_pair + jax.lax.max(7 - n_kind, 0)
 
     @staticmethod
-    def thirteen_orphan(hand: Array):
+    def thirteen_orphan(hand: Array) -> Array:
         n_pair = jnp.sum(hand[THIRTEEN_ORPHAN_IDX] >= 2)
         n_kind = jnp.sum(hand[THIRTEEN_ORPHAN_IDX] > 0)
         return 14 - n_kind - (n_pair > 0)
 
     @staticmethod
-    def normal(hand: Array) -> int:
+    def normal(hand: Array) -> Array:
         # --- code generation (int32 fixed) ---
-        def encode_suit(suit: int):
+        def encode_suit(suit):
             def loop_rng(start, stop):
                 def body(i, code):
                     return code * jnp.int32(5) + hand[i].astype(jnp.int32)
@@ -121,7 +122,7 @@ class Shanten:
         CACHE = Shanten.CACHE  # (N_code, 9)
         J = jnp.int32(CACHE.shape[1])  # == 9
 
-        def gather_elem(c: jnp.ndarray, idx: jnp.ndarray) -> jnp.ndarray:
+        def gather_elem(c, idx):
             lin = c * J + idx
             return jnp.take(CACHE.reshape(-1), lin)
 

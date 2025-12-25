@@ -16,6 +16,7 @@
 import jax
 import jax.numpy as jnp
 
+from mahjax._src.types import Array
 from mahjax.no_red_mahjong.action import Action
 from mahjax.no_red_mahjong.tile import Tile
 
@@ -24,43 +25,44 @@ EMPTY_MELD = jnp.uint16(0xFFFF)
 
 class Meld:
     @staticmethod
-    def init(action, target, src):
+    def init(action: Array, target: Array, src: Array) -> Array:
         """
-        target: tile index (0-34)
-        src: relative position (0-3), 0: self (only for closed kan), 1: right, 2: opposite, 3: left
+        - action: action type (0-78)
+        - target: tile index (0-34)
+        - src: relative position (0-3), 0: self (only for closed kan), 1: right, 2: opposite, 3: left
         16-bit layout: [15..14] unused, [13..11] src, [10..7] target, [6..0] action
         """
         val = (jnp.uint16(src) << 13) | (jnp.uint16(target) << 7) | jnp.uint16(action)
         return val
 
     @staticmethod
-    def empty():
+    def empty() -> Array:
         return EMPTY_MELD
 
     @staticmethod
-    def is_empty(meld) -> bool:
+    def is_empty(meld: Array) -> bool:
         return meld == EMPTY_MELD
 
     @staticmethod
-    def src(meld) -> int:
+    def src(meld: Array) -> Array:
         """
-        Relative position (0-3), 0: self (only for closed kan), 1: right, 2: opposite, 3: left
-        return -1 if empty
+        - Encoded in relative position (0-3), 0: self (only for closed kan), 1: right, 2: opposite, 3: left
+        - return -1 if empty
         """
         is_emp = Meld.is_empty(meld)
         return jnp.where(is_emp, jnp.int32(-1), (meld >> 13) & jnp.uint16(0b11))
 
     @staticmethod
-    def target(meld) -> int:
+    def target(meld: Array) -> Array:
         """
         Target tile index (0-34)
-        return -1 if empty
+        Return -1 if empty
         """
         is_emp = Meld.is_empty(meld)
         return jnp.where(is_emp, jnp.int32(-1), (meld >> 7) & jnp.uint16(0b111111))
 
     @staticmethod
-    def action(meld) -> int:
+    def action(meld: Array) -> Array:
         """
         Action type (0-78)
         return -1 if empty
@@ -69,7 +71,7 @@ class Meld:
         return jnp.where(is_emp, jnp.int32(-1), meld & jnp.uint16(0b1111111))
 
     @staticmethod
-    def suited_pung(meld) -> int:
+    def suited_pung(meld: Array) -> Array:
         """
         Is suited pung << target tile
         """
@@ -85,7 +87,7 @@ class Meld:
         return is_suited_pon.astype(jnp.int32) << target
 
     @staticmethod
-    def chow(meld) -> int:
+    def chow(meld: Array) -> Array:
         """
         Is chow << target tile
         """
@@ -97,7 +99,7 @@ class Meld:
         return is_chi.astype(jnp.int32) << pos
 
     @staticmethod
-    def is_kan(meld) -> bool:
+    def is_kan(meld: Array) -> bool:
         """
         Whether the meld is a kan (open kan or self kan)
         """
@@ -111,7 +113,7 @@ class Meld:
         ) & (~is_emp)
 
     @staticmethod
-    def is_closed_kan(meld) -> bool:
+    def is_closed_kan(meld: Array) -> bool:
         """
         Whether the meld is a closed kan (暗槓)
         """
@@ -126,7 +128,7 @@ class Meld:
         )
 
     @staticmethod
-    def is_added_kan(meld) -> bool:
+    def is_added_kan(meld: Array) -> bool:
         """
         Whether the meld is a added kan (加槓)
         """
@@ -139,19 +141,25 @@ class Meld:
         ) & (~is_emp)
 
     @staticmethod
-    def is_chi(meld) -> bool:
+    def is_chi(meld: Array) -> bool:
+        """
+        Whether the meld is a chi (吃)
+        """
         is_emp = Meld.is_empty(meld)
         action = Meld.action(meld)
         return ((Action.CHI_L <= action) & (action <= Action.CHI_R)) & (~is_emp)
 
     @staticmethod
-    def is_pon(meld) -> bool:
+    def is_pon(meld: Array) -> bool:
+        """
+        Whether the meld is a pon (碰)
+        """
         is_emp = Meld.is_empty(meld)
         action = Meld.action(meld)
         return (action == Action.PON) & (~is_emp)
 
     @staticmethod
-    def is_outside(meld) -> int:
+    def is_outside(meld: Array) -> Array:
         """
         Whether the meld is constructed by (1, 9 or hornors) tiles (幺九牌 or 字牌)
         Example:
@@ -171,7 +179,7 @@ class Meld:
         return ((target >= 27) | (num == 0) | (num == 8)) & (~is_emp) & (is_pon_or_kan)
 
     @staticmethod
-    def has_outside(meld) -> int:
+    def has_outside(meld: Array) -> Array:
         """
         Whether the meld has outside tiles (幺九牌 or 字牌) (1, 9 or hornors)
         Example:
@@ -198,9 +206,13 @@ class Meld:
         return is_outside | for_chi_l | for_chi_m | for_chi_r
 
     @staticmethod
-    def fu(meld) -> int:
+    def fu(meld: Array) -> Array:
         """
         Calculate the fu of the meld
+        - Pon is 2 Fu
+        - Open Kan is 8 Fu
+        - Added Kan is 8 Fu, Closed Kan is 16 Fu
+        - Double Fu for Outside and Honor tiles
         """
         is_emp = Meld.is_empty(meld)
         action = Meld.action(meld)
@@ -217,7 +229,7 @@ class Meld:
         )  # Double Fu for Outside and Honor tiles
 
     @staticmethod
-    def exist_prohibitive_tile_type_after_chi(action, target):
+    def exist_prohibitive_tile_type_after_chi(action: Array, target: Array) -> Array:
         """
         To detect swap-calling.
         """
@@ -226,7 +238,7 @@ class Meld:
         return for_chi_l | for_chi_r
 
     @staticmethod
-    def prohibitive_tile_type_after_chi(action, target):
+    def prohibitive_tile_type_after_chi(action: Array, target: Array) -> Array:
         """
         Limit swap-calling for chi_l and chi_r.
         Example:
@@ -247,7 +259,7 @@ class Meld:
         )
 
     @staticmethod
-    def to_str(meld) -> str:
+    def to_str(meld: Array) -> str:
         is_emp = Meld.is_empty(meld)
         action = Meld.action(meld)
         target = Meld.target(meld)

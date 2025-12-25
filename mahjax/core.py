@@ -124,7 +124,7 @@ class State(abc.ABC):
 
     def save_svg(
         self,
-        filename,
+        filename: str,
         *,
         color_theme: Optional[Literal["light", "dark"]] = None,
         scale: Optional[float] = None,

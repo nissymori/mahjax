@@ -58,8 +58,8 @@ ACTION_FUN_MAP = ACTION_FUN_MAP.at[Action.DUMMY].set(8)
 
 @jax.jit
 def yaku_judge_for_discarded_or_kanned_tile_and_next_draw_tile(
-    state, tile, next_tile, prevalent_wind
-):
+    state: State, tile: Array, next_tile: Array, prevalent_wind: Array
+) -> Tuple[Array, Array, Array]:
     """
     Calculate YAKU for the discarded tile and the next drawn tile
     Args:
@@ -319,13 +319,6 @@ def _init_for_next_round(rng: PRNGKey, state: State) -> State:
     - Generate the new deck
     - Set game-related variables (last player, deck, dora indicators, ura dora indicators, hand, rng key)
     - Succeed the process of _next_round (dealer, seat wind, round, honba, kyotaku, score, etc.)
-
-    Args:
-        rng (PRNGKey): Random number generator key
-        state (State): Current state of the game
-
-    Returns:
-        State: State after processing when the next round is determined
     """
     rng, subkey = jax.random.split(rng)
     last_player = jnp.int8(-1)
@@ -415,12 +408,6 @@ def _step(state: State, action: Array) -> State:
     """
     Branch the process according to the action
     The type of action is referred to mahjong/_action.py
-    Args:
-        state: State: Current state of the game
-        action: Array: Action to be performed
-
-    Returns:
-        State: State after processing the action
     """
     # add action history
     action_history = state._action_history.at[0, state._step_count].set(
@@ -484,7 +471,7 @@ def _step(state: State, action: Array) -> State:
     return state
 
 
-def _draw(state: State):
+def _draw(state: State) -> State:
     """
     Draw a tile from the deck
     - Update the next drawn tile
@@ -492,12 +479,6 @@ def _draw(state: State):
     - Accept the riichi
     - Update the furiten by pass
     - Update the is haitei flag
-
-    Args:
-        state: State: Current state of the game
-
-    Returns:
-        State: State after drawing a tile
     """
     state = _accept_riichi(
         state
@@ -540,23 +521,14 @@ def _draw(state: State):
 
 
 def _make_legal_action_mask_after_draw(
-    state: State, hand: Array, c_p: int, new_tile: int
-):
+    state: State, hand: Array, c_p: Array, new_tile: Array
+) -> Array:
     """
     Legal action mask for the player who drew a tile
     - Set discardable tiles
     - Set if the player can play CLOSED_KAN or ADDED_KAN
     - Set if the player can declare RIICHI
     - Set if the player can win by TSUMO
-
-    Args:
-        state: State: Current state of the game
-        hand: Array: Hand of the player
-        c_p: int: Current player
-        new_tile: int: New tile drawn
-
-    Returns:
-        Array: legal_action_mask (NUM_ACTIONS,)
     """
     tiles_ok = (hand[c_p] > 0).astype(jnp.bool_)
     tiles_ok = tiles_ok.at[new_tile].set(
@@ -602,21 +574,12 @@ def _make_legal_action_mask_after_draw(
 
 
 def _make_legal_action_mask_after_draw_w_riichi(
-    state: State, hand: Array, c_p: int, new_tile: int
-):
+    state: State, hand: Array, c_p: Array, new_tile: Array
+) -> Array:
     """
     Legal action mask for the player who drew a tile and declared RIICHI
     - Set if the player can play CLOSED_KAN
     - Set if the player can win by TSUMO
-
-    Args:
-        state: State: Current state of the game
-        hand: Array: Hand of the player
-        c_p: int: Current player
-        new_tile: int: New tile drawn
-
-    Returns:
-        Array: legal_action_mask (NUM_ACTIONS,)
     """
     mask = ZERO_MASK_1D.at[Action.TSUMOGIRI].set(TRUE)
     can_closed_kan = (
@@ -638,13 +601,6 @@ def _discard(state: State, tile: Array) -> State:
     - Disable AfterKan and Ippatsu
     - If the player can meld, set the next player (RON > KAN, PON > CHI)
     - Check if the game is ended (abortive_draw_normal (流局))
-
-    Args:
-        state: State: Current state of the game
-        tile: Array: Discarded tile
-
-    Returns:
-        State: State after discarding a tile
     """
     c_p = state.current_player
     is_tsumogiri = tile == Action.TSUMOGIRI
@@ -738,15 +694,6 @@ def _make_legal_action_mask_after_discard(
     Legal action mask for the player who discarded a tile
     - For melds (CHI, PON, OPEN_KAN)
     - For RON
-
-    Args:
-        state: State: Current state of the game
-        hand: Array: Hand of the player
-        c_p: Array: Current player
-        tile: Array: Discarded tile
-
-    Returns:
-        Array: legal_action_mask (NUM_ACTIONS,)
     """
     haitei = state._is_haitei
     riichi = state._riichi[c_p]
@@ -774,14 +721,7 @@ def _make_legal_action_mask_after_discard(
 
 def _mask_for_chi(hand: Array, tile: Array) -> Array:
     """
-    - Check if the player can play CHI
-
-    Args:
-        hand: Array: Hand of the player to be checked
-        tile: Array: Discarded tile
-
-    Returns:
-        Array: legal_action_mask (NUM_ACTIONS,)
+    - Check if the player can play CHI with the target tile
     """
     chi_results = jax.vmap(Hand.can_chi, in_axes=(None, None, 0))(
         hand, tile, jnp.arange(Action.CHI_L, Action.CHI_R + 1)
@@ -794,15 +734,7 @@ def _mask_for_chi(hand: Array, tile: Array) -> Array:
 
 def _mask_for_pon_open_kan(hand: Array, tile: Array, cannot_kan: Array) -> Array:
     """
-    - Check if the player can play PON or OPEN_KAN
-
-    Args:
-        hand: Array: Hand of the player to be checked
-        tile: Array: Discarded tile
-        cannot_kan: Array: Whether the player cannot play OPEN_KAN
-
-    Returns:
-        Array: legal_action_mask (NUM_ACTIONS,)
+    - Check if the player can play PON or OPEN_KAN with the target tile
     """
     pon_result = Hand.can_pon(hand, tile)
     open_kan_result = Hand.can_open_kan(hand, tile) & ~cannot_kan
@@ -813,19 +745,12 @@ def _mask_for_pon_open_kan(hand: Array, tile: Array, cannot_kan: Array) -> Array
 
 def _next_ron_player(legal_action_mask_4p: Array, discarded_player: Array) -> Array:
     """
-    - Check if the player can play RON
+    - Check if the player can play RON with the target tile
     - If multiple players can play RON, prioritize the player who is closest to the discarded player
     Example:
         discarded_player = 1, legal_action_mask_4p = [True, False, True, False]
         return 2
 
-    Args:
-        legal_action_mask_4p: Array: Legal action mask for each player
-        discarded_player: Array: Discarded player
-
-    Returns:
-        Array: next_ron_player: Index of the next player to play RON
-        can_any_ron: Whether any player can play RON
     """
     can_ron = (
         legal_action_mask_4p[:, Action.RON] > 0
@@ -840,18 +765,10 @@ def _next_ron_player(legal_action_mask_4p: Array, discarded_player: Array) -> Ar
 
 def _next_meld_player(legal_action_mask_4p: Array, discarded_player: Array) -> Array:
     """
-    Set the next player from the legal action.
-    - Set the next player from the legal action (RON > OPEN_KAN > PON > CHI)
+    Set the next player from the legal action for melding.
+    - Set the next player from the legal action (RON > OPEN_KAN, PON > CHI)
     - Prioritize the player who is the closest to the discarded player if multiple players can play RON
-    - Used in _discard()
-
-    Args:
-        legal_action_mask_4p: Array: Legal action mask for each player
-        discarded_player: Array: Discarded player
-
-    Returns:
-        Array: next_meld_player: Index of the next player to play MELD
-        can_any: Whether any player can play MELD
+    - Used in _discard() to set the next player for melding
     """
     can_chi = (
         legal_action_mask_4p[:, Action.CHI_L : Action.CHI_R + 1].sum(axis=1) > 0
@@ -883,17 +800,9 @@ def _next_meld_player(legal_action_mask_4p: Array, discarded_player: Array) -> A
     return idx, can_any.any()
 
 
-def _append_meld(state: State, meld, player):
+def _append_meld(state: State, meld: Array, player: Array) -> State:
     """
     Append the meld to the state
-
-    Args:
-        state: State: Current state of the game
-        meld: Array: Meld to be appended
-        player: Array: Player who played the meld
-
-    Returns:
-        State: State after appending the meld
     """
     melds = state._melds.at[(player, state._n_meld[player])].set(meld)
     n_meld = state._n_meld.at[player].add(1)
@@ -909,12 +818,6 @@ def _accept_riichi(state: State) -> State:
     - Update the kyotaku
     - Set the Ippatsu flag
     - Check if the player has Double Riichi
-
-    Args:
-        state: State: Current state of the game
-
-    Returns:
-        State: State after accepting the RIICHI
     """
     l_p = state._last_player
     already_riichi = state._riichi[l_p]  # Whether the player has already RIICHI
@@ -958,13 +861,6 @@ def _accept_riichi(state: State) -> State:
 def _is_waiting_tile(can_ron: Array, tile: int) -> bool:
     """
     Check if the tile is a waiting tile
-
-    Args:
-        can_ron: Array: Whether the player can play RON
-        tile: Array: Tile to be checked
-
-    Returns:
-        Array: Whether the tile is a waiting tile
     """
     return (tile != -1) & can_ron[tile]
 
@@ -980,12 +876,6 @@ def _draw_after_kan(state: State):
     - Draw the rinshan tile
     - Calculate legal_action_mask for the player who drew the tile
     - Set the AfterKan flag (嶺上開花)
-
-    Args:
-        state: State: Current state of the game
-
-    Returns:
-        State: State after processing when a KAN is Accepted
     """
     c_p = state.current_player
     n_kan = state._n_kan.sum()  # The number of kan
@@ -1052,13 +942,6 @@ def _kan(state: State, action):
     - Calculate YAKU for the Robbing KAN and the rinshan tile
     - Apply KAN action
     - Disable Ippatsu
-
-    Args:
-        state: State: Current state of the game
-        action: Array: Action to be processed
-
-    Returns:
-        State: State after processing when a KAN is Declared
     """
     c_p = state.current_player
     tile = action - Tile.NUM_TILE_TYPE
@@ -1124,14 +1007,6 @@ def _selfkan(state: State, action, is_added_kan):
     - Branch between ADDED_KAN and CLOSED_KAN
     - Draw the rinshan tile
     - Set the legal action after drawing the rinshan tile
-
-    Args:
-        state: State: Current state of the game
-        action: Array: Action to be processed
-        is_added_kan: Array: Whether the player can play ADDED_KAN
-
-    Returns:
-        State: State after processing when a KAN is Declared
     """
     target = action - Tile.NUM_TILE_TYPE  # Convert to 0-34
     return jax.lax.cond(
@@ -1146,13 +1021,6 @@ def _closed_kan(state: State, target):
     Apply CLOSED_KAN
     - Generate a meld from the target
     - Update the hand and meld
-
-    Args:
-        state: State: Current state of the game
-        target: Array: Target tile for CLOSED_KAN
-
-    Returns:
-        State: State after processing when a CLOSED_KAN is Declared
     """
     c_p = state.current_player
     meld = Meld.init(target + Tile.NUM_TILE_TYPE, target, src=0)
@@ -1168,13 +1036,6 @@ def _added_kan(state: State, target):
     Apply ADDED_KAN
     - Generate a meld from the target
     - Update the hand and meld
-
-    Args:
-        state: State: Current state of the game
-        target: Array: Target tile for ADDED_KAN
-
-    Returns:
-        State: State after processing when a ADDED_KAN is Declared
     """
     c_p = state.current_player
     pon = state._pon[(c_p, target)]
@@ -1198,13 +1059,6 @@ def _open_kan(state: State):
     Apply OPEN_KAN
     - Generate a meld from the target
     - Update the hand and meld
-
-    Args:
-        state: State: Current state of the game
-        target: Array: Target tile for OPEN_KAN
-
-    Returns:
-        State: State after processing when a OPEN_KAN is Declared
     """
     c_p = state.current_player
     l_p = state._last_player
@@ -1226,18 +1080,11 @@ def _open_kan(state: State):
     )
 
 
-def _pon(state: State, action):
+def _pon(state: State, action: Array):
     """
     Apply PON
     - Generate a meld from the target
     - Update the hand and meld
-
-    Args:
-        state: State: Current state of the game
-        action: Array: Action to be processed
-
-    Returns:
-        State: State after processing when a PON is Declared
     """
     c_p = state.current_player
     l_p = state._last_player
@@ -1273,18 +1120,11 @@ def _pon(state: State, action):
     )
 
 
-def _chi(state: State, action):
+def _chi(state: State, action: Array):
     """
     Apply CHI
     - Generate a meld from the target
     - Update the hand and meld
-
-    Args:
-        state: State: Current state of the game
-        action: Array: Action to be processed
-
-    Returns:
-        State: State after processing when a CHI is Declared
     """
     c_p = state.current_player
     tar_p = state._last_player  # Absolute position
@@ -1315,21 +1155,13 @@ def _chi(state: State, action):
     )
 
 
-def _make_legal_action_mask_after_chi(state: State, hand, c_p, target, action):
+def _make_legal_action_mask_after_chi(
+    state: State, hand: Array, c_p: Array, target: Array, action: Array
+) -> Array:
     """
-    Generate legal action for CHI
-    - Prohibit eating changes
+    Generate legal action after CHI
+    - Prohibit eating changes (喰いかえ)
     - If the prohibited tile is 5, also prohibit red tiles
-
-    Args:
-        state: State: Current state of the game
-        hand: Array: Hand of the player
-        c_p: Array: Current player
-        target: Array: Target tile for CHI
-        action: Array: Action to be processed
-
-    Returns:
-        Array: Legal action for CHI
     """
     prohibitive_tile_type = Meld.prohibitive_tile_type_after_chi(
         action, target
@@ -1354,12 +1186,6 @@ def _pass(state: State):
     - For discarded tile
     - If the player who can RON, KAN, PON, CHI passes, set the next player from the legal action
     - If no next meld player, proceed to the next player's draw
-
-    Args:
-        state: State: Current state of the game
-
-    Returns:
-        State: State after processing when a PASS is Declared
     """
     c_p = state.current_player
     # If the player who declared the KAN passes, set the next player from the legal action
@@ -1374,7 +1200,7 @@ def _pass(state: State):
     # Check if the game is ended (abortive_draw_normal (流局))
     is_abortive_draw_normal = (
         state._next_deck_ix < state._last_deck_ix
-    )  # ツモ牌が残っていない場合
+    )  # If the next deck index is less than the last deck index, the game is ended (abortive_draw_normal (流局))
     return jax.lax.cond(
         no_meld_player,
         lambda: state.replace(  # type:ignore
@@ -1412,12 +1238,6 @@ def _riichi(state: State):
     Apply RIICHI
     - Set the RIICHI declared flag
     - Generate the legal action for the player after RIICHI
-
-    Args:
-        state: State: Current state of the game
-
-    Returns:
-        State: State after processing when a RIICHI is Declared
     """
     c_p = state.current_player
     legal_action_mask_for_discard = jax.vmap(Hand.is_tenpai)(
@@ -1446,17 +1266,11 @@ def _riichi(state: State):
     )
 
 
-def _ron(state: State):
+def _ron(state: State) -> State:
     """
     Apply RON
     - Calculate the score of the winner (consider only the remainder when divided by 100)
     - Clear the Kyotaku
-
-    Args:
-        state: State: Current state of the game
-
-    Returns:
-        State: State after processing when a RON is Declared
     """
     c_p = state.current_player
     is_ippatsu = state._ippatsu[c_p] & state._riichi[c_p]  # Ippatsu (一発)
@@ -1502,7 +1316,7 @@ def _ron(state: State):
     )
 
 
-def _tsumo(state: State):
+def _tsumo(state: State) -> State:
     """
     Apply TSUUMO
     - Calculate the score of the winner
@@ -1510,11 +1324,6 @@ def _tsumo(state: State):
     - terminated=true
     - Clear the Kyotaku
     - Check if the game is ended (abortive_draw_normal (流局))
-    Args:
-        state: State: Current state of the game
-
-    Returns:
-        State: State after processing when a TSUUMO is Declared
     """
     c_p = state.current_player
     _dealer = state._dealer
@@ -1595,7 +1404,7 @@ def _tsumo(state: State):
     )
 
 
-def _abortive_draw_normal(state: State):
+def _abortive_draw_normal(state: State) -> State:
     """
     Apply ABORTIVE_DRAW_NORMAL
     - Calculate the score of the winner
@@ -1603,11 +1412,6 @@ def _abortive_draw_normal(state: State):
     - terminated=true
     - Clear the Kyotaku
     - Check if the game is ended (abortive_draw_normal (流局))
-    Args:
-        state: State: Current state of the game
-
-    Returns:
-        State: State after processing when a ABORTIVE_DRAW_NORMAL (流局) happens
     """
     # Normal Draw (流局)
     tenpai = state._can_win.any(axis=-1)  # (4,)
@@ -1634,7 +1438,7 @@ def _abortive_draw_normal(state: State):
     )
 
 
-def _next_round(state: State):
+def _next_round(state: State) -> State:
     """
     Move to the next round
     - Process the next round
@@ -1642,11 +1446,6 @@ def _next_round(state: State):
     - Process the round
     - If the round is ended, calculate the rank points. The Kyotaku is the top (same point wind order)
     - DUMMY sharing: 3 times of rotation (cp to +1 mod 4) after the 4th time, the result is determined
-    Args:
-        state: State: Current state of the game
-
-    Returns:
-        State: State after processing when the next round is determined
     """
     dc = state._dummy_count  # int8
 
@@ -1773,19 +1572,12 @@ def _next_round(state: State):
     )
 
 
-def _dora_array(state: State):
+def _dora_array(state: State) -> Array:
     """
     - Create an array of length 34, where the number of tiles is stored in the index of the dora tile
-    Args:
-        state: State: Current state of the game
-
-    Returns:
-        jnp.ndarray: Array of length 34, where the number of tiles is stored in the index of the dora tile
-            - dora counts: (34,) The number of dora tiles
-            - ura dora counts: (34,) The number of ura dora tiles
     """
 
-    def update_dora_counts(dora_counts, dora_indicator):
+    def update_dora_counts(dora_counts: Array, dora_indicator: Array) -> Array:
         is_dora_valid = dora_indicator != -1
         return dora_counts.at[DORA_ARRAY[dora_indicator]].add(is_dora_valid)
 
@@ -1804,9 +1596,7 @@ def _dora_array(state: State):
 
 
 @jax.jit
-def hand_counts_to_idx(
-    counts: jnp.ndarray, fill: int = -1, hand_size: int = 14
-) -> jnp.ndarray:
+def hand_counts_to_idx(counts: Array, fill: int = -1, hand_size: int = 14) -> Array:
     # Check the input in the JIT outer loop, but keep the minimum guard
     counts = counts.astype(jnp.int32)
     # Each column of (34,4) is 0,1,2,3, and if (col_index < count) is True, then the tile is selected
@@ -1843,11 +1633,6 @@ def _observe_dict(state: State) -> Dict:
     - round wind: (1,) The round wind [0-3]
     - seat wind: (1,) The seat wind [0-3]
     - dora indicators: (4,) The dora indicators [0-33], -1 means no dora
-    Args:
-        state: State: Current state of the game
-
-    Returns:
-        Dict: Dictionary of the observed features
     """
     c_p = state.current_player
     c_p_based_order = (jnp.arange(4) + c_p) % 4
