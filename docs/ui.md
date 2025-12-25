@@ -1,53 +1,42 @@
 # MahJax UI Guide
 
-MahJax bundles a FastAPI backend plus a static JS frontend so you can fight the packaged `mahjax.no_red_mahjong` agents from any browser. This short guide focuses on what you need to run it for a release.
+MahJax ships with a FastAPI backend and a static JS frontend, so you can battle the bundled `mahjax.no_red_mahjong` bots in any browser. This guide shows the basics for running the UI in a release setting.
 
 ## Quickstart
 
 ```bash
-git clone https://github.com/nissymori/mahjax.git
-cd mahjax
-python -m pip install -e .  # install deps from requirements.txt
+pip install mahjax
 uvicorn mahjax.ui.app:create_app --host 0.0.0.0 --port 8000
 ```
 
-Requirements: Python 3.10+, a matching JAX wheel (install beforehand), and the listed runtime deps (`fastapi`, `uvicorn`, `svgwrite`, `typing_extensions`). `--reload` is handy during development but disable it for production.
+You need Python 3.10+, a matching JAX wheel (install it beforehand), and the runtime deps listed in `requirements.txt` (`fastapi`, `uvicorn`, `svgwrite`, `typing_extensions`). Use `--reload` while developing but turn it off in production.
 
 ## Core Features
 
-- **Instant play** – the UI only exposes legal actions computed by the environment, so human turns are always valid.
-- **Bilingual board** – the backend emits both Japanese and English SVG fragments; the language toggle swaps them without network calls.
-- **Round insight** – modal summaries list winners, yaku, fan/fu, honba, kyotaku plus a concise action log (latest 50 entries).
-- **Observer toggle** – hide opponent hands until someone other than you declares Ron/Tsumo or a round ends.
-- **Pluggable agents** – register Python callables with `AgentRegistry` (builtin `Rule-based` + `Random` included) and they appear immediately in `/api/agents`.
+- **Instant play** – the UI only shows legal actions, so every human move is valid.
+- **Bilingual board** – the backend sends both Japanese and English SVGs, and the toggle swaps between them without extra requests.
+- **Round insight** – modal summaries list winners, yaku, fan/fu, honba, kyotaku, plus a 50-entry action log.
+- **Observer toggle** – hide enemy hands until a non-human Ron/Tsumo or the round end reveals them.
+- **Pluggable agents** – register Python callables with `AgentRegistry` (ships with `Rule-based` and `Random`) and they show up right away in `/api/agents`.
 
-## Operating the UI
+## Using the UI
 
-- **Header controls**: pick the agent, match length (`hanchan` / `one_round`), seat (fixed or random), optional seed, display names, AI delay in ms, and the “hide opponent hands” switch. Start/End buttons create or delete sessions.
-- **Board & actions**: the human seat is always oriented to the bottom. Tile buttons correspond to discard IDs (`0–33`); special buttons cover riichi/tsumo/ron/pass/kan/pon/chi. When a dummy-only action is left, an “Advance” button triggers `Action.DUMMY`.
-- **Scoreboard & log**: scores are shown in turn order relative to the human, with current deltas. Logs record when each player discarded, called, or declared.
-- **Round summaries**: when `_terminated_round` is set, the server returns `roundSummary` and the UI displays standings + winner info. Press “Next Round” (or “End Game” when `isGameEnd`) to continue.
-
-## Game Flow & API
-
-1. `POST /api/game` with fields such as `agent_id`, `mode`, `seed`, `human_seat`, `ai_delay_ms`, `hide_opponent_hands`. The server spins up a `GameSession`, auto-plays AI turns, and returns the first state requiring human input (`phase = awaiting_human`).
-2. For every human decision call `POST /api/game/{id}/action` with a legal action number (discard, riichi, ron, etc.). The response always includes the authoritative state (`svgJapanese`, `svgEnglish`, `legalActions`, `hand`, `scores`, `events`).
-3. While the AI is thinking, the frontend periodically hits `POST /api/game/{id}/auto` to let the agent continue for a few steps. The delay is purely client-side (`aiDelayMs`).
-4. After a round ends use `POST /api/game/{id}/continue` to clear the dummy actions and move to the next round. Delete stale sessions with `DELETE /api/game/{id}`.
-
-Action IDs follow the environment definition: 0–33 are discards, 34–67 are Kans, and constants such as `Action.TSUMOGIRI`, `Action.RIICHI`, `Action.TSUMO`, `Action.RON`, `Action.PON`, `Action.OPEN_KAN`, `Action.CHI_*`, `Action.PASS`, `Action.DUMMY` cover the rest. The server rejects anything not enabled in `legal_action_mask`.
+- **Header controls**: choose the agent, match length (`hanchan` or `one_round`), seat (fixed or random), optional seed, display names, AI delay in ms, and whether to hide opponent hands. The Start and End buttons spawn or delete sessions.
+- **Board & actions**: the human seat stays at the bottom. Tile buttons map to discard IDs (`0–33`). Extra buttons cover riichi, tsumo, ron, pass, kan, pon, and chi. If only a dummy action remains, an “Advance” button sends `Action.DUMMY`.
+- **Scoreboard & log**: scores use turn order relative to the human and display current deltas. Logs show discards, calls, and declarations.
+- **Round summaries**: when `_terminated_round` flips on, the server returns `roundSummary`, and the UI shows standings plus winner info. Press “Next Round,” or “End Game” if `isGameEnd` is true.
 
 ## Extending Agents & UI
 
-- Register agents by calling `AgentRegistry.add_agent`, `load_callable_agent`, or `load_callable_from_path` after `create_app()`. The callable receives `(state: State, rng: jnp.ndarray)` and must return a valid action ID.
-- Customize the frontend by editing `mahjax/ui/static/app.js` (localization strings, behavior) and `styles.css` (layout). No Node.js build step is required; FastAPI serves the files directly.
+- **Custom Agents**: Register new agents using `AgentRegistry`. Your agent must be a callable accepting `(state, rng)` and returning a valid action ID.
+- **Frontend Customization**: Edit `mahjax/ui/static/app.js` and `styles.css` directly. No Node.js build step is required.
 
-### Adding Your Own Agent
+### Adding Custom Agents
 
-To make a newly trained agent appear in the dropdown:
+To add your own agent to the dropdown menu, create a wrapper script that registers your agent function before starting the app.
 
-1. Expose a callable that takes `(state: State, rng: jnp.ndarray)` and returns a legal action ID.
-2. Create a thin wrapper module that instantiates the UI app and registers the callable before serving.
+1.  **Define your agent**: Create a function `(state, rng) -> int`.
+2.  **Register and Run**:
 
 ```python
 # my_ui_app.py
@@ -55,19 +44,21 @@ from pathlib import Path
 from mahjax.ui.app import create_app
 
 app = create_app()
+
+# Register your agent implementation
 app.state.manager.registry.load_callable_from_path(
     file_path=Path("path/to/my_agent_impl.py"),
-    attribute="act",
-    description="My Custom Agent",
+    attribute="act",  # Function name in your file
+    description="My Custom Agent"
 )
 ```
 
-3. Run `uvicorn my_ui_app:app --host 0.0.0.0 --port 8000`. The newly registered agent is returned by `/api/agents`, so it shows up immediately in the UI selector.
+3. Run `uvicorn my_ui_app:app --host 0.0.0.0 --port 8000`. The agent now appears in `/api/agents`, so the UI selector lists it right away.
 
 ## Troubleshooting & Limits
 
-- Blank board? Ensure `mahjax/ui/static` exists and FastAPI can mount it. Check console for 404s on `/static`.
-- Buttons disabled? The game is likely in `awaiting_ai` or `round_end`. Wait for auto-play or close the summary overlay.
-- AI idle? Verify `ai_delay_ms` and inspect responses from `/api/game/{id}/auto`.
-- Hidden hands stay hidden? Disable the checkbox or note that only non-human wins reveal opponents.
-- Current implementation targets 4-player Riichi without red dora and has no authentication. Put the server behind a reverse proxy/VPN before exposing it on the public internet.
+- Blank board? Confirm `mahjax/ui/static` exists and FastAPI mounts it. Check the console for `/static` 404 errors.
+- Buttons stuck? The game is in `awaiting_ai` or `round_end`. Wait for auto-play or dismiss the summary modal.
+- AI idle? Check `ai_delay_ms` and watch `/api/game/{id}/auto` responses.
+- Hidden hands never reveal? Clear the checkbox or note that only non-human wins unhide opponents.
+- The current build only supports 4-player Riichi without red dora and runs without auth. Protect it behind a reverse proxy or VPN before exposing it to the internet.
