@@ -58,8 +58,8 @@ ACTION_FUN_MAP = ACTION_FUN_MAP.at[Action.DUMMY].set(8)
 
 @jax.jit
 def yaku_judge_for_discarded_or_kanned_tile_and_next_draw_tile(
-    state, tile, next_tile, prevalent_wind
-):
+    state: State, tile: Array, next_tile: Array, prevalent_wind: Array
+) -> Tuple[Array, Array, Array]:
     """
     Calculate YAKU for the discarded tile and the next drawn tile
     Args:
@@ -484,7 +484,7 @@ def _step(state: State, action: Array) -> State:
     return state
 
 
-def _draw(state: State):
+def _draw(state: State) -> State:
     """
     Draw a tile from the deck
     - Update the next drawn tile
@@ -540,8 +540,8 @@ def _draw(state: State):
 
 
 def _make_legal_action_mask_after_draw(
-    state: State, hand: Array, c_p: int, new_tile: int
-):
+    state: State, hand: Array, c_p: Array, new_tile: Array
+) -> Array:
     """
     Legal action mask for the player who drew a tile
     - Set discardable tiles
@@ -552,8 +552,8 @@ def _make_legal_action_mask_after_draw(
     Args:
         state: State: Current state of the game
         hand: Array: Hand of the player
-        c_p: int: Current player
-        new_tile: int: New tile drawn
+        c_p: Array: Current player
+        new_tile: Array: New tile drawn
 
     Returns:
         Array: legal_action_mask (NUM_ACTIONS,)
@@ -602,8 +602,8 @@ def _make_legal_action_mask_after_draw(
 
 
 def _make_legal_action_mask_after_draw_w_riichi(
-    state: State, hand: Array, c_p: int, new_tile: int
-):
+    state: State, hand: Array, c_p: Array, new_tile: Array
+) -> Array:
     """
     Legal action mask for the player who drew a tile and declared RIICHI
     - Set if the player can play CLOSED_KAN
@@ -612,8 +612,8 @@ def _make_legal_action_mask_after_draw_w_riichi(
     Args:
         state: State: Current state of the game
         hand: Array: Hand of the player
-        c_p: int: Current player
-        new_tile: int: New tile drawn
+        c_p: Array: Current player
+        new_tile: Array: New tile drawn
 
     Returns:
         Array: legal_action_mask (NUM_ACTIONS,)
@@ -883,7 +883,7 @@ def _next_meld_player(legal_action_mask_4p: Array, discarded_player: Array) -> A
     return idx, can_any.any()
 
 
-def _append_meld(state: State, meld, player):
+def _append_meld(state: State, meld: Array, player: Array) -> State:
     """
     Append the meld to the state
 
@@ -1315,7 +1315,9 @@ def _chi(state: State, action):
     )
 
 
-def _make_legal_action_mask_after_chi(state: State, hand, c_p, target, action):
+def _make_legal_action_mask_after_chi(
+    state: State, hand: Array, c_p: Array, target: Array, action: Array
+) -> Array:
     """
     Generate legal action for CHI
     - Prohibit eating changes
@@ -1374,7 +1376,7 @@ def _pass(state: State):
     # Check if the game is ended (abortive_draw_normal (流局))
     is_abortive_draw_normal = (
         state._next_deck_ix < state._last_deck_ix
-    )  # ツモ牌が残っていない場合
+    )  # If the next deck index is less than the last deck index, the game is ended (abortive_draw_normal (流局))
     return jax.lax.cond(
         no_meld_player,
         lambda: state.replace(  # type:ignore
@@ -1446,7 +1448,7 @@ def _riichi(state: State):
     )
 
 
-def _ron(state: State):
+def _ron(state: State) -> State:
     """
     Apply RON
     - Calculate the score of the winner (consider only the remainder when divided by 100)
@@ -1502,7 +1504,7 @@ def _ron(state: State):
     )
 
 
-def _tsumo(state: State):
+def _tsumo(state: State) -> State:
     """
     Apply TSUUMO
     - Calculate the score of the winner
@@ -1595,7 +1597,7 @@ def _tsumo(state: State):
     )
 
 
-def _abortive_draw_normal(state: State):
+def _abortive_draw_normal(state: State) -> State:
     """
     Apply ABORTIVE_DRAW_NORMAL
     - Calculate the score of the winner
@@ -1634,7 +1636,7 @@ def _abortive_draw_normal(state: State):
     )
 
 
-def _next_round(state: State):
+def _next_round(state: State) -> State:
     """
     Move to the next round
     - Process the next round
@@ -1773,7 +1775,7 @@ def _next_round(state: State):
     )
 
 
-def _dora_array(state: State):
+def _dora_array(state: State) -> Array:
     """
     - Create an array of length 34, where the number of tiles is stored in the index of the dora tile
     Args:
@@ -1785,7 +1787,7 @@ def _dora_array(state: State):
             - ura dora counts: (34,) The number of ura dora tiles
     """
 
-    def update_dora_counts(dora_counts, dora_indicator):
+    def update_dora_counts(dora_counts: Array, dora_indicator: Array) -> Array:
         is_dora_valid = dora_indicator != -1
         return dora_counts.at[DORA_ARRAY[dora_indicator]].add(is_dora_valid)
 
@@ -1804,9 +1806,7 @@ def _dora_array(state: State):
 
 
 @jax.jit
-def hand_counts_to_idx(
-    counts: jnp.ndarray, fill: int = -1, hand_size: int = 14
-) -> jnp.ndarray:
+def hand_counts_to_idx(counts: Array, fill: int = -1, hand_size: int = 14) -> Array:
     # Check the input in the JIT outer loop, but keep the minimum guard
     counts = counts.astype(jnp.int32)
     # Each column of (34,4) is 0,1,2,3, and if (col_index < count) is True, then the tile is selected

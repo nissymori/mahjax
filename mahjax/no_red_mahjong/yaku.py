@@ -15,6 +15,7 @@
 
 import json
 import os
+from typing import Tuple
 
 import jax
 import jax.numpy as jnp
@@ -23,7 +24,6 @@ from mahjax._src.types import Array
 from mahjax.no_red_mahjong.action import Action
 from mahjax.no_red_mahjong.hand import Hand
 from mahjax.no_red_mahjong.meld import EMPTY_MELD, Meld
-from mahjax.no_red_mahjong.tile import Tile
 
 DIR = os.path.join(os.path.dirname(__file__), "cache")
 
@@ -181,31 +181,31 @@ class Yaku:
         )
 
     @staticmethod
-    def head(code) -> Array:
+    def head(code: Array) -> Array:
         return Yaku.CACHE[code] & 0b1111
 
     @staticmethod
-    def chow(code) -> Array:
+    def chow(code: Array) -> Array:
         return Yaku.CACHE[code] >> 4 & 0b1111111
 
     @staticmethod
-    def pung(code) -> Array:
+    def pung(code: Array) -> Array:
         return Yaku.CACHE[code] >> 11 & 0b111111111
 
     @staticmethod
-    def n_pung(code) -> Array:
+    def n_pung(code: Array) -> Array:
         return Yaku.CACHE[code] >> 20 & 0b111
 
     @staticmethod
-    def n_double_chow(code) -> Array:
+    def n_double_chow(code: Array) -> Array:
         return Yaku.CACHE[code] >> 23 & 0b11
 
     @staticmethod
-    def outside(code) -> Array:
+    def outside(code: Array) -> Array:
         return Yaku.CACHE[code] >> 25 & 1
 
     @staticmethod
-    def nine_gates(code) -> Array:
+    def nine_gates(code: Array) -> Array:
         return Yaku.CACHE[code] >> 26
 
     @staticmethod
@@ -252,11 +252,11 @@ class Yaku:
         n_concealed_pung: Array,
         nine_gates: Array,
         fu: Array,
-        code: int,
-        suit: int,
-        last_tile_type: int,
-        is_ron: bool,
-    ):
+        code: Array,
+        suit: Array,
+        last_tile_type: Array,
+        is_ron: Array,
+    ) -> Tuple:
         chow = Yaku.chow(code)
         pung = Yaku.pung(code)
 
@@ -314,12 +314,12 @@ class Yaku:
         melds: Array,
         n_meld: Array,
         last_tile: Array,
-        riichi,
-        is_ron,
-        prevalent_wind,
-        seat_wind,
-        dora,
-    ):
+        riichi: Array,
+        is_ron: Array,
+        prevalent_wind: Array,
+        seat_wind: Array,
+        dora: Array,
+    ) -> Tuple:
         # Add the last tile to the hand and determine the yaku
         hand = Hand.add(hand, last_tile)
         last_tile_type = last_tile
@@ -389,7 +389,7 @@ class Yaku:
         )  # (3,)
 
         # Update the variables based on the information of the tiles (since there are chows, it is complicated)
-        def _update_yaku(suit, tpl):
+        def _update_yaku(suit: Array, tpl: Tuple) -> Tuple:
             code = codes[suit]
             return Yaku.update(
                 tpl[0],
@@ -544,7 +544,7 @@ class Yaku:
         )
 
     @staticmethod
-    def flatten(hand: Array, melds: Array, n_meld) -> Array:
+    def flatten(hand: Array, melds: Array, n_meld: Array) -> Array:
         """
         Return the hand with the melds added
         """
@@ -552,7 +552,7 @@ class Yaku:
         return hand + addition
 
     @staticmethod
-    def _calc_addition(meld) -> Array:
+    def _calc_addition(meld: Array) -> Array:
         target, action = Meld.target(meld), Meld.action(meld)
         idx = action - Action.PON + 1
         addition = jnp.zeros(34, dtype=jnp.int8)
@@ -575,12 +575,12 @@ class Yaku:
         melds: Array,
         n_meld: Array,
         last_tile: Array,
-        riichi,
-        is_ron,
-        prevalent_wind,
-        seat_wind,
-        dora,
-    ):
+        riichi: Array,
+        is_ron: Array,
+        prevalent_wind: Array,
+        seat_wind: Array,
+        dora: Array,
+    ) -> Tuple:
         # Judge the hand with the last tile added
         hand = Hand.add(hand, last_tile)
         last_tile_type = last_tile

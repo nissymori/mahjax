@@ -22,7 +22,6 @@ class Action:
     TSUMOGIRI: int = 68
     RIICHI: int = 69
     TSUMO: int = 70
-
     RON: int = 71
     PON: int = 72
     OPEN_KAN: int = 73
@@ -30,9 +29,7 @@ class Action:
     CHI_M: int = 75  # 4[5]6
     CHI_R: int = 76  # 45[6]
     PASS: int = 77
-
     DUMMY: int = 78  # For sharing information after round.
-
     NUM_ACTION: int = 79
 
     @staticmethod

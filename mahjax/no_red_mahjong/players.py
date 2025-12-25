@@ -16,11 +16,12 @@
 import jax
 import jax.numpy as jnp
 
+from mahjax._src.types import Array, PRNGKey
 from mahjax.no_red_mahjong.action import Action
-from mahjax.no_red_mahjong.env import Mahjong
 from mahjax.no_red_mahjong.hand import Hand
 from mahjax.no_red_mahjong.meld import Meld
 from mahjax.no_red_mahjong.shanten import Shanten
+from mahjax.no_red_mahjong.state import State
 from mahjax.no_red_mahjong.tile import River, Tile
 from mahjax.no_red_mahjong.yaku import Yaku
 
@@ -126,7 +127,7 @@ open_kan_PROB = 0.05
 RIICHI_PROB = 0.9
 
 
-def has_river_tile(hand, tile):
+def has_river_tile(hand: Array, tile: Array) -> Array:
     return jnp.where(
         tile == -1,
         jnp.zeros(34, dtype=jnp.int32),
@@ -134,7 +135,7 @@ def has_river_tile(hand, tile):
     )
 
 
-def _discard_logic(state, unflatten_hand, flatten_hand):
+def _discard_logic(state: State, unflatten_hand: Array, flatten_hand: Array) -> Array:
     """
     - Discard the tile that minimizes the shanten number.
     - Prioritize the outside tiles when discarding.
@@ -220,11 +221,13 @@ def _discard_logic(state, unflatten_hand, flatten_hand):
     return action
 
 
-def _is_equal(a, arr):
+def _is_equal(a: Array, arr: Array) -> Array:
     return (a == arr).any()
 
 
-def _pon_logic(state, unflatten_hand, flatten_hand, rng):
+def _pon_logic(
+    state: State, unflatten_hand: Array, flatten_hand: Array, rng: PRNGKey
+) -> Array:
     """
     - Pon the yaku tile with 70% probability.
     - Other tiles,
@@ -256,7 +259,9 @@ def _pon_logic(state, unflatten_hand, flatten_hand, rng):
     return jnp.where(do_pon, Action.PON, Action.PASS)
 
 
-def _chi_logic(state, unflatten_hand, flatten_hand, rng):
+def _chi_logic(
+    state: State, unflatten_hand: Array, flatten_hand: Array, rng: PRNGKey
+) -> Array:
     """
     - If the yaku tile is melded, chi with 50% probability
     - Otherwise, chi with the probability proportional to the number of tan-yao tiles and the wind
@@ -287,7 +292,9 @@ def _chi_logic(state, unflatten_hand, flatten_hand, rng):
     return jnp.where(do_chi, chi_action, Action.PASS)
 
 
-def _open_kan_logic(state, unflatten_hand, flatten_hand, rng):
+def _open_kan_logic(
+    state: State, unflatten_hand: Array, flatten_hand: Array, rng: PRNGKey
+) -> Array:
     """
     - Open kan with 5% probability
     """
@@ -296,7 +303,7 @@ def _open_kan_logic(state, unflatten_hand, flatten_hand, rng):
     return jnp.where(do_open_kan, Action.OPEN_KAN, Action.PASS)
 
 
-def _riichi_logic(state, current_action, rng):
+def _riichi_logic(state: State, current_action: Array, rng: PRNGKey) -> Array:
     """
     - If the player has a yaku, riichi with 80% probability
     """
@@ -304,7 +311,7 @@ def _riichi_logic(state, current_action, rng):
     return jnp.where(do_riichi, Action.RIICHI, current_action)
 
 
-def rule_based_player(state, rng):
+def rule_based_player(state: State, rng: PRNGKey) -> Array:
     unflatten_hand = state._hand[state.current_player]
     melds = state._melds[state.current_player]
     n_meld = state._n_meld[state.current_player]
@@ -355,7 +362,7 @@ def rule_based_player(state, rng):
     return action
 
 
-def random_player(state, rng):
+def random_player(state: State, rng: PRNGKey) -> Array:
     legal_action_mask = state.legal_action_mask
     logits = jnp.log(legal_action_mask.astype(jnp.float32))
     return jax.random.categorical(rng, logits=logits)
