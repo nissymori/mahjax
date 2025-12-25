@@ -25,3 +25,4 @@ log
 .venv
 *.sh
 *.o*
+workspace/*
