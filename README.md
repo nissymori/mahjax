@@ -1,5 +1,5 @@
 <div align="center">
-<img src="https://github.com/nissymori/mahjax/blob/main/docs/assets/logo.svg" width="45%">
+<img src="https://github.com/nissymori/mahjax/blob/main/docs/assets/logo.svg" width="35%">
 </div>
 
 <br>
@@ -130,6 +130,7 @@ Paper comming soon.
 - [habara-k](https://github.com/habara-k): For developing core JAX components such as shanten and Yaku calculation.
 - [OkanoShinri](https://github.com/OkanoShinri): For the initial implementation of MahJax and its SVG visualization.
 - [easonyu0203](easonyu0203): For advise on PPO implementation in multi-player imperfect information game.
+
 
 
 
