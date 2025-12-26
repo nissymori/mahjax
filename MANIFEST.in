@@ -1,0 +1,2 @@
+include LICENSE
+recursive-include mahjax/no_red_mahjong/cache *.npz

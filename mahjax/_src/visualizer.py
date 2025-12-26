@@ -238,12 +238,13 @@ def save_svg(
     *,
     color_theme: Optional[Literal["light", "dark"]] = None,
     scale: Optional[float] = None,
+    use_english: bool = False,
 ) -> None:
     if state.env_id.startswith("minatar"):
         state.save_svg(filename=filename)
     else:
         v = Visualizer(color_theme=color_theme, scale=scale)
-        v.get_dwg(states=state).saveas(filename)
+        v.get_dwg(states=state, use_english=use_english).saveas(filename)
 
 
 def save_svg_animation(
@@ -253,6 +254,7 @@ def save_svg_animation(
     color_theme: Optional[Literal["light", "dark"]] = None,
     scale: Optional[float] = None,
     frame_duration_seconds: Optional[float] = None,
+    use_english: bool = False,
 ) -> None:
     assert not states[0].env_id.startswith(
         "minatar"
@@ -265,7 +267,7 @@ def save_svg_animation(
     frame_groups = []
     dwg = None
     for i, state in enumerate(states):
-        dwg = v.get_dwg(states=state)
+        dwg = v.get_dwg(states=state, use_english=use_english)
         assert (
             len([e for e in dwg.elements if type(e) is svgwrite.container.Group]) == 1
         ), "Drawing must contain only one group"

@@ -13,12 +13,12 @@
 # limitations under the License.
 
 
-import json
 import os
 from typing import Tuple
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 from mahjax._src.types import Array
 from mahjax.no_red_mahjong.action import Action
@@ -29,8 +29,8 @@ DIR = os.path.join(os.path.dirname(__file__), "cache")
 
 
 def load_yaku_cache():
-    with open(os.path.join(DIR, "yaku_cache.json")) as f:
-        return jnp.array(json.load(f), dtype=jnp.uint32)
+    with np.load(os.path.join(DIR, "yaku_cache.npz"), allow_pickle=False) as data:
+        return jnp.asarray(data["data"], dtype=jnp.uint32)
 
 
 WIND_TILE = jnp.array([27, 28, 29, 30], dtype=jnp.int8)

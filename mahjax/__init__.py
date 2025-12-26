@@ -4,7 +4,7 @@ from mahjax._src.visualizer import (save_svg, save_svg_animation,
 from mahjax.core import Env, EnvId, State, available_envs, make
 from mahjax.no_red_mahjong.action import Action
 
-__version__ = "0.0.1"
+__version__ = "0.0.4"
 
 __all__ = [
     # types

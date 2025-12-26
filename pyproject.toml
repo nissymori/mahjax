@@ -1,11 +1,42 @@
 [project]
 name = "mahjax"
 description = "GPU-accelerated vectorized mahjong simulators for reinforcement learning"
-dynamic = ["version"]
 readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "Apache-2.0" }
+authors = [
+    { name = "Soichiro Nishimori", email = "gatikiti.630@gmail.com" }
+]
+
+classifiers = [
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dynamic = ["version", "dependencies"]
+
+[project.urls]
+"Source" = "https://github.com/nissymori/mahjax"
 
 [tool.setuptools.dynamic]
 version = { attr = "mahjax.__version__" }
+dependencies = { file = ["requirements.txt"] }
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[tool.setuptools.package-data]
+"*" = ["*.svg"]
+"mahjax.no_red_mahjong.cache" = ["*.npz"]
+
+[tool.setuptools]
+license-files = []
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
 
 [tool.black]
 line-length = 120

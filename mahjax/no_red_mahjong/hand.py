@@ -13,11 +13,11 @@
 # limitations under the License.
 
 
-import json
 import os
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 from mahjax._src.types import Array
 from mahjax.no_red_mahjong.action import Action
@@ -27,8 +27,8 @@ DIR = os.path.join(os.path.dirname(__file__), "../no_red_mahjong/cache")
 
 
 def load_hand_cache():
-    with open(os.path.join(DIR, "hand_cache.json")) as f:
-        return jnp.array(json.load(f), dtype=jnp.uint32)
+    with np.load(os.path.join(DIR, "hand_cache.npz"), allow_pickle=False) as data:
+        return jnp.asarray(data["data"], dtype=jnp.uint32)
 
 
 THIRTEEN_ORPHAN_IDX = jnp.array([0, 8, 9, 17, 18, 26, 27, 28, 29, 30, 31, 32, 33])
