@@ -2,6 +2,8 @@
 <img src="https://github.com/nissymori/mahjax/blob/main/docs/assets/logo.svg" width="45%">
 </div>
 
+<br>
+
 <div align="center">
 <img src="https://github.com/nissymori/mahjax/blob/main/docs/assets/random.gif" width="30%"><img src="https://github.com/nissymori/mahjax/blob/main/docs/assets/random.gif" width="30%" style="transform:rotate(270deg);"><img src="https://github.com/nissymori/mahjax/blob/main/docs/assets/random.gif" width="30%" style="transform:rotate(90deg);">
 <img src="https://github.com/nissymori/mahjax/blob/main/docs/assets/random.gif" width="30%"><img src="https://github.com/nissymori/mahjax/blob/main/docs/assets/random.gif" width="30%" style="transform:rotate(270deg);"><img src="https://github.com/nissymori/mahjax/blob/main/docs/assets/random.gif" width="30%" style="transform:rotate(90deg);">
@@ -126,6 +128,7 @@ Paper comming soon.
 - [habara-k](https://github.com/habara-k): For developing core JAX components such as shanten and Yaku calculation.
 - [OkanoShinri](https://github.com/OkanoShinri): For the initial implementation of MahJax and its SVG visualization.
 - [easonyu0203](easonyu0203): For advise on PPO implementation in multi-player imperfect information game.
+
 
 
 
