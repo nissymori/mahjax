@@ -26,13 +26,21 @@ We aim to complement this by offering a full-scale Japanese Riichi Mahjong envir
 - **Playable Interface:** A web-based UI allows you to play directly against the agents you train.
 - **RL Examples:** We provide simple examples for Behavior Cloning and Reinforcement Learning in the [`examples/`](https://github.com/nissymori/mahjax/tree/main/examples) directory.
 
-For more details, please refer to the [Documentation](link_to_docs) (**TODO links**).
+For more details, please refer to the [Documentation](link_to_docs).
 
 ## Quick Start
 ### Install
 Mahjax is available on PyPI. Please make sure that your Python environment has jax and jaxlib installed, depending on your hardware specification.
 ```bash
 pip install mahjax
+```
+
+Mahjax is currently under active development. If you prefer to use the latest codebase with the newest features, please clone the repository and install it in editable mode:
+
+```bash
+git clone https://github.com/nissymori/mahjax.git
+cd mahjax
+pip install -e .
 ```
 
 ### Basic Usage
