@@ -785,10 +785,10 @@ def summarise_winner(
     prevalent_wind = jnp.int32(prev_state._round % 4)
     seat_wind = jnp.int32(prev_state._seat_wind[player])
     dora = jnp.asarray(_dora_array(prev_state))
-    hand_complete = hand
-    if 0 <= winning_tile < Tile.NUM_TILE_TYPE:
-        hand_complete = hand_complete.at[winning_tile].add(1)
-    flatten = Yaku.flatten(hand_complete, melds, n_meld)
+    hand_for_count = hand
+    if is_ron and 0 <= winning_tile < Tile.NUM_TILE_TYPE:
+        hand_for_count = hand_for_count.at[winning_tile].add(1)
+    flatten = Yaku.flatten(hand_for_count, melds, n_meld)
     flatten_np = np.array(flatten, dtype=np.int32)
     dora_np = np.array(dora, dtype=np.int32)
     visible_dora = int(np.dot(flatten_np, dora_np[0]))
