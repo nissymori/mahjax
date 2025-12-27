@@ -42,6 +42,9 @@ class CreateGameRequest(BaseModel):
     hide_opponent_hands: bool = Field(
         False, description="Hide opponent hands from the board visualization"
     )
+    auto_pass_calls: bool = Field(
+        False, description="Automatically pass Pon/Chi/Open Kan prompts for the human"
+    )
 
 
 class ActionRequest(BaseModel):
@@ -53,8 +56,11 @@ class AutoRequest(BaseModel):
 
 
 class VisibilityRequest(BaseModel):
-    hide_opponent_hands: bool = Field(
-        False, description="Hide opponent hands without restarting the game"
+    hide_opponent_hands: Optional[bool] = Field(
+        None, description="Hide opponent hands without restarting the game"
+    )
+    auto_pass_calls: Optional[bool] = Field(
+        None, description="Auto-pass Pon/Chi/Open-Kan prompts for the human"
     )
 
 
@@ -115,6 +121,7 @@ def create_app() -> FastAPI:
                 player_names=player_names,
                 ai_delay_ms=req.ai_delay_ms,
                 hide_opponent_hands=req.hide_opponent_hands,
+                auto_pass_calls=req.auto_pass_calls,
             )
             return session.to_view()
 
@@ -180,7 +187,10 @@ def create_app() -> FastAPI:
                 session = manager.get(game_id)
             except KeyError as err:
                 raise HTTPException(status_code=404, detail=str(err)) from err
-            session.set_hide_opponent_hands(req.hide_opponent_hands)
+            if req.hide_opponent_hands is not None:
+                session.set_hide_opponent_hands(req.hide_opponent_hands)
+            if req.auto_pass_calls is not None:
+                session.set_auto_pass_calls(req.auto_pass_calls)
             return session.to_view()
 
     @app.delete("/api/game/{game_id}")

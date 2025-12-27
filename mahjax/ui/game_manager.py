@@ -231,6 +231,7 @@ class GameSession:
         player_names: List[str],
         ai_delay_ms: int = 1000,
         hide_opponent_hands: bool = False,
+        auto_pass_calls: bool = False,
     ) -> None:
         self.id = uuid.uuid4().hex
         self.env = env
@@ -241,6 +242,7 @@ class GameSession:
         self.player_names = player_names
         self.ai_delay_ms = ai_delay_ms
         self.hide_opponent_hands = hide_opponent_hands
+        self.auto_pass_calls = auto_pass_calls
         self._reveal_hidden_hands = False
         self._step_fn = jax.jit(self.env.step)
         self.step_counter = 0
@@ -249,9 +251,15 @@ class GameSession:
         self.round_summary: Optional[RoundSummary] = None
         self.round_history: List[RoundSummary] = []
         self.last_action: Optional[ActionEvent] = None
+        self._auto_pass_lock = False
 
     # -------------------- Core stepping --------------------
     def apply_action(self, action: int, actor: str) -> ActionEvent:
+        event = self._apply_action(action, actor)
+        self._maybe_auto_pass_calls()
+        return event
+
+    def _apply_action(self, action: int, actor: str) -> ActionEvent:
         mask = self.state.legal_action_mask
         ensure_valid_action(action, mask)
         prev_state = self.state
@@ -351,6 +359,62 @@ class GameSession:
             # Re-apply masking immediately until a new reveal condition is met.
             self._reveal_hidden_hands = False
 
+    def set_auto_pass_calls(self, enabled: bool) -> None:
+        """Toggle auto-pass behavior for Pon/Chi/Open Kan prompts."""
+        self.auto_pass_calls = enabled
+        self._maybe_auto_pass_calls()
+
+    def _maybe_auto_pass_calls(self) -> None:
+        if (
+            not self.auto_pass_calls
+            or self.state.terminated
+            or bool(self.state._terminated_round)
+        ):
+            return
+        if self._auto_pass_lock:
+            return
+        try:
+            self._auto_pass_lock = True
+            while self._should_auto_pass_current():
+                self._apply_action(Action.PASS, actor="auto_pass_call")
+                if self.state.terminated or bool(self.state._terminated_round):
+                    break
+        finally:
+            self._auto_pass_lock = False
+
+    def _should_auto_pass_current(self) -> bool:
+        if (
+            not self.auto_pass_calls
+            or self.state.terminated
+            or bool(self.state._terminated_round)
+        ):
+            return False
+        if int(self.state.current_player) != self.human_seat:
+            return False
+        target = int(self.state._target)
+        if target < 0:
+            return False
+        current = int(self.state.current_player)
+        mask_source = self.state._legal_action_mask_4p[
+            current
+        ]  # includes pending meld prompts
+        mask = np.array(mask_source).astype(bool)
+        if Action.RON < mask.size and mask[Action.RON]:
+            return False
+        if Action.TSUMO < mask.size and mask[Action.TSUMO]:
+            return False
+        call_actions = [
+            Action.PON,
+            Action.OPEN_KAN,
+            Action.CHI_L,
+            Action.CHI_M,
+            Action.CHI_R,
+        ]
+        has_call = any(action < mask.size and mask[action] for action in call_actions)
+        if not has_call:
+            return False
+        return bool(Action.PASS < mask.size and mask[Action.PASS])
+
     # -------------------- View helpers --------------------
     def consume_events(self) -> List[Dict[str, Any]]:
         events = [e.to_dict(self.player_names) for e in self._pending_events]
@@ -424,6 +488,7 @@ class GameSession:
             "aiDelayMs": self.ai_delay_ms,
             "step": self.step_counter,
             "hideOpponentHands": self.hide_opponent_hands,
+            "autoPassCalls": self.auto_pass_calls,
         }
 
 
@@ -442,6 +507,7 @@ class GameManager:
         player_names: Optional[List[str]] = None,
         ai_delay_ms: int = 1000,
         hide_opponent_hands: bool = False,
+        auto_pass_calls: bool = False,
     ) -> GameSession:
         agent = self.registry.get(agent_id)
         env = NoRedMahjong(one_round=one_round)
@@ -458,6 +524,7 @@ class GameManager:
             player_names=names,
             ai_delay_ms=ai_delay_ms,
             hide_opponent_hands=hide_opponent_hands,
+            auto_pass_calls=auto_pass_calls,
         )
         session.auto_play_until_interrupt()
         self.sessions[session.id] = session

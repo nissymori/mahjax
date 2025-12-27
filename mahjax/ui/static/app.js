@@ -6,6 +6,7 @@ const humanNameInput = document.getElementById('humanName');
 const aiNameInput = document.getElementById('aiName');
 const aiDelayInput = document.getElementById('aiDelay');
 const hideOpponentsInput = document.getElementById('hideOpponents');
+const noCallsInput = document.getElementById('noCalls');
 const startBtn = document.getElementById('startBtn');
 const endBtn = document.getElementById('endBtn');
 
@@ -37,6 +38,7 @@ const controlTextRefs = {
   aiName: document.querySelector('[data-i18n="controls.aiName"]'),
   aiDelay: document.querySelector('[data-i18n="controls.aiDelay"]'),
   hideOpponents: document.querySelector('[data-i18n="controls.hideOpponents"]'),
+  noCalls: document.querySelector('[data-i18n="controls.noCalls"]'),
   start: document.querySelector('[data-i18n="controls.start"]'),
   end: document.querySelector('[data-i18n="controls.end"]'),
 };
@@ -84,6 +86,7 @@ const I18N = {
       aiName: 'Agent Base Name',
       aiDelay: 'Agent Delay(ms)',
       hideOpponents: '相手の手牌を隠す',
+      noCalls: '鳴きなし',
       start: 'Start Game',
       end: 'End Game',
       modes: {
@@ -199,6 +202,7 @@ const I18N = {
       aiName: 'Agent Base Name',
       aiDelay: 'Agent Delay (ms)',
       hideOpponents: 'Hide opponent hands',
+      noCalls: 'Auto-pass calls',
       start: 'Start Game',
       end: 'End Game',
       modes: {
@@ -291,6 +295,7 @@ let aiTimer = null;
 let latestState = null;
 let isPendingAction = false;
 let isUpdatingHideOpponents = false;
+let isUpdatingNoCalls = false;
 const pendingButtons = new Set();
 let pendingDiscardVisual = null;
 let pendingSummaryData = null;
@@ -327,6 +332,16 @@ if (hideOpponentsInput) {
   });
 }
 
+if (noCallsInput) {
+  noCallsInput.addEventListener('change', () => {
+    if (!currentGameId) {
+      return;
+    }
+    const desired = Boolean(noCallsInput.checked);
+    updateAutoPassCallsSetting(desired);
+  });
+}
+
 function getLocale(lang = currentLanguage) {
   return I18N[lang] || I18N.ja;
 }
@@ -351,6 +366,14 @@ function syncHideOpponentsControl(state) {
     hideOpponentsInput.checked = Boolean(state.hideOpponentHands);
   }
   hideOpponentsInput.disabled = isUpdatingHideOpponents;
+}
+
+function syncNoCallsControl(state) {
+  if (!noCallsInput) return;
+  if (state && typeof state.autoPassCalls === 'boolean') {
+    noCallsInput.checked = Boolean(state.autoPassCalls);
+  }
+  noCallsInput.disabled = isUpdatingNoCalls;
 }
 
 function applyLocaleToStaticElements() {
@@ -529,6 +552,7 @@ function collectGameRequest() {
     ai_name: aiNameInput.value.trim() || undefined,
     ai_delay_ms: Number(aiDelayInput.value) || 800,
     hide_opponent_hands: hideOpponentsInput ? Boolean(hideOpponentsInput.checked) : false,
+    auto_pass_calls: noCallsInput ? Boolean(noCallsInput.checked) : false,
   };
   if (seedInput.value) {
     body.seed = Number(seedInput.value);
@@ -594,6 +618,10 @@ function clearBoard() {
   isUpdatingHideOpponents = false;
   if (hideOpponentsInput) {
     hideOpponentsInput.disabled = false;
+  }
+  isUpdatingNoCalls = false;
+  if (noCallsInput) {
+    noCallsInput.disabled = false;
   }
 }
 
@@ -695,6 +723,43 @@ async function updateHideOpponentsSetting(hide) {
   }
 }
 
+async function updateAutoPassCallsSetting(enabled) {
+  if (!currentGameId || isUpdatingNoCalls) return;
+  const previousValue = latestState?.autoPassCalls ?? !enabled;
+  isUpdatingNoCalls = true;
+  if (noCallsInput) {
+    noCallsInput.disabled = true;
+  }
+  try {
+    const res = await fetch(`/api/game/${currentGameId}/visibility`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ auto_pass_calls: enabled }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.detail || 'Failed to update call settings');
+    }
+    const state = await res.json();
+    renderState(state, {
+      preservePending: true,
+      skipEvents: true,
+      skipAutoTimerReset: true,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    setStatus(null, { message });
+    if (noCallsInput) {
+      noCallsInput.checked = previousValue;
+    }
+  } finally {
+    isUpdatingNoCalls = false;
+    if (noCallsInput) {
+      noCallsInput.disabled = false;
+    }
+  }
+}
+
 function renderState(state, options = {}) {
   if (!state) return;
   const { preservePending = false, skipEvents = false, skipAutoTimerReset = false } = options;
@@ -716,6 +781,7 @@ function renderState(state, options = {}) {
   renderAdvance(state);
   renderScoreboard(state);
   syncHideOpponentsControl(state);
+  syncNoCallsControl(state);
   if (skipEvents) {
     renderEventList();
   } else {
