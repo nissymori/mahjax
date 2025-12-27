@@ -826,7 +826,7 @@ class TestEnv(unittest.TestCase):
         state = self.set_state(
             basic_state,
             _honba=jnp.int8(1),
-            _kyotaku=jnp.int8(2),
+            _kyotaku=jnp.int8(1),
             _riichi=jnp.array([True, False, False, True], dtype=jnp.bool_),
             _score=jnp.array([250, 250, 250, 240], dtype=jnp.float32),
         )
@@ -850,7 +850,7 @@ class TestEnv(unittest.TestCase):
             _fu=jnp.zeros((4, 2), dtype=jnp.int32).at[0, 0].set(40),
             _double_riichi=jnp.array([True, False, False, True], dtype=jnp.bool_),
             _riichi=jnp.array([True, False, False, False], dtype=jnp.bool_),
-            _kyotaku=jnp.int8(1),
+            _kyotaku=jnp.int8(0),
             _kan_declared=jnp.bool_(True),
             _dealer=jnp.int8(3),
         )
@@ -863,7 +863,7 @@ class TestEnv(unittest.TestCase):
             _fu=jnp.zeros((4, 2), dtype=jnp.int32).at[0, 0].set(40),
             _riichi=jnp.array([True, False, False, False], dtype=jnp.bool_),
             _ippatsu=jnp.array([True, False, False, False], dtype=jnp.bool_),
-            _kyotaku=jnp.int8(1),
+            _kyotaku=jnp.int8(0),
             _is_haitei=jnp.bool_(True),
             _dealer=jnp.int8(3),
         )
