@@ -1,7 +1,7 @@
 # How to install
 
 ```
-pip install -e .
+pip install mahjax
 ```
 
 # Usage
