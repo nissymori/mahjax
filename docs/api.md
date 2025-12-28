@@ -13,6 +13,7 @@ Below is the example of usage of mahjax.
 import jax
 import jax.numpy as inp
 import mahjax
+from mahjax.action import Action
 
 
 batch_size = 10
@@ -40,6 +41,4 @@ while not state.terminated.all():
     state = step_fn(state, action, subrng)
     reward = state.rewards  # (batch_size, 4) access to the reward.
 ```
-
-
 
