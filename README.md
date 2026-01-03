@@ -12,7 +12,7 @@
 </div>
 
 ## MahJax
-**A GPU-Accelerated Japanese Riichi Mahjong Simulator for RL in [JAX](https://github.com/google/jax)**
+**A GPU-Accelerated Japanese Riichi Mahjong Simulator for Reinforcement Learning in [JAX](https://github.com/google/jax)**
 
 Japanese Riichi Mahjong is a complex board game that presents a unique combination of **imperfect information**, **multi-player (>2) competition**, **stochastic dynamics**, and **high-dimensional inputs**.
 MahJax is highly inspired by [Pgx](https://github.com/sotetsuk/pgx), which offers vectorized simulators for a diverse set of board games.
@@ -138,6 +138,7 @@ Paper comming soon.
 - [habara-k](https://github.com/habara-k): For developing core JAX components such as shanten and Yaku calculation.
 - [OkanoShinri](https://github.com/OkanoShinri): For the initial implementation of MahJax and its SVG visualization.
 - [easonyu0203](easonyu0203): For advise on PPO implementation in multi-player imperfect information game.
+
 
 
 
