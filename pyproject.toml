@@ -36,7 +36,7 @@ where = ["."]
 
 [tool.setuptools.package-data]
 "*" = ["*.svg"]
-"mahjax.no_red_mahjong.cache" = ["*.npz"]
+"mahjax._src.cache" = ["*.npz"]
 
 [build-system]
 requires = ["setuptools>=77.0", "wheel"]

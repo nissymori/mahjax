@@ -360,6 +360,7 @@ class Yaku:
         is_pinfu = jnp.full(
             Yaku.MAX_PATTERNS,
             is_hand_concealed
+            & (last_tile_type < 27)
             & jnp.all(hand[27:31] < 3)
             & (hand[seat_wind_tile_type] == 0)
             & (hand[prevalent_wind_tile_type] == 0)
