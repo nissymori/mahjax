@@ -58,8 +58,8 @@ MahJax can visualize those too.
 
 Most winning hands in riichi mahjong are built from:
 
-- **4 melds** (`mentsu`)
-- **1 pair**
+- **4 sets** (3 tiles)
+- **1 pair** (2 tiles)
 
 The three basic building blocks are:
 
@@ -85,7 +85,7 @@ This hand is:
 - `east east`
 
 !!! note "Exceptions exist"
-    The standard shape is `4 melds + 1 pair`, but famous exceptions such as **Seven Pairs** and **Thirteen Orphans** also exist.
+    The standard shape is `4 sets + 1 pair`, but famous exceptions such as **Seven Pairs** and **Thirteen Orphans** also exist.
 
 ### How a turn works
 
@@ -168,7 +168,7 @@ If this hand is **closed** and you declare **riichi** while waiting on `1p` or `
 This page only covers the core ideas.
 For the full rules, scoring details, and corner cases, the best next reference is:
 
-- [European Mahjong Association: Riichi Rules 2025 (official PDF)](https://mahjong-europe.org/portal/images/docs/Riichi-rules-2025-EN.pdf)
+- [European Mahjong Association: Riichi Rules 2025 (official PDF)](http://mahjong-europe.org/portal/images/docs/Riichi-rules-2025-EN.pdf)
 
 If you want the MahJax-specific summary of supported rules, see [Rules](rule.md).
 
