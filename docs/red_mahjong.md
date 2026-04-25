@@ -1,10 +1,5 @@
 # Red Mahjong
 
-<div align="center">
-  <img src="assets/red_mahjong_random_ja.gif" width="46%">
-  <img src="assets/red_mahjong_random_en.gif" width="46%">
-</div>
-
 ## Usage
 
 ```py
