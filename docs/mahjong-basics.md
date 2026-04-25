@@ -73,7 +73,7 @@ Here is a complete standard hand:
 
 | Tile set | Hand |
 | --- | --- |
-| JA | <nobr>![1m](assets/tiles/ja/1m.svg){ width="34" } ![2m](assets/tiles/ja/2m.svg){ width="34" } ![3m](assets/tiles/ja/3m.svg){ width="34" } ![4m](assets/tiles/ja/4m.svg){ width="34" } ![5m](assets/tiles/ja/5m.svg){ width="34" } ![6m](assets/tiles/ja/6m.svg){ width="34" } ![7p](assets/tiles/ja/7p.svg){ width="34" } ![8p](assets/tiles/ja/8p.svg){ width="34" } ![9p](assets/tiles/ja/9p.svg){ width="34" } ![7s](assets/tiles/ja/7s.svg){ width="34" } ![7s](assets/tiles/ja/7s.svg){ width="34" } ![7s](assets/tiles/ja/7s.svg){ width="34" } ![east](assets/tiles/ja/east.svg){ width="34" } ![east](assets/tiles/ja/east.svg){ width="34" }</nobr> |
+| Orig. | <nobr>![1m](assets/tiles/ja/1m.svg){ width="34" } ![2m](assets/tiles/ja/2m.svg){ width="34" } ![3m](assets/tiles/ja/3m.svg){ width="34" } ![4m](assets/tiles/ja/4m.svg){ width="34" } ![5m](assets/tiles/ja/5m.svg){ width="34" } ![6m](assets/tiles/ja/6m.svg){ width="34" } ![7p](assets/tiles/ja/7p.svg){ width="34" } ![8p](assets/tiles/ja/8p.svg){ width="34" } ![9p](assets/tiles/ja/9p.svg){ width="34" } ![7s](assets/tiles/ja/7s.svg){ width="34" } ![7s](assets/tiles/ja/7s.svg){ width="34" } ![7s](assets/tiles/ja/7s.svg){ width="34" } ![east](assets/tiles/ja/east.svg){ width="34" } ![east](assets/tiles/ja/east.svg){ width="34" }</nobr> |
 | EN | <nobr>![1m](assets/tiles/en/1m.svg){ width="34" } ![2m](assets/tiles/en/2m.svg){ width="34" } ![3m](assets/tiles/en/3m.svg){ width="34" } ![4m](assets/tiles/en/4m.svg){ width="34" } ![5m](assets/tiles/en/5m.svg){ width="34" } ![6m](assets/tiles/en/6m.svg){ width="34" } ![7p](assets/tiles/en/7p.svg){ width="34" } ![8p](assets/tiles/en/8p.svg){ width="34" } ![9p](assets/tiles/en/9p.svg){ width="34" } ![7s](assets/tiles/en/7s.svg){ width="34" } ![7s](assets/tiles/en/7s.svg){ width="34" } ![7s](assets/tiles/en/7s.svg){ width="34" } ![east](assets/tiles/en/east.svg){ width="34" } ![east](assets/tiles/en/east.svg){ width="34" }</nobr> |
 
 This hand is:
@@ -115,12 +115,12 @@ To win, you normally need:
 For beginners, the three most useful yaku to learn first are:
 
 - **riichi**
-- **tanyao**
-- **yakuhai**
+- **All simples (tanyao)**
+- **Value honor triplet (yakuhai)**
 
 From this section onward, the examples use the English tiles only.
 
-### Tanyao: all simples
+### All simples (tanyao)
 
 ![2m](assets/tiles/en/2m.svg){ width="34" } ![3m](assets/tiles/en/3m.svg){ width="34" } ![4m](assets/tiles/en/4m.svg){ width="34" }
 ![3p](assets/tiles/en/3p.svg){ width="34" } ![4p](assets/tiles/en/4p.svg){ width="34" } ![5p](assets/tiles/en/5p.svg){ width="34" }
@@ -131,7 +131,7 @@ From this section onward, the examples use the English tiles only.
 This hand contains only suit tiles from **2 to 8**.
 No terminals (`1` or `9`) and no honors appear, so it qualifies for **tanyao**.
 
-### Yakuhai: value honor triplet
+### Value honor triplet (yakuhai)
 
 ![rd](assets/tiles/en/rd.svg){ width="34" } ![rd](assets/tiles/en/rd.svg){ width="34" } ![rd](assets/tiles/en/rd.svg){ width="34" }
 ![2m](assets/tiles/en/2m.svg){ width="34" } ![3m](assets/tiles/en/3m.svg){ width="34" } ![4m](assets/tiles/en/4m.svg){ width="34" }
@@ -148,15 +148,15 @@ Tenpai shape:
 
 ![1m](assets/tiles/en/1m.svg){ width="34" } ![2m](assets/tiles/en/2m.svg){ width="34" } ![3m](assets/tiles/en/3m.svg){ width="34" }
 ![4m](assets/tiles/en/4m.svg){ width="34" } ![5m](assets/tiles/en/5m.svg){ width="34" } ![6m](assets/tiles/en/6m.svg){ width="34" }
-![2p](assets/tiles/en/2p.svg){ width="34" } ![3p](assets/tiles/en/3p.svg){ width="34" } ![4p](assets/tiles/en/4p.svg){ width="34" }
+![2p](assets/tiles/en/2p.svg){ width="34" } ![3p](assets/tiles/en/3p.svg){ width="34" } 
 ![6s](assets/tiles/en/6s.svg){ width="34" } ![7s](assets/tiles/en/7s.svg){ width="34" } ![8s](assets/tiles/en/8s.svg){ width="34" }
-![5p](assets/tiles/en/5p.svg){ width="34" }
+![east](assets/tiles/en/east.svg){ width="34" } ![east](assets/tiles/en/east.svg){ width="34" }
 
 Waiting tile:
 
-![5p](assets/tiles/en/5p.svg){ width="34" }
+![1p](assets/tiles/en/1p.svg){ width="34" } and ![4p](assets/tiles/en/4p.svg){ width="34" }
 
-If this hand is **closed** and you declare **riichi** while waiting on `5p`, then a later win on `5p` is legal because riichi itself is the yaku.
+If this hand is **closed** and you declare **riichi** while waiting on `1p` or `4p`, then a later win on `1p` or `4p` is legal because riichi itself is the yaku.
 
 ### Two core ideas to remember
 
