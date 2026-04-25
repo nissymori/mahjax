@@ -6,8 +6,6 @@
 
 <div align="center">
   <img src="https://github.com/nissymori/mahjax/blob/main/docs/assets/red_mahjong_random_ja.gif" width="23%">
-  <img src="https://github.com/nissymori/mahjax/blob/main/docs/assets/red_mahjong_random_ja.gif" width="23%" style="transform:rotate(270deg);">
-  <img src="https://github.com/nissymori/mahjax/blob/main/docs/assets/red_mahjong_random_en.gif" width="23%" style="transform:rotate(90deg);">
   <img src="https://github.com/nissymori/mahjax/blob/main/docs/assets/red_mahjong_random_en.gif" width="23%">
 </div>
 
