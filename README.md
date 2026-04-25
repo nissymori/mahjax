@@ -23,10 +23,10 @@ Note that MahJax is heavily inspired by [Pgx](https://github.com/sotetsuk/pgx), 
 
 ## Overview
 
-- **Vectorized Environment:** Fully JIT-compilable and extremely fast (approx. **1.6M steps/sec** on 8x A100 GPUs).
-- **Beautiful Visualization:** We offer SVG-based game visualization. We also provide a visualization **for those unfamiliar with Chinese characters** (see the GIF on the top right).
-- **Playable Interface:** A web-based UI allows you to play directly against the agents you train.
-- **RL Examples:** We provide simple examples for Behavior Cloning and Reinforcement Learning in the [`examples/`](https://github.com/nissymori/mahjax/tree/main/examples) directory.
+- 🚀 **Vectorized Environment:** Fully JIT-compilable and extremely fast (approx. **1.6M steps/sec** on 8x A100 GPUs).
+- 🎨 **Rich Visualization:** We offer SVG-based game visualization. We also provide a visualization **for those unfamiliar with Chinese characters** (see the GIF on the top right).
+- 🎮 **Playable Interface:** A web-based UI allows you to play directly against the agents you train.
+- 📚 **RL Examples:** We provide simple examples for Behavior Cloning and Reinforcement Learning in the [`examples/`](https://github.com/nissymori/mahjax/tree/main/examples) directory.
 
 For more details, please refer to the [Documentation](https://nissymori.github.io/mahjax/).
 

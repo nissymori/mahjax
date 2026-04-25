@@ -150,12 +150,6 @@ This includes:
 
 ## Termination
 
-- `round_mode="single"` terminates after the first round ends (`one_round=True` equivalent).
+- `round_mode="single"` terminates after the first round ends.
 - `round_mode="east"` runs East-only progression with `round_limit=4`.
 - `round_mode="half"` runs East-South progression with `round_limit=8`.
-
-## Reference
-
-- [Rules Overview](rule.md)
-- [Mahjong Basics](mahjong-basics.md)
-- [Visualization Guide](visualization.md)

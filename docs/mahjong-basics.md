@@ -8,6 +8,14 @@ MahJax ships with two tile sets:
 
 The first half of this page shows both side by side, so you can learn the game and the tile notation at the same time.
 
+<style>
+img[src*="assets/tiles/"] {
+  background: #fff;
+  border-radius: 4px;
+  padding: 2px;
+}
+</style>
+
 ## 1. Reading the tiles
 
 Riichi mahjong uses **34 tile types**.
@@ -57,15 +65,16 @@ The three basic building blocks are:
 
 | Unit | Japanese tiles | English tiles | Meaning |
 | --- | --- | --- | --- |
-| Sequence | ![4m](assets/tiles/ja/4m.svg){ width="34" } ![5m](assets/tiles/ja/5m.svg){ width="34" } ![6m](assets/tiles/ja/6m.svg){ width="34" } | ![4m](assets/tiles/en/4m.svg){ width="34" } ![5m](assets/tiles/en/5m.svg){ width="34" } ![6m](assets/tiles/en/6m.svg){ width="34" } | Three consecutive suit tiles. Honors cannot make sequences. |
-| Triplet | ![7p](assets/tiles/ja/7p.svg){ width="34" } ![7p](assets/tiles/ja/7p.svg){ width="34" } ![7p](assets/tiles/ja/7p.svg){ width="34" } | ![7p](assets/tiles/en/7p.svg){ width="34" } ![7p](assets/tiles/en/7p.svg){ width="34" } ![7p](assets/tiles/en/7p.svg){ width="34" } | Three identical tiles. |
-| Pair | ![north](assets/tiles/ja/north.svg){ width="34" } ![north](assets/tiles/ja/north.svg){ width="34" } | ![north](assets/tiles/en/north.svg){ width="34" } ![north](assets/tiles/en/north.svg){ width="34" } | Two identical tiles. A regular winning hand needs exactly one pair. |
+| Sequence | <nobr>![4m](assets/tiles/ja/4m.svg){ width="34" } ![5m](assets/tiles/ja/5m.svg){ width="34" } ![6m](assets/tiles/ja/6m.svg){ width="34" }</nobr> | <nobr>![4m](assets/tiles/en/4m.svg){ width="34" } ![5m](assets/tiles/en/5m.svg){ width="34" } ![6m](assets/tiles/en/6m.svg){ width="34" }</nobr> | Three consecutive suit tiles. Honors cannot make sequences. |
+| Triplet | <nobr>![7p](assets/tiles/ja/7p.svg){ width="34" } ![7p](assets/tiles/ja/7p.svg){ width="34" } ![7p](assets/tiles/ja/7p.svg){ width="34" }</nobr> | <nobr>![7p](assets/tiles/en/7p.svg){ width="34" } ![7p](assets/tiles/en/7p.svg){ width="34" } ![7p](assets/tiles/en/7p.svg){ width="34" }</nobr> | Three identical tiles. |
+| Pair | <nobr>![north](assets/tiles/ja/north.svg){ width="34" } ![north](assets/tiles/ja/north.svg){ width="34" }</nobr> | <nobr>![north](assets/tiles/en/north.svg){ width="34" } ![north](assets/tiles/en/north.svg){ width="34" }</nobr> | Two identical tiles. A regular winning hand needs exactly one pair. |
 
 Here is a complete standard hand:
 
-| Japanese tiles | English tiles |
+| Tile set | Hand |
 | --- | --- |
-| ![1m](assets/tiles/ja/1m.svg){ width="34" } ![2m](assets/tiles/ja/2m.svg){ width="34" } ![3m](assets/tiles/ja/3m.svg){ width="34" } ![4m](assets/tiles/ja/4m.svg){ width="34" } ![5m](assets/tiles/ja/5m.svg){ width="34" } ![6m](assets/tiles/ja/6m.svg){ width="34" } ![7p](assets/tiles/ja/7p.svg){ width="34" } ![8p](assets/tiles/ja/8p.svg){ width="34" } ![9p](assets/tiles/ja/9p.svg){ width="34" } ![7s](assets/tiles/ja/7s.svg){ width="34" } ![7s](assets/tiles/ja/7s.svg){ width="34" } ![7s](assets/tiles/ja/7s.svg){ width="34" } ![east](assets/tiles/ja/east.svg){ width="34" } ![east](assets/tiles/ja/east.svg){ width="34" } | ![1m](assets/tiles/en/1m.svg){ width="34" } ![2m](assets/tiles/en/2m.svg){ width="34" } ![3m](assets/tiles/en/3m.svg){ width="34" } ![4m](assets/tiles/en/4m.svg){ width="34" } ![5m](assets/tiles/en/5m.svg){ width="34" } ![6m](assets/tiles/en/6m.svg){ width="34" } ![7p](assets/tiles/en/7p.svg){ width="34" } ![8p](assets/tiles/en/8p.svg){ width="34" } ![9p](assets/tiles/en/9p.svg){ width="34" } ![7s](assets/tiles/en/7s.svg){ width="34" } ![7s](assets/tiles/en/7s.svg){ width="34" } ![7s](assets/tiles/en/7s.svg){ width="34" } ![east](assets/tiles/en/east.svg){ width="34" } ![east](assets/tiles/en/east.svg){ width="34" } |
+| JA | <nobr>![1m](assets/tiles/ja/1m.svg){ width="34" } ![2m](assets/tiles/ja/2m.svg){ width="34" } ![3m](assets/tiles/ja/3m.svg){ width="34" } ![4m](assets/tiles/ja/4m.svg){ width="34" } ![5m](assets/tiles/ja/5m.svg){ width="34" } ![6m](assets/tiles/ja/6m.svg){ width="34" } ![7p](assets/tiles/ja/7p.svg){ width="34" } ![8p](assets/tiles/ja/8p.svg){ width="34" } ![9p](assets/tiles/ja/9p.svg){ width="34" } ![7s](assets/tiles/ja/7s.svg){ width="34" } ![7s](assets/tiles/ja/7s.svg){ width="34" } ![7s](assets/tiles/ja/7s.svg){ width="34" } ![east](assets/tiles/ja/east.svg){ width="34" } ![east](assets/tiles/ja/east.svg){ width="34" }</nobr> |
+| EN | <nobr>![1m](assets/tiles/en/1m.svg){ width="34" } ![2m](assets/tiles/en/2m.svg){ width="34" } ![3m](assets/tiles/en/3m.svg){ width="34" } ![4m](assets/tiles/en/4m.svg){ width="34" } ![5m](assets/tiles/en/5m.svg){ width="34" } ![6m](assets/tiles/en/6m.svg){ width="34" } ![7p](assets/tiles/en/7p.svg){ width="34" } ![8p](assets/tiles/en/8p.svg){ width="34" } ![9p](assets/tiles/en/9p.svg){ width="34" } ![7s](assets/tiles/en/7s.svg){ width="34" } ![7s](assets/tiles/en/7s.svg){ width="34" } ![7s](assets/tiles/en/7s.svg){ width="34" } ![east](assets/tiles/en/east.svg){ width="34" } ![east](assets/tiles/en/east.svg){ width="34" }</nobr> |
 
 This hand is:
 
