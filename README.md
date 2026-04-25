@@ -15,16 +15,18 @@
 [![License](https://img.shields.io/pypi/l/mahjax.svg)](https://pypi.org/project/mahjax)
 [![Supported Python versions](https://img.shields.io/pypi/pyversions/mahjax.svg)](https://pypi.org/project/mahjax)
 
-**A GPU-Accelerated Mahjong Simulator for Reinforcement Learning in JAX**
+**A GPU-Accelerated Mahjong Simulator for Reinforcement Learning in [JAX](https://github.com/google/jax)**
 
-Mahjax provides a full-scale Japanese Riichi Mahjong environment written entirely in [JAX](https://github.com/google/jax), enabling **highly parallelized simulation on GPUs**.
-Note that MahJax is heavily inspired by [Pgx](https://github.com/sotetsuk/pgx), which offers vectorized simulators for a diverse set of board games such as Go, Chess, and Shogi.
+> [!NOTE]
+> Japanese Riichi Mahjong is a challenging multi-agent RL environment with imperfect information, stochastic dynamics, more than two players, and high-dimensional observations.
+> Mahjax aims to make Mahjong research more accessible to a broader RL community.
+> For newcommers, please see our [basic introduction](https://nissymori.github.io/mahjax/mahjong-basics/) and the bilingual visualization.
 
 
 ## Overview
 
-- 🚀 **Vectorized Environment:** Fully JIT-compilable and extremely fast (approx. **1.6M steps/sec** on 8x A100 GPUs).
-- 🎨 **Rich Visualization:** SVG-based game visualization with bilingual support for those unfamiliar with Chinese characters (see the GIF on the top right).
+- 🚀 **Vectorized Environment:** Extremely fast (approx. **1.6M steps/sec** on 8x A100 GPUs).
+- 🎨 **Rich Visualization:** SVG-based visualization with bilingual support for **those unfamiliar with Kanji**.
 - 🎮 **Playable Interface:** A web-based UI allows you to play directly against the agents you train.
 - 📚 **RL Examples:** Simple examples for Behavior Cloning + PPO in the [`examples/`](https://github.com/nissymori/mahjax/tree/main/examples).
 
@@ -155,7 +157,6 @@ env = mahjax.make(
 
 > [!NOTE]
 > The observation features are not yet finalized (though the current version suffices for RL with BC; see [examples/](https://github.com/nissymori/mahjax/tree/main/examples)).
-
 
 
 ## See also

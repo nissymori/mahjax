@@ -50,7 +50,7 @@ They are the four winds and the three dragons.
 Some rulesets include one special red 5 in each suit.
 MahJax can visualize those too.
 
-| Group | Japanese tiles | English tiles |
+| Group | Original tiles | English tiles |
 | --- | --- | --- |
 | Red fives | ![5mr](assets/tiles/ja/5mr.svg){ width="34" } ![5pr](assets/tiles/ja/5pr.svg){ width="34" } ![5sr](assets/tiles/ja/5sr.svg){ width="34" } | ![5mr](assets/tiles/en/5mr.svg){ width="34" } ![5pr](assets/tiles/en/5pr.svg){ width="34" } ![5sr](assets/tiles/en/5sr.svg){ width="34" } |
 
@@ -63,7 +63,7 @@ Most winning hands in riichi mahjong are built from:
 
 The three basic building blocks are:
 
-| Unit | Japanese tiles | English tiles | Meaning |
+| Unit | Original tiles | English tiles | Meaning |
 | --- | --- | --- | --- |
 | Sequence | <nobr>![4m](assets/tiles/ja/4m.svg){ width="34" } ![5m](assets/tiles/ja/5m.svg){ width="34" } ![6m](assets/tiles/ja/6m.svg){ width="34" }</nobr> | <nobr>![4m](assets/tiles/en/4m.svg){ width="34" } ![5m](assets/tiles/en/5m.svg){ width="34" } ![6m](assets/tiles/en/6m.svg){ width="34" }</nobr> | Three consecutive suit tiles. Honors cannot make sequences. |
 | Triplet | <nobr>![7p](assets/tiles/ja/7p.svg){ width="34" } ![7p](assets/tiles/ja/7p.svg){ width="34" } ![7p](assets/tiles/ja/7p.svg){ width="34" }</nobr> | <nobr>![7p](assets/tiles/en/7p.svg){ width="34" } ![7p](assets/tiles/en/7p.svg){ width="34" } ![7p](assets/tiles/en/7p.svg){ width="34" }</nobr> | Three identical tiles. |
@@ -170,11 +170,6 @@ For the full rules, scoring details, and corner cases, the best next reference i
 
 - [European Mahjong Association: Riichi Rules 2025 (official PDF)](https://mahjong-europe.org/portal/images/docs/Riichi-rules-2025-EN.pdf)
 
-Two useful beginner-friendly English references are:
-
-- [Riichi.Wiki: Rules overview](https://riichi.wiki/index.php?mobileaction=toggle_view_desktop&title=Rules_overview)
-- [Riichi.Wiki: Japanese mahjong](https://riichi.wiki/Japanese_mahjong)
-
 If you want the MahJax-specific summary of supported rules, see [Rules](rule.md).
 
 ## 5. Where to play online
@@ -185,6 +180,3 @@ If you want to practice after reading the basics, these are good starting points
 - [Mahjong Soul on Steam](https://store.steampowered.com/app/2739990/Mahjong_Soul/): polished client, native English interface, and a built-in tutorial.
 - [Riichi City on Steam](https://store.steampowered.com/app/1954420/RiichiCity/): another English-friendly client with ranked play.
 - [Riichi.Wiki: Playing online](https://riichi.wiki/index.php?mobileaction=toggle_view_desktop&title=Playing_online): practical English notes comparing online clients, including Tenhou, Mahjong Soul, and Riichi City.
-
-If your main goal is to understand the tile language first, **Mahjong Soul** or **Riichi City** are the easiest entry points.
-If your main goal is to play on a long-established competitive ladder, **Tenhou** is still important.
