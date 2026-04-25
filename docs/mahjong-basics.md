@@ -1,6 +1,6 @@
-# Mahjong Basics for Non-Kanji Readers
+# Mahjong Basics
 
-This page is a short introduction to Japanese riichi mahjong for readers who do not read kanji.
+This page is a short introduction to Japanese riichi mahjong for newcomers.
 MahJax ships with two tile sets:
 
 - `ja`: the original tile faces

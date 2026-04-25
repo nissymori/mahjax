@@ -18,9 +18,9 @@
 **A GPU-Accelerated Mahjong Simulator for Reinforcement Learning in [JAX](https://github.com/google/jax)**
 
 > [!NOTE]
-> Japanese Riichi Mahjong is a challenging multi-agent RL environment with imperfect information, stochastic dynamics, more than two players, and high-dimensional observations.
+> Japanese Riichi Mahjong is a challenging multi-agent RL environment with *imperfect information*, *stochastic dynamics*, *more than two players*, and *high-dimensional observations*.
 > Mahjax aims to make Mahjong research more accessible to a broader RL community.
-> For newcommers, please see our [basic introduction](https://nissymori.github.io/mahjax/mahjong-basics/) and the bilingual visualization.
+> For newcommers, please see our [basic introduction](https://nissymori.github.io/mahjax/mahjong-basics/) and the *bilingual visualization*.
 
 
 ## Overview
