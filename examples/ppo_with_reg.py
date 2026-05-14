@@ -27,10 +27,6 @@ from common import (
     default_bc_params_path,
     default_rl_params_path,
     get_network_cls,
-    get_state_has_won,
-    get_state_meld_counts,
-    get_state_riichi,
-    get_state_score,
 )
 
 # Constants
@@ -301,7 +297,7 @@ def make_evaluator(network: nn.Module, num_eval_envs, baseline_params):
             )
             
             is_agent = (seat_policy_ids == 0)
-            scores = get_state_score(final_states)
+            scores = final_states.round_state.score
             agent_scores = (scores * is_agent).sum(axis=1)
             opponent_scores_avg = (scores * (~is_agent)).sum(axis=1) / 3.0
             return {
@@ -310,9 +306,9 @@ def make_evaluator(network: nn.Module, num_eval_envs, baseline_params):
                 "agent_score": agent_scores.mean(),
                 "opponent_score": opponent_scores_avg.mean(),
                 "avg_rank": (1 + (scores > agent_scores[:, None]).sum(axis=1) + 0.5 * ((scores == agent_scores[:, None]).sum(axis=1) - 1)).mean(),
-                "hora_rate": ((get_state_has_won(final_states) & is_agent).any(axis=1)).mean(),
-                "riichi_rate": ((get_state_riichi(final_states) & is_agent).any(axis=1)).mean(),
-                "meld_rate": ((get_state_meld_counts(final_states) > 0) & is_agent).any(axis=1).mean()
+                "hora_rate": ((final_states.players.has_won & is_agent).any(axis=1)).mean(),
+                "riichi_rate": ((final_states.players.riichi & is_agent).any(axis=1)).mean(),
+                "meld_rate": ((final_states.players.meld_counts > 0) & is_agent).any(axis=1).mean()
             }
 
         key_ret, key_rand, key_base = jax.random.split(key, 3)

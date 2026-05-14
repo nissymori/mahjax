@@ -23,7 +23,6 @@ from common import (
     default_dataset_path,
     get_network_cls,
     get_rule_based_player,
-    get_state_score,
 )
 
 @dataclass
@@ -127,7 +126,7 @@ def visualize_game(cfg, train_state):
         history.append(state)
         step += 1
             
-    print(f"Game End. Score: {get_state_score(state)}", flush=True)
+    print(f"Game End. Score: {state.round_state.score}", flush=True)
     os.makedirs(cfg.viz_out_dir, exist_ok=True)
     save_path = os.path.join(cfg.viz_out_dir, cfg.viz_filename)
     save_svg_animation(history, save_path, frame_duration_seconds=0.5)

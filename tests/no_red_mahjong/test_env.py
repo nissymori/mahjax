@@ -34,6 +34,7 @@ from mahjax.no_red_mahjong.env import (
     _next_round,
     _kan,
     NoRedMahjong,
+    _replace_state,
 )
 env = NoRedMahjong()
 
@@ -76,7 +77,7 @@ def _advance_after_dummy(state, steps: int = 4):
     # If the dummy count is 0, the dummy sharing is complete, so the next round is called.
     for _ in range(steps):
         state = jitted_next_round(state)
-        if int(state._dummy_count) == 0:
+        if int(state.round_state.dummy_count) == 0:
             # The dummy sharing is complete, so the next round is called.
             break
     return state
@@ -89,7 +90,7 @@ class TestEnv(unittest.TestCase):
 
     def set_state(self, state, **kwargs):
         for k, v in kwargs.items():
-            state = state.replace(  # type:ignore
+            state = _replace_state(state,   # type:ignore
                 **{k: v}
             )
         return state
@@ -100,51 +101,51 @@ class TestEnv(unittest.TestCase):
         self.assertEqual(jnp.all(state.rewards == 0), True)
         self.assertEqual(state.terminated, 0)
         self.assertEqual(state.truncated, 0)
-        self.assertEqual(state._next_deck_ix, IDX_AFTER_FIRST_DRAW)  # the first tile to draw is the 135 - 13 * 4 - 1th tile
+        self.assertEqual(state.round_state.next_deck_ix, IDX_AFTER_FIRST_DRAW)  # the first tile to draw is the 135 - 13 * 4 - 1th tile
         # deck is correctly generated?
-        self.assertEqual(state._deck.shape, (136,))
+        self.assertEqual(state.round_state.deck.shape, (136,))
         for i in range(Tile.NUM_TILE_TYPE):
-            self.assertEqual((state._deck == i).sum(), 4)
+            self.assertEqual((state.round_state.deck == i).sum(), 4)
         # hand is correctly generated?
-        self.assertEqual(state._hand.shape, (4, Tile.NUM_TILE_TYPE))
-        hand = state._hand
+        self.assertEqual(state.players.hand.shape, (4, Tile.NUM_TILE_TYPE))
+        hand = state.players.hand
 
         for i in range(136 - (4 * 13), 136):
             player = (i - 136 + (4 * 13)) // 13
-            tile = state._deck[i]
+            tile = state.round_state.deck[i]
             self.assertEqual(hand[player, tile] > 0, True)
 
     def test_discard(self):
         # Ensure _discard removes exactly one tile from current hand.
         state = self.state
         c_p = state.current_player
-        hand = state._hand[c_p]
+        hand = state.players.hand[c_p]
         logit = jnp.where(hand > 0, 0, -jnp.inf)
         discard_tile = jax.random.categorical(jax.random.PRNGKey(1), logit)
         state = jitted_discard(state, discard_tile)
-        self.assertEqual(state._hand[c_p, discard_tile], hand[discard_tile] - 1)
+        self.assertEqual(state.players.hand[c_p, discard_tile], hand[discard_tile] - 1)
 
     def test_draw(self):
         # Cover draw-state updates for deck index, target reset, and furiten clearing rules.
         state = self.state
         state = jitted_draw(state)
-        self.assertEqual(state._next_deck_ix, IDX_AFTER_FIRST_DRAW -1) # Draw the first tile
-        self.assertEqual(state._target, -1) # Target is -1
+        self.assertEqual(state.round_state.next_deck_ix, IDX_AFTER_FIRST_DRAW -1) # Draw the first tile
+        self.assertEqual(state.round_state.target, -1) # Target is -1
         # Furiten by pass without riichi
-        state = self.set_state(state, current_player=jnp.int8(0), _furiten_by_pass=state._furiten_by_pass.at[0].set(True))
+        state = self.set_state(state, current_player=jnp.int8(0), furiten_by_pass=state.players.furiten_by_pass.at[0].set(True))
         state = jitted_draw(state)
-        self.assertEqual(state._next_deck_ix, IDX_AFTER_FIRST_DRAW - 2)
-        self.assertEqual(state._furiten_by_pass[0], False) # Furiten by pass is released
+        self.assertEqual(state.round_state.next_deck_ix, IDX_AFTER_FIRST_DRAW - 2)
+        self.assertEqual(state.players.furiten_by_pass[0], False) # Furiten by pass is released
         # Furiten by pass with riichi
-        state = self.set_state(state, current_player=jnp.int8(0), _riichi=state._riichi.at[0].set(True), _furiten_by_pass=state._furiten_by_pass.at[0].set(True))
+        state = self.set_state(state, current_player=jnp.int8(0), riichi=state.players.riichi.at[0].set(True), furiten_by_pass=state.players.furiten_by_pass.at[0].set(True))
         state = jitted_draw(state)
-        self.assertEqual(state._next_deck_ix, IDX_AFTER_FIRST_DRAW - 3)
-        self.assertEqual(state._furiten_by_pass[0], True) # Furiten by pass after riichi is not released.
+        self.assertEqual(state.round_state.next_deck_ix, IDX_AFTER_FIRST_DRAW - 3)
+        self.assertEqual(state.players.furiten_by_pass[0], True) # Furiten by pass after riichi is not released.
         # Furiten by discard
-        state = self.set_state(state, current_player=jnp.int8(0), _riichi=state._riichi.at[0].set(True), _furiten_by_discard=state._furiten_by_discard.at[0].set(True))
+        state = self.set_state(state, current_player=jnp.int8(0), riichi=state.players.riichi.at[0].set(True), furiten_by_discard=state.players.furiten_by_discard.at[0].set(True))
         state = jitted_draw(state)
-        self.assertEqual(state._next_deck_ix, IDX_AFTER_FIRST_DRAW - 4)
-        self.assertEqual(state._furiten_by_discard[0], True) # Furiten by discard is not released.
+        self.assertEqual(state.round_state.next_deck_ix, IDX_AFTER_FIRST_DRAW - 4)
+        self.assertEqual(state.players.furiten_by_discard[0], True) # Furiten by discard is not released.
 
     def test_make_legal_action_mask_after_draw(self):
         # Ensure legal actions after draws respect haitei, yaku, riichi, and kan constraints.
@@ -160,7 +161,7 @@ class TestEnv(unittest.TestCase):
                 dtype=jnp.int8,
             )
         )
-        state = self.set_state(self.state, _hand=hand, _is_hand_concealed=jnp.ones(4, dtype=jnp.bool_))
+        state = self.set_state(self.state, hand=hand, is_hand_concealed=jnp.ones(4, dtype=jnp.bool_))
         # After drawing 1m
         legal_action_mask = jitted_make_legal_action_mask_after_draw(state, hand, c_p=0, new_tile=0)
         self.assertEqual(jnp.all(legal_action_mask[Action.TSUMOGIRI]), True)
@@ -169,7 +170,7 @@ class TestEnv(unittest.TestCase):
         self.assertEqual(jnp.all(legal_action_mask[Tile.NUM_TILE_TYPE]), True) # Closed kan is allowed for 1m
         self.assertEqual(jnp.all(legal_action_mask[Action.RIICHI]), True) # Riichi is allowed for 2p
         # After drawing 2m
-        state = self.set_state(self.state, _hand=hand, _is_hand_concealed=jnp.ones(4, dtype=jnp.bool_))
+        state = self.set_state(self.state, hand=hand, is_hand_concealed=jnp.ones(4, dtype=jnp.bool_))
         legal_action_mask = jitted_make_legal_action_mask_after_draw(state, hand, c_p=0, new_tile=0) # After drawing 1m, the legal actions are generated
         self.assertEqual(jnp.all(legal_action_mask[Action.TSUMOGIRI]), True)
         self.assertEqual(jnp.all(legal_action_mask[1:8]), True) # 1m, 3m, 4m, 5m, 6m, 7m, 8m, we cannot discard 2m because it is not in the hand originaly
@@ -179,13 +180,13 @@ class TestEnv(unittest.TestCase):
         # Not bottom of the sea
         state = self.set_state(
             self.state,
-            _hand=hand,
+            hand=hand,
             current_player=jnp.int8(0),
-            _is_haitei=jnp.bool_(False),
-            _is_hand_concealed=jnp.zeros(4, dtype=jnp.bool_),
-            _can_after_kan=jnp.bool_(False),
-            _can_win=jnp.zeros((4, Tile.NUM_TILE_TYPE), dtype=jnp.bool_).at[0].set(True), # Can win by tile combination
-            _has_yaku=jnp.zeros((4, 2), dtype=jnp.bool_) # No yaku
+            is_haitei=jnp.bool_(False),
+            is_hand_concealed=jnp.zeros(4, dtype=jnp.bool_),
+            can_after_kan=jnp.bool_(False),
+            can_win=jnp.zeros((4, Tile.NUM_TILE_TYPE), dtype=jnp.bool_).at[0].set(True), # Can win by tile combination
+            has_yaku=jnp.zeros((4, 2), dtype=jnp.bool_) # No yaku
         )
         legal_action_mask = jitted_make_legal_action_mask_after_draw(state, hand, c_p=0, new_tile=0) # Can win by tile combination, but no yaku
         self.assertEqual(legal_action_mask[Action.TSUMO], False) # No yaku, so cannot tsumo
@@ -193,13 +194,13 @@ class TestEnv(unittest.TestCase):
         state = self.set_state(
             self.state,
             current_player=jnp.int8(0),
-            _next_deck_ix=jnp.int32(14),
-            _last_deck_ix=jnp.int32(14),
-            _is_hand_concealed=jnp.zeros(4, dtype=jnp.bool_),
-            _can_after_kan=jnp.bool_(False),
-            _is_haitei=jnp.bool_(True),
-            _can_win=jnp.zeros((4, Tile.NUM_TILE_TYPE), dtype=jnp.bool_).at[0].set(True), # Can win by tile combination
-            _has_yaku=jnp.zeros((4, 2), dtype=jnp.bool_) # No yaku
+            next_deck_ix=jnp.int32(14),
+            last_deck_ix=jnp.int32(14),
+            is_hand_concealed=jnp.zeros(4, dtype=jnp.bool_),
+            can_after_kan=jnp.bool_(False),
+            is_haitei=jnp.bool_(True),
+            can_win=jnp.zeros((4, Tile.NUM_TILE_TYPE), dtype=jnp.bool_).at[0].set(True), # Can win by tile combination
+            has_yaku=jnp.zeros((4, 2), dtype=jnp.bool_) # No yaku
         )
         legal_action_mask = jitted_make_legal_action_mask_after_draw(state, hand, c_p=0, new_tile=0) # Can win by tile combination, but no yaku
         self.assertEqual(jnp.all(legal_action_mask[Tile.NUM_TILE_TYPE]), False) # Cannot closed kan on bottom of the sea
@@ -208,8 +209,8 @@ class TestEnv(unittest.TestCase):
         # No next draw turn No riichi
         state = self.set_state(
             state,
-            _next_deck_ix=jnp.int32(15),
-            _last_deck_ix=jnp.int32(14),
+            next_deck_ix=jnp.int32(15),
+            last_deck_ix=jnp.int32(14),
         )
         legal_action_mask = jitted_make_legal_action_mask_after_draw(state, hand, c_p=0, new_tile=0) # No next draw turn, so cannot riichi
         self.assertEqual(jnp.all(legal_action_mask[Action.RIICHI]), False) # No next draw turn, so cannot riichi
@@ -225,13 +226,13 @@ class TestEnv(unittest.TestCase):
         basic_state = self.set_state(
             state,
             current_player=jnp.int8(3),
-            _is_haitei=jnp.bool_(False),
-            _furiten_by_discard=jnp.zeros(4, dtype=jnp.bool_),
-            _furiten_by_pass=jnp.zeros(4, dtype=jnp.bool_),
-            _riichi=jnp.zeros(4, dtype=jnp.bool_),
-            _is_hand_concealed=jnp.ones(4, dtype=jnp.bool_),
-            _can_win=jnp.ones((4, Tile.NUM_TILE_TYPE), dtype=jnp.bool_), # Can win by tile combination
-            _has_yaku=jnp.ones((4, 2), dtype=jnp.bool_), # Has yaku
+            is_haitei=jnp.bool_(False),
+            furiten_by_discard=jnp.zeros(4, dtype=jnp.bool_),
+            furiten_by_pass=jnp.zeros(4, dtype=jnp.bool_),
+            riichi=jnp.zeros(4, dtype=jnp.bool_),
+            is_hand_concealed=jnp.ones(4, dtype=jnp.bool_),
+            can_win=jnp.ones((4, Tile.NUM_TILE_TYPE), dtype=jnp.bool_), # Can win by tile combination
+            has_yaku=jnp.ones((4, 2), dtype=jnp.bool_), # Has yaku
         )
         state = basic_state
         legal_action_mask_1 = jitted_make_legal_action_mask_after_discard(state, hand1, c_p=0, tile=2) # For 3m
@@ -241,7 +242,7 @@ class TestEnv(unittest.TestCase):
         legal_action_mask_3 = jitted_make_legal_action_mask_after_discard(state, hand2, c_p=0, tile=4) # For 5m
         self.assertEqual(jnp.all(legal_action_mask_3[Action.PON]), True)  # Can pon
         self.assertEqual(jnp.all(legal_action_mask_3[Action.OPEN_KAN]), True)  # Can open kan
-        legal_action_mask_4 = jitted_make_legal_action_mask_after_discard(state.replace(_n_kan=jnp.array([2, 2, 0, 0], dtype=jnp.int8)), hand2, c_p=0, tile=4) # For 5m, n_kan is 4, so cannot open kan
+        legal_action_mask_4 = jitted_make_legal_action_mask_after_discard(_replace_state(state, n_kan=jnp.array([2, 2, 0, 0], dtype=jnp.int8)), hand2, c_p=0, tile=4) # For 5m, n_kan is 4, so cannot open kan
         self.assertEqual(jnp.all(legal_action_mask_4[Action.PON]), True)  # Can pon
         self.assertEqual(jnp.all(legal_action_mask_4[Action.OPEN_KAN]), False)  # Cannot open kan when n_kan is 4
         legal_action_mask_5 = jitted_make_legal_action_mask_after_discard(state, hand3, c_p=0, tile=9) # For 1p
@@ -253,7 +254,7 @@ class TestEnv(unittest.TestCase):
         state = self.set_state(
             basic_state,
             current_player=jnp.int8(0),
-            _riichi=jnp.ones(4, dtype=jnp.bool_),
+            riichi=jnp.ones(4, dtype=jnp.bool_),
         )
         legal_action_mask_1 = jitted_make_legal_action_mask_after_discard(state, hand1, c_p=0, tile=2) # For 3m
         self.assertEqual(jnp.all(legal_action_mask_1[Action.CHI_L:Action.CHI_R]), False)  # cannot chi when riichi
@@ -266,7 +267,7 @@ class TestEnv(unittest.TestCase):
         # Tile at the bottom of the sea
         state = self.set_state(
             basic_state,
-            _is_haitei=True
+            is_haitei=True
         )
         legal_action_mask_1 = jitted_make_legal_action_mask_after_discard(state, hand1, c_p=0, tile=2) # For 3m
         self.assertEqual(jnp.all(legal_action_mask_1[Action.CHI_L:Action.CHI_R]), False)
@@ -279,7 +280,7 @@ class TestEnv(unittest.TestCase):
         # Furiten by discard
         state = self.set_state(
             basic_state,
-            _furiten_by_discard=jnp.ones(4, dtype=jnp.bool_),
+            furiten_by_discard=jnp.ones(4, dtype=jnp.bool_),
         )
         legal_action_mask_3 = jitted_make_legal_action_mask_after_discard(state, hand3, c_p=0, tile=9) # For 1p
         self.assertEqual(jnp.all(legal_action_mask_3[Action.CHI_L]), True)
@@ -287,7 +288,7 @@ class TestEnv(unittest.TestCase):
         # Furiten by pass
         state = self.set_state(
             basic_state,
-            _furiten_by_pass=jnp.ones(4, dtype=jnp.bool_),
+            furiten_by_pass=jnp.ones(4, dtype=jnp.bool_),
         )
         legal_action_mask_3 = jitted_make_legal_action_mask_after_discard(state, hand3, c_p=0, tile=9) # For 1p
         self.assertEqual(jnp.all(legal_action_mask_3[Action.CHI_L]), True)
@@ -295,13 +296,13 @@ class TestEnv(unittest.TestCase):
         # We can win by tile combination, but no yaku
         state = self.set_state(
             basic_state,
-            _is_haitei=True,
-            _can_win=jnp.zeros((4, Tile.NUM_TILE_TYPE), dtype=jnp.bool_).at[0].set(True), # Can win by tile combination
-            _has_yaku=jnp.zeros((4, 2), dtype=jnp.bool_) # No yaku
+            is_haitei=True,
+            can_win=jnp.zeros((4, Tile.NUM_TILE_TYPE), dtype=jnp.bool_).at[0].set(True), # Can win by tile combination
+            has_yaku=jnp.zeros((4, 2), dtype=jnp.bool_) # No yaku
         )
         legal_action_mask_4 = jitted_make_legal_action_mask_after_discard(state, hand4, c_p=0, tile=2) # For 3m
         self.assertEqual(jnp.all(legal_action_mask_4[Action.CHI_L:Action.CHI_R]), False)
-        legal_action_mask_5 = jitted_make_legal_action_mask_after_discard(state.replace(_is_haitei=False), hand4, c_p=0, tile=2) # For 3m, not haitei
+        legal_action_mask_5 = jitted_make_legal_action_mask_after_discard(_replace_state(state, is_haitei=False), hand4, c_p=0, tile=2) # For 3m, not haitei
         self.assertEqual(jnp.all(legal_action_mask_5[Action.RON]), False) # Cannot ron without yaku
 
     def test_next_meld_player(self):
@@ -364,45 +365,45 @@ class TestEnv(unittest.TestCase):
         # Validate riichi acceptance toggles flags, deducts points, and only sets double riichi when allowed.
         state = self.set_state(
             self.state,
-            _riichi_declared=True,
-            _riichi=jnp.zeros(4, dtype=jnp.bool_),
-            _last_player=jnp.int8(0),
-            _next_deck_ix=jnp.int8(FIRST_DRAW_IDX - 10),
+            riichi_declared=jnp.array([True, False, False, False], dtype=jnp.bool_),
+            riichi=jnp.zeros(4, dtype=jnp.bool_),
+            last_player=jnp.int8(0),
+            next_deck_ix=jnp.int8(FIRST_DRAW_IDX - 10),
         )
         state = jitted_accept_riichi(state)
-        self.assertEqual(state._riichi_declared, False) # riichi is already declared
-        self.assertEqual(state._riichi[0], True)
-        self.assertEqual(state._score[0], 240) # reduce score for riichi declaration
-        self.assertEqual(state._double_riichi[0], False) # not double riichi
-        self.assertEqual(state._ippatsu[0], True) # ippatsu is enabled
+        self.assertEqual(state.players.riichi_declared[0], False) # riichi is already declared
+        self.assertEqual(state.players.riichi[0], True)
+        self.assertEqual(state.round_state.score[0], 240) # reduce score for riichi declaration
+        self.assertEqual(state.players.double_riichi[0], False) # not double riichi
+        self.assertEqual(state.players.ippatsu[0], True) # ippatsu is enabled
         # double riichi
         state = self.set_state(
             self.state,
-            _riichi_declared=True,
-            _riichi=jnp.zeros(4, dtype=jnp.bool_),
-            _last_player=jnp.int8(0),
-            _next_deck_ix=jnp.int8(FIRST_DRAW_IDX - 2),
+            riichi_declared=jnp.array([True, False, False, False], dtype=jnp.bool_),
+            riichi=jnp.zeros(4, dtype=jnp.bool_),
+            last_player=jnp.int8(0),
+            next_deck_ix=jnp.int8(FIRST_DRAW_IDX - 2),
         )
         state = jitted_accept_riichi(state)
-        self.assertEqual(state._riichi_declared, False) # riichi is already declared
-        self.assertEqual(state._riichi[0], True)
-        self.assertEqual(state._score[0], 240) # reduce score for riichi declaration
-        self.assertEqual(state._double_riichi[0], True) # double riichi
-        self.assertEqual(state._ippatsu[0], True) # ippatsu is enabled
+        self.assertEqual(state.players.riichi_declared[0], False) # riichi is already declared
+        self.assertEqual(state.players.riichi[0], True)
+        self.assertEqual(state.round_state.score[0], 240) # reduce score for riichi declaration
+        self.assertEqual(state.players.double_riichi[0], True) # double riichi
+        self.assertEqual(state.players.ippatsu[0], True) # ippatsu is enabled
         # if meld, double riichi is not enabled
         state = self.set_state(
             self.state,
-            _riichi_declared=True,
-            _riichi=jnp.zeros(4, dtype=jnp.bool_),
-            _last_player=jnp.int8(0),
-            _next_deck_ix=jnp.int8(FIRST_DRAW_IDX - 2),
-            _n_meld=jnp.array([1, 0, 0, 0], dtype=jnp.int8),
+            riichi_declared=jnp.array([True, False, False, False], dtype=jnp.bool_),
+            riichi=jnp.zeros(4, dtype=jnp.bool_),
+            last_player=jnp.int8(0),
+            next_deck_ix=jnp.int8(FIRST_DRAW_IDX - 2),
+            meld_counts=jnp.array([1, 0, 0, 0], dtype=jnp.int8),
         )
         state = jitted_accept_riichi(state)
-        self.assertEqual(state._riichi_declared, False) # riichi is already declared
-        self.assertEqual(state._riichi[0], True)
-        self.assertEqual(state._score[0], 240) # reduce score for riichi declaration
-        self.assertEqual(state._double_riichi[0], False) # not double riichi
+        self.assertEqual(state.players.riichi_declared[0], False) # riichi is already declared
+        self.assertEqual(state.players.riichi[0], True)
+        self.assertEqual(state.round_state.score[0], 240) # reduce score for riichi declaration
+        self.assertEqual(state.players.double_riichi[0], False) # not double riichi
 
     def test_draw_after_kan(self):
         # Ensure rinshan draws increment kan counts, enable after-kan actions, and clear ippatsu.
@@ -410,25 +411,25 @@ class TestEnv(unittest.TestCase):
         state = self.set_state(
             state,
             current_player=jnp.int8(0),
-            _n_kan=jnp.array([0, 0, 0, 0], dtype=jnp.int8),
-            _n_kan_doras=jnp.int8(0),
-            _deck=jnp.arange(136, dtype=jnp.int8).at[10].set(2).at[11].set(1),
-            _kan_declared=True,
-            _ippatsu=jnp.ones(4, dtype=jnp.bool_),
-            _double_riichi=jnp.ones(4, dtype=jnp.bool_),
-            _hand=jnp.zeros((4, Tile.NUM_TILE_TYPE), dtype=jnp.int8),
+            n_kan=jnp.array([0, 0, 0, 0], dtype=jnp.int8),
+            n_kan_doras=jnp.int8(0),
+            deck=jnp.arange(136, dtype=jnp.int8).at[10].set(2).at[11].set(1),
+            kan_declared=True,
+            ippatsu=jnp.ones(4, dtype=jnp.bool_),
+            double_riichi=jnp.ones(4, dtype=jnp.bool_),
+            hand=jnp.zeros((4, Tile.NUM_TILE_TYPE), dtype=jnp.int8),
         )
         kan_state = jitted_draw_after_kan(state)
-        self.assertEqual(kan_state._can_after_kan, True) # accept after kan
-        self.assertEqual(jnp.all(kan_state._n_kan[0] == 1), True) # n_kan is increased by 1
-        self.assertEqual(kan_state._hand[0, 2], 1) # Draw a tile after kan
-        self.assertEqual(jnp.all(kan_state._ippatsu == False), True) # ippatsu is disabled
-        self.assertEqual(kan_state._kan_declared, False) # kan is not declared
-        kan_state = jitted_draw_after_kan(state.replace(_n_kan=jnp.array([1, 0, 0, 0], dtype=jnp.int8)))
-        self.assertEqual(kan_state._can_after_kan, True) # accept after kan
-        self.assertEqual(jnp.all(kan_state._n_kan[0] == 2), True) # n_kan is increased by 1
-        self.assertEqual(kan_state._hand[0, 1], 1) # rinshan tile is drawn
-        self.assertEqual(kan_state._kan_declared, False) # kan is not declared
+        self.assertEqual(kan_state.round_state.can_after_kan, True) # accept after kan
+        self.assertEqual(jnp.all(kan_state.players.n_kan[0] == 1), True) # n_kan is increased by 1
+        self.assertEqual(kan_state.players.hand[0, 2], 1) # Draw a tile after kan
+        self.assertEqual(jnp.all(kan_state.players.ippatsu == False), True) # ippatsu is disabled
+        self.assertEqual(kan_state.round_state.kan_declared, False) # kan is not declared
+        kan_state = jitted_draw_after_kan(_replace_state(state, n_kan=jnp.array([1, 0, 0, 0], dtype=jnp.int8)))
+        self.assertEqual(kan_state.round_state.can_after_kan, True) # accept after kan
+        self.assertEqual(jnp.all(kan_state.players.n_kan[0] == 2), True) # n_kan is increased by 1
+        self.assertEqual(kan_state.players.hand[0, 1], 1) # rinshan tile is drawn
+        self.assertEqual(kan_state.round_state.kan_declared, False) # kan is not declared
 
     def test_selfkan(self):
         # Exercise closed and added kan flows consuming tiles and updating meld/pon structures.
@@ -440,21 +441,21 @@ class TestEnv(unittest.TestCase):
         deck = jnp.arange(136, dtype=jnp.int8)  # dummy deck
         state = self.set_state(
             state,
-            _hand=hand,
+            hand=hand,
             current_player=jnp.int8(0),
-            _next_deck_ix=old_deck_ix,
-            _n_kan=jnp.array([0, 0, 0, 0], dtype=jnp.int8),
-            _n_meld=jnp.array([0, 0, 0, 0], dtype=jnp.int8),
-            _deck=deck,
-            _can_after_kan=False,
-            _n_kan_doras=jnp.int8(0),
-            _pon=jnp.zeros((4, 34), dtype=jnp.int32)
+            next_deck_ix=old_deck_ix,
+            n_kan=jnp.array([0, 0, 0, 0], dtype=jnp.int8),
+            meld_counts=jnp.array([0, 0, 0, 0], dtype=jnp.int8),
+            deck=deck,
+            can_after_kan=False,
+            n_kan_doras=jnp.int8(0),
+            pon=jnp.zeros((4, 34), dtype=jnp.int32)
         )
         state = jitted_closed_kan(state, 0)
         # 1m is consumed
-        self.assertEqual(jnp.all(state._hand[0, 0] == 0), True)
+        self.assertEqual(jnp.all(state.players.hand[0, 0] == 0), True)
         # n_meld is increased by 1
-        self.assertEqual(jnp.all(state._n_meld[0] == 1), True)
+        self.assertEqual(jnp.all(state.players.meld_counts[0] == 1), True)
         # added kan
         hand = jnp.zeros((4, Tile.NUM_TILE_TYPE), dtype=jnp.int8)
         hand = hand.at[0, 4].set(1)  # 5m x 1
@@ -464,20 +465,20 @@ class TestEnv(unittest.TestCase):
         pon = jnp.zeros((4, 34), dtype=jnp.int32).at[0, 4].set(0 << 2 | 1)  # player0 pon 5m (second)
         state = self.set_state(
             state,
-            _hand=hand,
+            hand=hand,
             current_player=jnp.int8(0),
-            _n_kan=jnp.array([0, 0, 0, 0], dtype=jnp.int8),
-            _n_kan_doras=jnp.int8(0),
-            _can_after_kan=False,
-            _n_meld=n_meld,
-            _melds=melds,
-            _pon=pon
+            n_kan=jnp.array([0, 0, 0, 0], dtype=jnp.int8),
+            n_kan_doras=jnp.int8(0),
+            can_after_kan=False,
+            meld_counts=n_meld,
+            melds=melds,
+            pon=pon
         )
         state = jitted_added_kan(state, 4)
         # 5m is consumed
-        self.assertEqual(jnp.all(state._hand[0, 4] == 0), True)
+        self.assertEqual(jnp.all(state.players.hand[0, 4] == 0), True)
         # pon is removed
-        self.assertEqual(jnp.all(state._pon[0, 4] == 0), True)
+        self.assertEqual(jnp.all(state.players.pon[0, 4] == 0), True)
 
     def test_open_kan(self):
         # Ensure open kan consumes tiles, uses discard target, and increments meld count.
@@ -486,18 +487,18 @@ class TestEnv(unittest.TestCase):
         hand = hand.at[0, 3].set(3) # 4m x 3
         state = self.set_state(
             state,
-            _hand=hand,
-            _target=jnp.int8(3),
-            _is_hand_concealed=jnp.array([True, True, True, True], dtype=jnp.bool_),
-            _n_meld=jnp.array([0, 0, 0, 0], dtype=jnp.int8),
-            _n_kan=jnp.array([0, 0, 0, 0], dtype=jnp.int8),
-            _n_kan_doras=jnp.int8(0),
-            _can_after_kan=False,
+            hand=hand,
+            target=jnp.int8(3),
+            is_hand_concealed=jnp.array([True, True, True, True], dtype=jnp.bool_),
+            meld_counts=jnp.array([0, 0, 0, 0], dtype=jnp.int8),
+            n_kan=jnp.array([0, 0, 0, 0], dtype=jnp.int8),
+            n_kan_doras=jnp.int8(0),
+            can_after_kan=False,
             current_player=jnp.int8(0)
         )
         state = jitted_open_kan(state)
-        self.assertEqual(jnp.all(state._hand[0, 3] == 0), True) # 4m is consumed
-        self.assertEqual(jnp.all(state._n_meld[0] == 1), True) # n_meld is increased by 1
+        self.assertEqual(jnp.all(state.players.hand[0, 3] == 0), True) # 4m is consumed
+        self.assertEqual(jnp.all(state.players.meld_counts[0] == 1), True) # n_meld is increased by 1
 
     def test_after_kan(self):
         # Check kan plus rinshan sequence removes kan tiles, draws rinshan, and unlocks tsumo.
@@ -514,19 +515,19 @@ class TestEnv(unittest.TestCase):
         state = self.set_state(
             state,
             current_player=jnp.int8(0),
-            _n_kan=jnp.array([0, 0, 0, 0], dtype=jnp.int8),
-            _n_kan_doras=jnp.int8(0),
-            _deck=jnp.arange(136, dtype=jnp.int8).at[10].set(2),
-            _hand=jnp.zeros((4, Tile.NUM_TILE_TYPE), dtype=jnp.int8).at[0].set(hand), # player0 has 2p x 4
+            n_kan=jnp.array([0, 0, 0, 0], dtype=jnp.int8),
+            n_kan_doras=jnp.int8(0),
+            deck=jnp.arange(136, dtype=jnp.int8).at[10].set(2),
+            hand=jnp.zeros((4, Tile.NUM_TILE_TYPE), dtype=jnp.int8).at[0].set(hand), # player0 has 2p x 4
         )
         state = jitted_kan(state, 10) # player0 closed kan 2p
         state = jitted_draw_after_kan(state)
-        self.assertEqual(state._can_after_kan, True) # accept after kan
-        self.assertEqual(jnp.all(state._n_kan[0] == 1), True) # n_kan is increased by 1
-        self.assertEqual(state._hand[0, 2], 1) # rinshan tile is drawn
-        self.assertEqual(state._hand[0, 10], 0) # kan is closed, so 2p is removed
-        self.assertEqual(state._legal_action_mask_4p[0, Action.TSUMO], True) # kan is closed, so tsumo is possible
-        self.assertEqual(state._kan_declared, False) # kan is not declared
+        self.assertEqual(state.round_state.can_after_kan, True) # accept after kan
+        self.assertEqual(jnp.all(state.players.n_kan[0] == 1), True) # n_kan is increased by 1
+        self.assertEqual(state.players.hand[0, 2], 1) # rinshan tile is drawn
+        self.assertEqual(state.players.hand[0, 10], 0) # kan is closed, so 2p is removed
+        self.assertEqual(state.players.legal_action_mask[0, Action.TSUMO], True) # kan is closed, so tsumo is possible
+        self.assertEqual(state.round_state.kan_declared, False) # kan is not declared
 
     def test_robbing_kan(self):
         # Verify robbing-kan priority and action masks for ron/pass without boosting kan counts.
@@ -556,21 +557,21 @@ class TestEnv(unittest.TestCase):
         pon = jnp.zeros((4, 34), dtype=jnp.int32).at[1, 18].set(1) # player 1 pon 1s
         base_state = self.set_state(
             self.state,
-            _hand=hand,
-            _pon=pon,
+            hand=hand,
+            pon=pon,
             current_player=jnp.int8(1),
-            _can_win=jnp.zeros((4, Tile.NUM_TILE_TYPE), dtype=jnp.bool_).at[0, 18].set(True),
+            can_win=jnp.zeros((4, Tile.NUM_TILE_TYPE), dtype=jnp.bool_).at[0, 18].set(True),
         )
         action = 18 + Tile.NUM_TILE_TYPE  # play added kan 1s
         kan_state = jitted_kan(base_state, action)
-        self.assertEqual(kan_state._kan_declared, True) # kan is declared
-        self.assertEqual(kan_state._hand[1, 18], 0) # 1s is consumed
-        self.assertEqual(kan_state._pon[1, 18], 0) # pon is removed
-        self.assertEqual(kan_state._n_kan[1], 0) # n_kan is not increased
+        self.assertEqual(kan_state.round_state.kan_declared, True) # kan is declared
+        self.assertEqual(kan_state.players.hand[1, 18], 0) # 1s is consumed
+        self.assertEqual(kan_state.players.pon[1, 18], 0) # pon is removed
+        self.assertEqual(kan_state.players.n_kan[1], 0) # n_kan is not increased
         self.assertEqual(kan_state.current_player, 0) # next player is player 0
-        self.assertEqual(kan_state._last_player, 1) # last player is player 1
-        self.assertEqual(kan_state._legal_action_mask_4p[0, Action.RON], True) # player 0 can ron
-        self.assertEqual(kan_state._legal_action_mask_4p[0, Action.PASS], True) # player 0 can pass
+        self.assertEqual(kan_state.round_state.last_player, 1) # last player is player 1
+        self.assertEqual(kan_state.players.legal_action_mask[0, Action.RON], True) # player 0 can ron
+        self.assertEqual(kan_state.players.legal_action_mask[0, Action.PASS], True) # player 0 can pass
         # left first for robbing kan
         hand = hand.at[2].set(
             jnp.array(
@@ -585,18 +586,18 @@ class TestEnv(unittest.TestCase):
         )  # player 2 also can win with 1s
         robbing_kan_two_player_state = self.set_state(
             base_state,
-            _hand=hand,
-            _can_win=base_state._can_win.at[2, 18].set(True),
+            hand=hand,
+            can_win=base_state.players.can_win.at[2, 18].set(True),
         )
         kan_state = jitted_kan(robbing_kan_two_player_state, action)
-        self.assertEqual(kan_state._kan_declared, True) # kan is declared
-        self.assertEqual(kan_state._hand[2, 18], 0) # 1s is consumed
-        self.assertEqual(kan_state._pon[2, 18], 0) # pon is removed
-        self.assertEqual(kan_state._n_kan[2], 0) # n_kan is not increased
+        self.assertEqual(kan_state.round_state.kan_declared, True) # kan is declared
+        self.assertEqual(kan_state.players.hand[2, 18], 0) # 1s is consumed
+        self.assertEqual(kan_state.players.pon[2, 18], 0) # pon is removed
+        self.assertEqual(kan_state.players.n_kan[2], 0) # n_kan is not increased
         self.assertEqual(kan_state.current_player, 2) # next player is player 2
-        self.assertEqual(kan_state._last_player, 1) # last player is player 1
-        self.assertEqual(kan_state._legal_action_mask_4p[[0, 2], Action.RON].all(), True) # player 0 and player 2 can ron
-        self.assertEqual(kan_state._legal_action_mask_4p[[2], Action.PASS].all(), True) # player 2 can pass
+        self.assertEqual(kan_state.round_state.last_player, 1) # last player is player 1
+        self.assertEqual(kan_state.players.legal_action_mask[[0, 2], Action.RON].all(), True) # player 0 and player 2 can ron
+        self.assertEqual(kan_state.players.legal_action_mask[[2], Action.PASS].all(), True) # player 2 can pass
 
     def test_pon(self):
         # Ensure pon consumes tiles, opens the hand, updates legal discards, and retains the turn.
@@ -615,17 +616,17 @@ class TestEnv(unittest.TestCase):
         )
         state = self.set_state(
             state,
-            _hand=hand,
-            _target=jnp.int8(4),
-            _is_hand_concealed=jnp.array([True, True, True, True], dtype=jnp.bool_),
-            _n_meld=jnp.array([0, 0, 0, 0], dtype=jnp.int8),
+            hand=hand,
+            target=jnp.int8(4),
+            is_hand_concealed=jnp.array([True, True, True, True], dtype=jnp.bool_),
+            meld_counts=jnp.array([0, 0, 0, 0], dtype=jnp.int8),
             current_player=jnp.int8(0),
         )
         state = jitted_pon(state, Action.PON) # player 0 pon 5m
-        self.assertEqual(jnp.all(state._hand[0, 4] == 1), True) # 5m is consumed
-        self.assertEqual(jnp.all(state._n_meld[0] == 1), True)
-        self.assertEqual(jnp.all(state._is_hand_concealed[0] == False), True)
-        self.assertEqual(jnp.all(state._legal_action_mask_4p[0, :Tile.NUM_TILE_TYPE] == (hand[0] > 0).at[4].set(False)), True) # player can discard other than target tile (5m)
+        self.assertEqual(jnp.all(state.players.hand[0, 4] == 1), True) # 5m is consumed
+        self.assertEqual(jnp.all(state.players.meld_counts[0] == 1), True)
+        self.assertEqual(jnp.all(state.players.is_hand_concealed[0] == False), True)
+        self.assertEqual(jnp.all(state.players.legal_action_mask[0, :Tile.NUM_TILE_TYPE] == (hand[0] > 0).at[4].set(False)), True) # player can discard other than target tile (5m)
         self.assertEqual(state.current_player, 0)
 
     def test_chi(self):
@@ -644,17 +645,17 @@ class TestEnv(unittest.TestCase):
         )
         state = self.set_state(
             self.state,
-            _hand=hand,
-            _target=jnp.int8(3),
-            _is_hand_concealed=jnp.array([True, True, True, True], dtype=jnp.bool_),
-            _n_meld=jnp.array([0, 0, 0, 0], dtype=jnp.int8),
+            hand=hand,
+            target=jnp.int8(3),
+            is_hand_concealed=jnp.array([True, True, True, True], dtype=jnp.bool_),
+            meld_counts=jnp.array([0, 0, 0, 0], dtype=jnp.int8),
             current_player=jnp.int8(0),
         )
         state = jitted_chi(state, Action.CHI_M) # player 0 chi 4m (mid)
-        self.assertEqual(jnp.all(state._hand[0, 2] == 0), True) # 3m is consumed
-        self.assertEqual(jnp.all(state._hand[0, 4] == 0), True) # 5m is consumed
-        self.assertEqual(jnp.all(state._n_meld[0] == 1), True)
-        self.assertEqual(jnp.all(state._is_hand_concealed[0] == False), True)
+        self.assertEqual(jnp.all(state.players.hand[0, 2] == 0), True) # 3m is consumed
+        self.assertEqual(jnp.all(state.players.hand[0, 4] == 0), True) # 5m is consumed
+        self.assertEqual(jnp.all(state.players.meld_counts[0] == 1), True)
+        self.assertEqual(jnp.all(state.players.is_hand_concealed[0] == False), True)
 
     def test_legal_action_mask_after_chi(self):
         # Confirm post-chi legal masks forbid discarding the just-called tile combinations.
@@ -685,28 +686,28 @@ class TestEnv(unittest.TestCase):
         state = self.set_state(
             self.state,
             current_player=jnp.int8(0),
-            _last_player=jnp.int8(2),
-            _target=jnp.int8(1), # 2m is discarded
-            _legal_action_mask_4p=legal_action_mask_4p
+            last_player=jnp.int8(2),
+            target=jnp.int8(1), # 2m is discarded
+            legal_action_mask=legal_action_mask_4p
         )
         state = jitted_pass(state)  # execute pass
         # player 0 passed, so next player is player 2 (pon)
         self.assertEqual(jnp.all(state.current_player == 2), True)
         # pass is added to legal action mask
-        self.assertEqual(jnp.all(state._legal_action_mask_4p[2, Action.PASS]), True)
-        self.assertEqual(jnp.all(state._target == 1), True)
-        self.assertEqual(jnp.all(state._last_player == 2), True)
+        self.assertEqual(jnp.all(state.players.legal_action_mask[2, Action.PASS]), True)
+        self.assertEqual(jnp.all(state.round_state.target == 1), True)
+        self.assertEqual(jnp.all(state.round_state.last_player == 2), True)
         state = self.set_state(
             state,
-            _legal_action_mask_4p=jnp.zeros((4, Action.NUM_ACTION), dtype=jnp.bool_).at[0, Action.PON].set(True),  # player who can pon passes
+            legal_action_mask=jnp.zeros((4, Action.NUM_ACTION), dtype=jnp.bool_).at[0, Action.PON].set(True),  # player who can pon passes
             current_player=jnp.int8(0),
         )
         state = jitted_pass(state)  # execute pass
         # no player can action, so next player is player 3
         self.assertEqual(jnp.all(state.current_player == 3), True)
         # pass is added to legal action mask
-        self.assertEqual(jnp.all(state._target == -1), True) # target is -1 because player passed
-        self.assertEqual(jnp.all(state._last_player == 2), True) # last_player is 2
+        self.assertEqual(jnp.all(state.round_state.target == -1), True) # target is -1 because player passed
+        self.assertEqual(jnp.all(state.round_state.last_player == 2), True) # last_player is 2
         # player who can ron passes
         state = self.state
         legal_action_mask_4p = jnp.zeros((4, Action.NUM_ACTION), dtype=jnp.bool_)
@@ -714,12 +715,12 @@ class TestEnv(unittest.TestCase):
         state = self.set_state(
             state,
             current_player=jnp.int8(1),
-            _legal_action_mask_4p=legal_action_mask_4p,
-            _last_player=jnp.int8(2),
-            _furiten_by_pass=jnp.array([False, False, False, False], dtype=jnp.bool_),
+            legal_action_mask=legal_action_mask_4p,
+            last_player=jnp.int8(2),
+            furiten_by_pass=jnp.array([False, False, False, False], dtype=jnp.bool_),
         )
         state = jitted_pass(state)
-        self.assertEqual(state._furiten_by_pass[1], True)  # player who can ron passed, so furiten by pass
+        self.assertEqual(state.players.furiten_by_pass[1], True)  # player who can ron passed, so furiten by pass
 
     def test_riichi(self):
         # Ensure riichi declaration restricts discards to tenpai-safe tiles.
@@ -740,16 +741,16 @@ class TestEnv(unittest.TestCase):
         legal_action_mask_4p = jnp.zeros((4, Action.NUM_ACTION), dtype=jnp.bool_)
         state = self.set_state(
             state,
-            _hand=hand,
+            hand=hand,
             current_player=jnp.int8(0),
-            _is_hand_concealed=jnp.array([True, True, True, True], dtype=jnp.bool_),
-            _riichi=jnp.array([False, False, False, False], dtype=jnp.bool_),
-            _last_draw=0,  # 1m is drawn
-            _legal_action_mask_4p=legal_action_mask_4p
+            is_hand_concealed=jnp.array([True, True, True, True], dtype=jnp.bool_),
+            riichi=jnp.array([False, False, False, False], dtype=jnp.bool_),
+            last_draw=0,  # 1m is drawn
+            legal_action_mask=legal_action_mask_4p
         )
         state = jitted_riichi(state)  # declare riichi
         # after riichi, only tiles that can be discarded are allowed
-        self.assertTrue(jnp.all(state._legal_action_mask_4p == legal_action_mask_4p.at[0, [4, 9]].set(True)), True)  # only 5m and 1m are legal
+        self.assertTrue(jnp.all(state.players.legal_action_mask == legal_action_mask_4p.at[0, [4, 9]].set(True)), True)  # only 5m and 1m are legal
         hand = jnp.zeros((4, Tile.NUM_TILE_TYPE), dtype=jnp.int8)
         hand = hand.at[0].set(
             jnp.array(
@@ -765,35 +766,35 @@ class TestEnv(unittest.TestCase):
         state = self.set_state(
             state,
             current_player=jnp.int8(0),
-            _hand=hand,
-            _last_draw=24,
+            hand=hand,
+            last_draw=24,
         )
         state = jitted_riichi(state)
-        self.assertEqual(jnp.all(state._legal_action_mask_4p == legal_action_mask_4p.at[0, 16].set(True)), True)
+        self.assertEqual(jnp.all(state.players.legal_action_mask == legal_action_mask_4p.at[0, 16].set(True)), True)
 
     def test_double_riichi(self):
         # Show double riichi only applies with no prior melds while clearing the declaration flag.
         state = self.state
         state = self.set_state(
             state,
-            _last_player=jnp.int8(0),
-            _n_meld=jnp.zeros(4, dtype=jnp.int8),
-            _riichi_declared=True,
-            _riichi=jnp.zeros(4, dtype=jnp.bool_),
+            last_player=jnp.int8(0),
+            meld_counts=jnp.zeros(4, dtype=jnp.int8),
+            riichi_declared=jnp.array([True, False, False, False], dtype=jnp.bool_),
+            riichi=jnp.zeros(4, dtype=jnp.bool_),
         )
         state = jitted_accept_riichi(state)
-        self.assertEqual(state._double_riichi[0], True) # no meld in first round, so double riichi is established
-        self.assertEqual(state._riichi_declared, False) # riichi declaration is not valid
+        self.assertEqual(state.players.double_riichi[0], True) # no meld in first round, so double riichi is established
+        self.assertEqual(state.players.riichi_declared[0], False) # riichi declaration is not valid
 
         state = self.set_state(
             state,
-            _n_meld=jnp.ones(4, dtype=jnp.int8),
-            _riichi_declared=True,
-            _riichi=jnp.zeros(4, dtype=jnp.bool_),
+            meld_counts=jnp.ones(4, dtype=jnp.int8),
+            riichi_declared=jnp.array([True, False, False, False], dtype=jnp.bool_),
+            riichi=jnp.zeros(4, dtype=jnp.bool_),
         )
         state = jitted_accept_riichi(state)
-        self.assertEqual(state._double_riichi[0], False) # meld is in, so double riichi is not established
-        self.assertEqual(state._riichi_declared, False) # riichi declaration is not valid
+        self.assertEqual(state.players.double_riichi[0], False) # meld is in, so double riichi is not established
+        self.assertEqual(state.players.riichi_declared[0], False) # riichi declaration is not valid
 
     def test_ron(self):
         # Verify ron scoring and rewards including honba and kyotaku payouts.
@@ -808,67 +809,67 @@ class TestEnv(unittest.TestCase):
         dealer = jnp.int8(0)
         basic_state = self.set_state(
             self.state,
-            _fan=fan,
-            _fu=fu,
-            _target=target,
-            _last_player=last_player,
-            _kyotaku=jnp.int8(0),
+            fan=fan,
+            fu=fu,
+            target=target,
+            last_player=last_player,
+            kyotaku=jnp.int8(0),
             current_player=current_player,
-            _score=score,
-            _dealer=dealer,
+            score=score,
+            dealer=dealer,
         )
         # parent wins 1500 points
         state = basic_state
         state = jitted_ron(state)
-        self.assertEqual(jnp.all(state._score == jnp.array([265, 235, 250, 250], dtype=jnp.float32)), True)
+        self.assertEqual(jnp.all(state.round_state.score == jnp.array([265, 235, 250, 250], dtype=jnp.float32)), True)
         self.assertEqual(jnp.all(state.rewards == jnp.array([15, -15, 0, 0], dtype=jnp.float32)), True)
         # with honba and kyotaku
         state = self.set_state(
             basic_state,
-            _honba=jnp.int8(1),
-            _kyotaku=jnp.int8(1),
-            _riichi=jnp.array([True, False, False, True], dtype=jnp.bool_),
-            _score=jnp.array([250, 250, 250, 240], dtype=jnp.float32),
+            honba=jnp.int8(1),
+            kyotaku=jnp.int8(1),
+            riichi=jnp.array([True, False, False, True], dtype=jnp.bool_),
+            score=jnp.array([250, 250, 250, 240], dtype=jnp.float32),
         )
         state = jitted_ron(state)
-        self.assertEqual(jnp.all(state._score == jnp.array([278, 232, 250, 240], dtype=jnp.float32)), True)
+        self.assertEqual(jnp.all(state.round_state.score == jnp.array([278, 232, 250, 240], dtype=jnp.float32)), True)
         self.assertEqual(jnp.all(state.rewards == jnp.array([28, -18, 0, 0], dtype=jnp.float32)), True)
-        self.assertEqual(state._kyotaku, 0)
+        self.assertEqual(state.round_state.kyotaku, 0)
         # yakuman test
         state = self.set_state(
             basic_state,
-            _fan=jnp.zeros((4, 2), dtype=jnp.int32).at[0, 0].set(1),
-            _fu=jnp.zeros((4, 2), dtype=jnp.int32).at[0, 0].set(0),
-            _kan_declared=jnp.bool_(True),
+            fan=jnp.zeros((4, 2), dtype=jnp.int32).at[0, 0].set(1),
+            fu=jnp.zeros((4, 2), dtype=jnp.int32).at[0, 0].set(0),
+            kan_declared=jnp.bool_(True),
         )
         state = jitted_ron(state)
-        self.assertEqual(jnp.all(state._score == jnp.array([250 + 480, 250 - 480, 250, 250], dtype=jnp.float32)), True)  # robbing_kan are not counted
+        self.assertEqual(jnp.all(state.round_state.score == jnp.array([250 + 480, 250 - 480, 250, 250], dtype=jnp.float32)), True)  # robbing_kan are not counted
         self.assertEqual(jnp.all(state.rewards == jnp.array([480, -480, 0, 0], dtype=jnp.float32)), True)
         # double_riichi robbing_kan test
         state = self.set_state(
             basic_state,
-            _fu=jnp.zeros((4, 2), dtype=jnp.int32).at[0, 0].set(40),
-            _double_riichi=jnp.array([True, False, False, True], dtype=jnp.bool_),
-            _riichi=jnp.array([True, False, False, False], dtype=jnp.bool_),
-            _kyotaku=jnp.int8(0),
-            _kan_declared=jnp.bool_(True),
-            _dealer=jnp.int8(3),
+            fu=jnp.zeros((4, 2), dtype=jnp.int32).at[0, 0].set(40),
+            double_riichi=jnp.array([True, False, False, True], dtype=jnp.bool_),
+            riichi=jnp.array([True, False, False, False], dtype=jnp.bool_),
+            kyotaku=jnp.int8(0),
+            kan_declared=jnp.bool_(True),
+            dealer=jnp.int8(3),
         )
         state = jitted_ron(state)
-        self.assertEqual(jnp.all(state._score == jnp.array([302, 198, 250, 250], dtype=jnp.float32)), True)  # double_riichi + robbing_kan = 3 fans
+        self.assertEqual(jnp.all(state.round_state.score == jnp.array([302, 198, 250, 250], dtype=jnp.float32)), True)  # double_riichi + robbing_kan = 3 fans
         self.assertEqual(jnp.all(state.rewards == jnp.array([52, -52, 0, 0], dtype=jnp.float32)), True)
         # ippatsu haitei test
         state = self.set_state(
             basic_state,
-            _fu=jnp.zeros((4, 2), dtype=jnp.int32).at[0, 0].set(40),
-            _riichi=jnp.array([True, False, False, False], dtype=jnp.bool_),
-            _ippatsu=jnp.array([True, False, False, False], dtype=jnp.bool_),
-            _kyotaku=jnp.int8(0),
-            _is_haitei=jnp.bool_(True),
-            _dealer=jnp.int8(3),
+            fu=jnp.zeros((4, 2), dtype=jnp.int32).at[0, 0].set(40),
+            riichi=jnp.array([True, False, False, False], dtype=jnp.bool_),
+            ippatsu=jnp.array([True, False, False, False], dtype=jnp.bool_),
+            kyotaku=jnp.int8(0),
+            is_haitei=jnp.bool_(True),
+            dealer=jnp.int8(3),
         )
         state = jitted_ron(state)
-        self.assertEqual(jnp.all(state._score == jnp.array([302, 198, 250, 250], dtype=jnp.float32)), True)  # riichi + ippatsu + haitei = 3 fans
+        self.assertEqual(jnp.all(state.round_state.score == jnp.array([302, 198, 250, 250], dtype=jnp.float32)), True)  # riichi + ippatsu + haitei = 3 fans
         self.assertEqual(jnp.all(state.rewards == jnp.array([52, -52, 0, 0], dtype=jnp.float32)), True)
 
     def test_tsumo(self):
@@ -884,49 +885,49 @@ class TestEnv(unittest.TestCase):
         score = jnp.array([250, 250, 250, 250], dtype=jnp.float32)
         basic_state = self.set_state(
             self.state,
-            _fan=fan,
-            _fu=fu,
-            _target=target,
-            _score=score,
+            fan=fan,
+            fu=fu,
+            target=target,
+            score=score,
             current_player=current_player,
         )
         # child wins 300 500
         state = self.set_state(
             basic_state,
             current_player=jnp.int8(0),
-            _dealer=jnp.int8(1),
-            _next_deck_ix=FIRST_DRAW_IDX - 8,
+            dealer=jnp.int8(1),
+            next_deck_ix=FIRST_DRAW_IDX - 8,
         )
         state = jitted_tsumo(state)
-        self.assertEqual(jnp.all(state._score == jnp.array([270, 240, 245, 245], dtype=jnp.float32)), True, f"{state._score}")
+        self.assertEqual(jnp.all(state.round_state.score == jnp.array([270, 240, 245, 245], dtype=jnp.float32)), True, f"{state.round_state.score}")
         self.assertEqual(jnp.all(state.rewards == jnp.array([20, -10, -5, -5], dtype=jnp.float32)), True, f"{state.rewards}")
         # parent wins 1500 points, kyotaku 2, honba 1
         state = self.set_state(
             basic_state,
-            _dealer=jnp.int8(0),
+            dealer=jnp.int8(0),
             current_player=jnp.int8(0),
-            _honba=jnp.int8(1),
-            _next_deck_ix=FIRST_DRAW_IDX - 8,
-            _kyotaku=jnp.int8(2),
-            _riichi=jnp.array([False, False, True, True], dtype=jnp.bool_),
-            _score=jnp.array([250, 250, 240, 240], dtype=jnp.float32),
+            honba=jnp.int8(1),
+            next_deck_ix=FIRST_DRAW_IDX - 8,
+            kyotaku=jnp.int8(2),
+            riichi=jnp.array([False, False, True, True], dtype=jnp.bool_),
+            score=jnp.array([250, 250, 240, 240], dtype=jnp.float32),
         )
         state = jitted_tsumo(state)
-        self.assertEqual(jnp.all(state._score == jnp.array([303, 239, 229, 229], dtype=jnp.float32)), True, f"{state._score}")
+        self.assertEqual(jnp.all(state.round_state.score == jnp.array([303, 239, 229, 229], dtype=jnp.float32)), True, f"{state.round_state.score}")
         self.assertEqual(jnp.all(state.rewards == jnp.array([53, -11, -11, -11], dtype=jnp.float32)), True, f"{state.rewards}")
-        self.assertEqual(state._kyotaku, 0)
+        self.assertEqual(state.round_state.kyotaku, 0)
         # test for yakuman
         state = self.set_state(
             basic_state,
-            _fan=jnp.zeros((4, 2), dtype=jnp.int32).at[0, 0].set(1),
-            _fu=jnp.zeros((4, 2), dtype=jnp.int32),
-            _can_after_kan=jnp.bool_(True),
-            _dealer=jnp.int8(3),
+            fan=jnp.zeros((4, 2), dtype=jnp.int32).at[0, 0].set(1),
+            fu=jnp.zeros((4, 2), dtype=jnp.int32),
+            can_after_kan=jnp.bool_(True),
+            dealer=jnp.int8(3),
             current_player=jnp.int8(0),
-            _next_deck_ix=FIRST_DRAW_IDX - 8,  # not blessing of heaven
+            next_deck_ix=FIRST_DRAW_IDX - 8,  # not blessing of heaven
         )
         state = jitted_tsumo(state)
-        self.assertEqual(jnp.all(state._score == jnp.array([570, 170, 170, 90], dtype=jnp.float32)), True)  # after_kan is not counted
+        self.assertEqual(jnp.all(state.round_state.score == jnp.array([570, 170, 170, 90], dtype=jnp.float32)), True)  # after_kan is not counted
         self.assertEqual(jnp.all(state.rewards == jnp.array([320, -80, -80, -160], dtype=jnp.float32)), True)
 
     def test_abortive_draw_normal(self):
@@ -939,17 +940,17 @@ class TestEnv(unittest.TestCase):
         # no one is tenpai
         state = self.set_state(
             state,
-            _can_win=jnp.zeros((4, Tile.NUM_TILE_TYPE), dtype=jnp.bool_),
+            can_win=jnp.zeros((4, Tile.NUM_TILE_TYPE), dtype=jnp.bool_),
         )
         state = jitted_abortive_draw_normal(state)
-        self.assertEqual(state._terminated_round, True)
+        self.assertEqual(state.round_state.terminated_round, True)
         self.assertEqual(jnp.all(state.rewards.astype(jnp.int32) == jnp.array(
             [0, 0, 0, 0], dtype=jnp.int32
         )), True, f"{state.rewards}")
         # one player is tenpai
         state = self.set_state(
             state,
-            _can_win=jnp.zeros((4, Tile.NUM_TILE_TYPE), dtype=jnp.bool_).at[0].set(True),
+            can_win=jnp.zeros((4, Tile.NUM_TILE_TYPE), dtype=jnp.bool_).at[0].set(True),
         )
         state = jitted_abortive_draw_normal(state)
         self.assertEqual(jnp.all(state.rewards.astype(jnp.int32) == jnp.array(
@@ -958,7 +959,7 @@ class TestEnv(unittest.TestCase):
         # two players are tenpai
         state = self.set_state(
             state,
-            _can_win=jnp.zeros((4, Tile.NUM_TILE_TYPE), dtype=jnp.bool_).at[0].set(True).at[1].set(True),
+            can_win=jnp.zeros((4, Tile.NUM_TILE_TYPE), dtype=jnp.bool_).at[0].set(True).at[1].set(True),
         )
         state = jitted_abortive_draw_normal(state)
         self.assertEqual(jnp.all(state.rewards.astype(jnp.int32) == jnp.array(
@@ -967,7 +968,7 @@ class TestEnv(unittest.TestCase):
         # three players are tenpai
         state = self.set_state(
             state,
-            _can_win=jnp.zeros((4, Tile.NUM_TILE_TYPE), dtype=jnp.bool_).at[0].set(True).at[1].set(True).at[2].set(True),
+            can_win=jnp.zeros((4, Tile.NUM_TILE_TYPE), dtype=jnp.bool_).at[0].set(True).at[1].set(True).at[2].set(True),
         )
         state = jitted_abortive_draw_normal(state)
         self.assertEqual(jnp.all(state.rewards.astype(jnp.int32) == jnp.array(
@@ -976,7 +977,7 @@ class TestEnv(unittest.TestCase):
         # four players are tenpai
         state = self.set_state(
             state,
-            _can_win=jnp.zeros((4, Tile.NUM_TILE_TYPE), dtype=jnp.bool_).at[0].set(True).at[1].set(True).at[2].set(True).at[3].set(True),
+            can_win=jnp.zeros((4, Tile.NUM_TILE_TYPE), dtype=jnp.bool_).at[0].set(True).at[1].set(True).at[2].set(True).at[3].set(True),
         )
         state = jitted_abortive_draw_normal(state)
         self.assertEqual(jnp.all(state.rewards.astype(jnp.int32) == jnp.array(
@@ -996,59 +997,59 @@ class TestEnv(unittest.TestCase):
         # dealer wins, so the round continues
         state = self.set_state(
             state,
-            _honba=jnp.int8(0),
-            _kyotaku=jnp.int8(0),
-            _dealer=jnp.int8(0),
+            honba=jnp.int8(0),
+            kyotaku=jnp.int8(0),
+            dealer=jnp.int8(0),
             current_player=jnp.int8(0),
-            _has_won=jnp.array([True, False, False, False], dtype=jnp.bool_),
-            _round=jnp.int8(0),
-            _dummy_count=jnp.int8(0),
+            has_won=jnp.array([True, False, False, False], dtype=jnp.bool_),
+            round=jnp.int8(0),
+            dummy_count=jnp.int8(0),
         )
         state = _advance_after_dummy(state)
-        self.assertEqual(state._honba, 1)          # honba is 1
-        self.assertEqual(state._dealer, 0)         # dealer is kept
-        self.assertEqual(state._round, 0)          # round is kept
+        self.assertEqual(state.round_state.honba, 1)          # honba is 1
+        self.assertEqual(state.round_state.dealer, 0)         # dealer is kept
+        self.assertEqual(state.round_state.round, 0)          # round is kept
         self.assertEqual(state.current_player, 0)  # after dummy sharing, current player is dealer
-        self.assertEqual(state._dummy_count, 0)    # dummy count is 0
+        self.assertEqual(state.round_state.dummy_count, 0)    # dummy count is 0
         # dealer goes bankrupt, so the round ends
         state = self.set_state(
             state,
-            _honba=jnp.int8(1),
-            _dealer=jnp.int8(0),
+            honba=jnp.int8(1),
+            dealer=jnp.int8(0),
             current_player=jnp.int8(0),
-            _has_won=jnp.array([False, False, False, False], dtype=jnp.bool_),
-            _round=jnp.int8(0),
-            _dummy_count=jnp.int8(0),
+            has_won=jnp.array([False, False, False, False], dtype=jnp.bool_),
+            round=jnp.int8(0),
+            dummy_count=jnp.int8(0),
         )
         state = _advance_after_dummy(state)
-        self.assertEqual(state._honba, 2)          # honba+1
-        self.assertEqual(state._dealer, 1)         # new dealer is dealer+1
-        self.assertEqual(state._round, 1)          # round+1
+        self.assertEqual(state.round_state.honba, 2)          # honba+1
+        self.assertEqual(state.round_state.dealer, 1)         # new dealer is dealer+1
+        self.assertEqual(state.round_state.round, 1)          # round+1
         self.assertEqual(state.current_player, 1)  # after dummy sharing, current player is new dealer
-        self.assertEqual(state._dummy_count, 0)
+        self.assertEqual(state.round_state.dummy_count, 0)
         # last round, dealer goes bankrupt, so the game ends
         state = self.set_state(
             state,
-            _honba=jnp.int8(0),
-            _dealer=jnp.int8(0),
+            honba=jnp.int8(0),
+            dealer=jnp.int8(0),
             current_player=jnp.int8(0),
-            _has_won=jnp.array([False, False, False, False], dtype=jnp.bool_),
-            _score=jnp.array([320, 180, 250, 250], dtype=jnp.int32),
-            _round=jnp.int8(7),   # final round
-            _dummy_count=jnp.int8(0),
+            has_won=jnp.array([False, False, False, False], dtype=jnp.bool_),
+            score=jnp.array([320, 180, 250, 250], dtype=jnp.int32),
+            round=jnp.int8(7),   # final round
+            dummy_count=jnp.int8(0),
         )
         state = _advance_after_dummy(state)
         self.assertTrue(state.terminated)
         # one player goes bankrupt, so the game ends
         state = self.set_state(
             state,
-            _honba=jnp.int8(0),
-            _dealer=jnp.int8(0),
+            honba=jnp.int8(0),
+            dealer=jnp.int8(0),
             current_player=jnp.int8(0),
-            _has_won=jnp.array([False, False, False, False], dtype=jnp.bool_),
-            _round=jnp.int8(0),
-            _score=jnp.array([510, 250, 250, -100], dtype=jnp.int32),
-            _dummy_count=jnp.int8(0),
+            has_won=jnp.array([False, False, False, False], dtype=jnp.bool_),
+            round=jnp.int8(0),
+            score=jnp.array([510, 250, 250, -100], dtype=jnp.int32),
+            dummy_count=jnp.int8(0),
         )
         state = _advance_after_dummy(state)
         self.assertTrue(state.terminated)
@@ -1056,20 +1057,20 @@ class TestEnv(unittest.TestCase):
         state = self.state
         state = self.set_state(
             state,
-            _dealer=jnp.int8(0),
+            dealer=jnp.int8(0),
             current_player=jnp.int8(0),
-            _init_wind=jnp.array([0, 1, 2, 3], dtype=jnp.int8),
-            _score=jnp.array([310, 310, 190, 190], dtype=jnp.int32),
-            _has_won=jnp.array([False, False, False, False], dtype=jnp.bool_),
-            _round=jnp.int8(7),   # final round
-            _kyotaku=jnp.int8(3),
-            _dummy_count=jnp.int8(0),
+            init_wind=jnp.array([0, 1, 2, 3], dtype=jnp.int8),
+            score=jnp.array([310, 310, 190, 190], dtype=jnp.int32),
+            has_won=jnp.array([False, False, False, False], dtype=jnp.bool_),
+            round=jnp.int8(7),   # final round
+            kyotaku=jnp.int8(3),
+            dummy_count=jnp.int8(0),
         )
         state = _advance_after_dummy(state)
         self.assertTrue(state.terminated)
         self.assertTrue(
-            jnp.all(state._score == jnp.array([370, 320, 180, 160], dtype=jnp.int32)),
-            f"{state._score}",
+            jnp.all(state.round_state.score == jnp.array([370, 320, 180, 160], dtype=jnp.int32)),
+            f"{state.round_state.score}",
         )
 
     def test_dummy_phase_progression_rotation(self):
@@ -1083,13 +1084,13 @@ class TestEnv(unittest.TestCase):
         state = self.state
         state = self.set_state(
             state,
-            _honba=jnp.int8(0),
-            _kyotaku=jnp.int8(0),
-            _dealer=jnp.int8(2),
+            honba=jnp.int8(0),
+            kyotaku=jnp.int8(0),
+            dealer=jnp.int8(2),
             current_player=jnp.int8(2),
-            _has_won=jnp.array([False, False, False, False], dtype=jnp.bool_),
-            _round=jnp.int8(0),
-            _dummy_count=jnp.int8(0),
+            has_won=jnp.array([False, False, False, False], dtype=jnp.bool_),
+            round=jnp.int8(0),
+            dummy_count=jnp.int8(0),
         )
 
         cps = [2]
@@ -1109,8 +1110,8 @@ class TestEnv(unittest.TestCase):
         ura_dora_indicators = jnp.array([2, 3, -1, -1, -1], dtype=jnp.int8) # ura dora indicators (4m, 5m, -)
         state = self.set_state(
             state,
-            _dora_indicators=dora_indicators,
-            _ura_dora_indicators=ura_dora_indicators,
+            dora_indicators=dora_indicators,
+            ura_dora_indicators=ura_dora_indicators,
         )
         # no riichi (only dora indicators)
         dora_array = _dora_array(state)
@@ -1131,34 +1132,34 @@ class TestEnv(unittest.TestCase):
         tsumogiri_history = []
         current_player_history = []
         jitted_env_step = jax.jit(env.step)
-        while not state._terminated_round:
+        while not state.round_state.terminated_round:
             action = act_randomly(rng, state.legal_action_mask)
             is_tsumogiri = action == Action.TSUMOGIRI
             is_discard = (0 <= action) and (action < Tile.NUM_TILE_TYPE) or is_tsumogiri
-            recorded_action = int(state._last_draw) if is_tsumogiri else int(action)
+            recorded_action = int(state.round_state.last_draw) if is_tsumogiri else int(action)
             action_history.append(recorded_action)
             tsumogiri_history.append(1 if is_tsumogiri else (0 if is_discard else -1))
             current_player_history.append(int(state.current_player))
             state = jitted_env_step(state, action)
             rng, rng_sub = jax.random.split(rng)
 
-        final_step_count = state._step_count
+        final_step_count = state.step_count
         self.assertEqual(
-            jnp.all(state._action_history[0, :final_step_count] == jnp.array(current_player_history, dtype=jnp.int8)),
+            jnp.all(state.round_state.action_history[0, :final_step_count] == jnp.array(current_player_history, dtype=jnp.int8)),
             True,
-            f"{state._action_history[0, :final_step_count]} != {current_player_history}"
+            f"{state.round_state.action_history[0, :final_step_count]} != {current_player_history}"
         )
         self.assertEqual(
-            jnp.all(state._action_history[1, :final_step_count] == jnp.array(action_history, dtype=jnp.int8)),
+            jnp.all(state.round_state.action_history[1, :final_step_count] == jnp.array(action_history, dtype=jnp.int8)),
             True,
-            f"{state._action_history[1, :final_step_count]} != {action_history}"
+            f"{state.round_state.action_history[1, :final_step_count]} != {action_history}"
         )
         self.assertEqual(
-            jnp.all(state._action_history[2, :final_step_count] == jnp.array(tsumogiri_history, dtype=jnp.int8)),
+            jnp.all(state.round_state.action_history[2, :final_step_count] == jnp.array(tsumogiri_history, dtype=jnp.int8)),
             True,
-            f"{state._action_history[2, :final_step_count]} != {tsumogiri_history}"
+            f"{state.round_state.action_history[2, :final_step_count]} != {tsumogiri_history}"
         )
-        self.assertEqual(final_step_count, (state._action_history[0] != -1).sum(), f"{final_step_count} != {(state._action_history[0] != -1).sum()}")
+        self.assertEqual(final_step_count, (state.round_state.action_history[0] != -1).sum(), f"{final_step_count} != {(state.round_state.action_history[0] != -1).sum()}")
 
 
 if __name__ == "__main__":

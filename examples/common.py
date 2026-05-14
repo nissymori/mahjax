@@ -50,30 +50,6 @@ def get_network_cls(env_name: str):
     raise ValueError(f"Unsupported env_name: {env_name}")
 
 
-def get_state_score(state) -> Any:
-    if hasattr(state, "round_state"):
-        return state.round_state.score
-    return state._score
-
-
-def get_state_has_won(state) -> Any:
-    if hasattr(state, "players"):
-        return state.players.has_won
-    return state._has_won
-
-
-def get_state_riichi(state) -> Any:
-    if hasattr(state, "players"):
-        return state.players.riichi
-    return state._riichi
-
-
-def get_state_meld_counts(state) -> Any:
-    if hasattr(state, "players"):
-        return state.players.meld_counts
-    return state._n_meld
-
-
 def attach_dataset_metadata(dataset: Dict[str, Any], env_name: str) -> Dict[str, Any]:
     dataset["env_name"] = env_name
     dataset["observe_type"] = "dict"

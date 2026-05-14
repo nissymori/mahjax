@@ -3,7 +3,7 @@ import jax
 import jax.numpy as jnp
 from mahjax.no_red_mahjong.action import Action
 from mahjax.no_red_mahjong.state import FIRST_DRAW_IDX
-from mahjax.no_red_mahjong.env import _init, _step, _make_legal_action_mask_after_draw, _make_legal_action_mask_after_draw_w_riichi, _discard, _next_meld_player, _tsumo, _next_round
+from mahjax.no_red_mahjong.env import _init, _step, _make_legal_action_mask_after_draw, _make_legal_action_mask_after_draw_w_riichi, _discard, _next_meld_player, _tsumo, _next_round, _replace_state
 
 jitted_init = jax.jit(_init)
 jitted_step = jax.jit(_step)
@@ -22,7 +22,7 @@ def _advance_after_dummy(state, steps: int = 4):
     # If the dummy count is not 0, the dummy sharing is not complete, so the next round is called.
     for _ in range(steps):
         state = jitted_next_round(state)
-        if int(state._dummy_count) == 0:
+        if int(state.round_state.dummy_count) == 0:
             # The dummy sharing is complete, so the next round is called.
             break
     return state
@@ -36,7 +36,7 @@ class TestSpecialCase(unittest.TestCase):
 
     def set_state(self, state, **kwargs):
         for k, v in kwargs.items():
-            state = state.replace(  # type:ignore
+            state = _replace_state(state,   # type:ignore
                 **{k: v}
             )
         return state
@@ -66,13 +66,13 @@ class TestSpecialCase(unittest.TestCase):
         """
         # Test if the player who wins the game is the player who has the highest score.
         state = self.state
-        state = state.replace(
+        state = _replace_state(state, 
             current_player=jnp.int8(0),
-            _fan=jnp.zeros((4, 2), dtype=jnp.int8).at[0, 0].set(3),
-            _fu=jnp.zeros((4, 2), dtype=jnp.int8).at[0, 0].set(30),
-            _next_deck_ix=FIRST_DRAW_IDX-1,
-            _n_meld=jnp.zeros((4,), dtype=jnp.int8),
-            _dealer=jnp.int8(0),
+            fan=jnp.zeros((4, 2), dtype=jnp.int8).at[0, 0].set(3),
+            fu=jnp.zeros((4, 2), dtype=jnp.int8).at[0, 0].set(30),
+            next_deck_ix=FIRST_DRAW_IDX-1,
+            meld_counts=jnp.zeros((4,), dtype=jnp.int8),
+            dealer=jnp.int8(0),
         )
 
         state = jitted_tsumo(state)
@@ -81,26 +81,26 @@ class TestSpecialCase(unittest.TestCase):
 
         # Test if the player who wins the game is the player who has the highest score.
         state = self.state
-        state = state.replace(
+        state = _replace_state(state, 
             current_player=jnp.int8(0),
-            _fan=jnp.zeros((4, 2), dtype=jnp.int8).at[0, 0].set(3),
-            _fu=jnp.zeros((4, 2), dtype=jnp.int8).at[0, 0].set(30),
-            _next_deck_ix=FIRST_DRAW_IDX-2,
-            _n_meld=jnp.zeros((4,), dtype=jnp.int8),
-            _dealer=jnp.int8(1),
+            fan=jnp.zeros((4, 2), dtype=jnp.int8).at[0, 0].set(3),
+            fu=jnp.zeros((4, 2), dtype=jnp.int8).at[0, 0].set(30),
+            next_deck_ix=FIRST_DRAW_IDX-2,
+            meld_counts=jnp.zeros((4,), dtype=jnp.int8),
+            dealer=jnp.int8(1),
         )
         state = jitted_tsumo(state)
         self.assertEqual(jnp.all(state.rewards == jnp.array([320, -160, -80, -80])), True)
 
         # Test if the player who wins the game is the player who has the highest score.
         state = self.state
-        state = state.replace(
+        state = _replace_state(state, 
             current_player=jnp.int8(0),
-            _fan=jnp.zeros((4, 2), dtype=jnp.int8).at[0, 0].set(1),
-            _fu=jnp.zeros((4, 2), dtype=jnp.int8).at[0, 0].set(0),
-            _next_deck_ix=FIRST_DRAW_IDX-2,
-            _n_meld=jnp.zeros((4,), dtype=jnp.int8),
-            _dealer=jnp.int8(0),
+            fan=jnp.zeros((4, 2), dtype=jnp.int8).at[0, 0].set(1),
+            fu=jnp.zeros((4, 2), dtype=jnp.int8).at[0, 0].set(0),
+            next_deck_ix=FIRST_DRAW_IDX-2,
+            meld_counts=jnp.zeros((4,), dtype=jnp.int8),
+            dealer=jnp.int8(0),
         )
         state = jitted_tsumo(state)
         self.assertEqual(jnp.all(state.rewards == jnp.array([960, -320, -320, -320])), True)
@@ -111,13 +111,13 @@ class TestSpecialCase(unittest.TestCase):
         Test if the round is terminated when the eight consecutive deals are made.
         """
         state = self.state
-        state = state.replace(
-            _dealer=jnp.int8(0),
-            _round=jnp.int8(0),
-            _honba=jnp.int8(8),
-            _has_won=jnp.array([True, False, False, False], dtype=jnp.bool_),
+        state = _replace_state(state, 
+            dealer=jnp.int8(0),
+            round=jnp.int8(0),
+            honba=jnp.int8(8),
+            has_won=jnp.array([True, False, False, False], dtype=jnp.bool_),
         )
         state = _advance_after_dummy(state)
-        self.assertEqual(state._round, 1)
-        self.assertEqual(state._honba, 0)
-        self.assertEqual(state._dealer, 1)
+        self.assertEqual(state.round_state.round, 1)
+        self.assertEqual(state.round_state.honba, 0)
+        self.assertEqual(state.round_state.dealer, 1)

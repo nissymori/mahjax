@@ -200,8 +200,8 @@ class Visualizer:
 
 
 def _to_red_env_state(state: State):
-    """Convert no_red style state to red visualizer state."""
-    if hasattr(state, "players") and hasattr(state, "round_state"):
+    """Convert a state to the red_mahjong visualizer representation."""
+    if state.env_id == "red_mahjong":
         return state
     from mahjax.no_red_mahjong.visualization import to_red_visual_state
 

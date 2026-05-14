@@ -19,52 +19,83 @@ from .state import State
 Language = Literal["ja", "en"]
 
 
+_SHARED_PLAYER_FIELDS = (
+    "hand",
+    "can_win",
+    "has_yaku",
+    "fan",
+    "fu",
+    "melds",
+    "meld_counts",
+    "river",
+    "discard_counts",
+    "riichi",
+    "riichi_declared",
+    "double_riichi",
+    "ippatsu",
+    "furiten_by_discard",
+    "furiten_by_pass",
+    "is_hand_concealed",
+    "pon",
+    "has_won",
+    "n_kan",
+)
+
+_SHARED_ROUND_FIELDS = (
+    "action_history",
+    "shanten_current_player",
+    "round",
+    "round_limit",
+    "terminated_round",
+    "honba",
+    "kyotaku",
+    "init_wind",
+    "seat_wind",
+    "dealer",
+    "order_points",
+    "score",
+    "deck",
+    "next_deck_ix",
+    "last_deck_ix",
+    "draw_next",
+    "last_draw",
+    "last_player",
+    "dora_indicators",
+    "ura_dora_indicators",
+    "is_abortive_draw_normal",
+    "dummy_count",
+    "is_haitei",
+    "target",
+    "n_kan_doras",
+    "kan_declared",
+    "can_after_kan",
+    "can_robbing_kan",
+)
+
+
 def to_red_visual_state(state: State) -> RedState:
     rs = default_red_state()
-    hand34 = state._hand.astype(jnp.int8)
+    hand34 = state.players.hand.astype(jnp.int8)
     hand37 = jnp.zeros((4, 37), dtype=jnp.int8).at[:, :34].set(hand34)
-    legal_4p = state._legal_action_mask_4p
-    if legal_4p.shape[1] < rs.players.legal_action_mask.shape[1]:
-        pad = rs.players.legal_action_mask.shape[1] - legal_4p.shape[1]
-        legal_4p = jnp.pad(legal_4p, ((0, 0), (0, pad)), constant_values=False)
+    # Pad no_red's narrower legal_action_mask to red's wider action space.
+    legal_4p = state.players.legal_action_mask
+    pad_2d = rs.players.legal_action_mask.shape[1] - legal_4p.shape[1]
+    if pad_2d > 0:
+        legal_4p = jnp.pad(legal_4p, ((0, 0), (0, pad_2d)), constant_values=False)
     legal_1p = state.legal_action_mask
-    if legal_1p.shape[0] < rs.legal_action_mask.shape[0]:
-        pad = rs.legal_action_mask.shape[0] - legal_1p.shape[0]
-        legal_1p = jnp.pad(legal_1p, (0, pad), constant_values=False)
+    pad_1d = rs.legal_action_mask.shape[0] - legal_1p.shape[0]
+    if pad_1d > 0:
+        legal_1p = jnp.pad(legal_1p, (0, pad_1d), constant_values=False)
+
+    player_updates = {f: getattr(state.players, f) for f in _SHARED_PLAYER_FIELDS}
+    player_updates["hand_with_red"] = hand37
+    player_updates["legal_action_mask"] = legal_4p
+    round_updates = {f: getattr(state.round_state, f) for f in _SHARED_ROUND_FIELDS}
     return rs.replace(
         current_player=state.current_player,
         legal_action_mask=legal_1p,
-        players=rs.players.replace(
-            hand=hand34,
-            hand_with_red=hand37,
-            legal_action_mask=legal_4p,
-            melds=state._melds,
-            meld_counts=state._n_meld,
-            river=state._river,
-            discard_counts=state._n_river,
-            riichi=state._riichi,
-        ),
-        round_state=rs.round_state.replace(
-            round=state._round,
-            honba=state._honba,
-            dealer=state._dealer,
-            score=state._score.astype(jnp.int32),
-            next_deck_ix=state._next_deck_ix.astype(jnp.int32),
-            last_deck_ix=state._last_deck_ix.astype(jnp.int8),
-            dora_indicators=state._dora_indicators,
-            last_draw=state._last_draw,
-            last_player=state._last_player,
-            target=state._target,
-            terminated_round=state._terminated_round,
-            seat_wind=state._seat_wind,
-            init_wind=state._init_wind,
-            round_limit=state._round_limit,
-            kyotaku=state._kyotaku,
-            can_after_kan=state._can_after_kan,
-            kan_declared=state._kan_declared,
-            can_robbing_kan=state._can_robbing_kan,
-            is_haitei=state._is_haitei,
-        ),
+        players=rs.players.replace(**player_updates),
+        round_state=rs.round_state.replace(**round_updates),
         rewards=state.rewards,
         terminated=state.terminated,
         truncated=state.truncated,
