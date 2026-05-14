@@ -1,8 +1,8 @@
 from typing import Dict
 import jax.numpy as jnp
 from mahjax.red_mahjong.env import State, Tile
-from mahjax.red_mahjong.env import hand_counts_to_idx
 from mahjax.red_mahjong.env import Array
+import jax
 
 
 @jax.jit
