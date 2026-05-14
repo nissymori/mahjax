@@ -18,8 +18,7 @@ env = NoRedMahjong(round_mode="half", observe_type="dict")
 
 ## Description
 
-`no_red_mahjong` is a fast 4-player riichi mahjong environment without red fives.
-It is the lightweight environment used by the current offline RL and PPO examples.
+`no_red_mahjong` is a fast 4-player riichi mahjong environment without red fives. It is the lightweight environment used by the current offline RL and PPO examples.
 
 Compared with `red_mahjong`, this environment intentionally omits some rules in order to keep the implementation simpler and faster.
 
@@ -32,19 +31,19 @@ The environment is a simplified Japanese riichi mahjong variant without red five
 - No pao
 - No double ron
 
-This environment exists primarily for speed and for simpler RL experiments.
-It is covered by hand-written tests, and we do not expect major rule-breaking bugs, but some corner cases may still remain.
-We expect this to improve over time.
+This environment exists primarily for speed and for simpler RL experiments. It is covered by hand-written tests, and we do not expect major rule-breaking bugs, but some corner cases may still remain. We expect this to improve over time.
 
 For general riichi mahjong rules, see the [European Mahjong Association rulebook](https://mahjong-europe.org/portal/images/docs/Riichi-rules-2025-EN.pdf).
 
-## State Representation
+## State
 
-`no_red_mahjong` currently uses the older flat state layout.
-Mahjong-specific fields live directly on the state object, such as `_hand`, `_river`, `_melds`, `_score`, and `_action_history`.
+`no_red_mahjong` uses the same nested state layout as `red_mahjong`:
 
-This differs from `red_mahjong`, which uses a newer nested representation with `players` and `round_state`.
-These two environments therefore do **not** currently share the same internal state representation, though we may unify them in the future.
+- top-level RL handles (`current_player`, `terminated`, `rewards`, …)
+- `state.players` — per-player arrays (`PlayerStateArrays`)
+- `state.round_state` — round-level arrays (`RoundState`)
+
+The full field list and round-transition style (`auto` / `dummy_share`) are documented once in [API](api.md). `no_red_mahjong` uses **exactly** the common field set there; it does not add any extra fields on top.
 
 ## Specs
 
@@ -54,14 +53,30 @@ These two environments therefore do **not** currently share the same internal st
 | Number of players | `4` |
 | Number of actions | `79` |
 | Observation types | `dict`, `2D` |
-| Dict action history shape | `(3, 200)` |
 | Reward shape | `(4,)` |
 | Reward semantics | score deltas in hundreds of points |
 
+## Action
+
+The action space (79 actions):
+
+| Range | Meaning |
+| :--- | :--- |
+| `0-33` | Discard a tile type |
+| `34-67` | Closed kan / added kan |
+| `68` | `TSUMOGIRI` |
+| `69` | `RIICHI` |
+| `70` | `TSUMO` |
+| `71` | `RON` |
+| `72` | `PON` |
+| `73` | `OPEN_KAN` |
+| `74-76` | `CHI_L`, `CHI_M`, `CHI_R` |
+| `77` | `PASS` |
+| `78` | `DUMMY` (only legal under `next_round_style="dummy_share"`) |
+
 ## Dict Observation
 
-The current training examples use the `dict` observation.
-It is the most stable observation format in this repository right now, but it may still change in future releases.
+The current training examples use the `dict` observation. It is the most stable observation format in this repository right now, but it may still change in future releases.
 
 The returned dictionary contains:
 
@@ -69,7 +84,7 @@ The returned dictionary contains:
 | :--- | :---: | :--- |
 | `hand` | `(14,)` | Current player's hand as sorted tile types in `[0, 33]`; unused slots are `-1`. |
 | `last_draw` | `()` | Last drawn tile in `[0, 33]`; `-1` means there is no drawn tile to expose. |
-| `action_history` | `(3, 200)` | Action history in the same style as `red_mahjong`. |
+| `action_history` | `(3, 200)` | Action history. |
 | `shanten_count` | `()` | Current player's shanten number. |
 | `furiten` | `()` | Whether the current player is in furiten. |
 | `scores` | `(4,)` | Scores ordered from the current player's perspective. |
@@ -98,26 +113,7 @@ For `no_red_mahjong`, discard tiles are in `[0, 33]` and raw action ids are in `
 
 ## 2D Observation
 
-`observe_type="2D"` exists, but its design is not yet fixed.
-You can use it for experiments, but we do not recommend treating it as a stable interface yet.
-
-## Action
-
-The action space is:
-
-| Range | Meaning |
-| :--- | :--- |
-| `0-33` | Discard a tile type |
-| `34-67` | Closed kan / added kan |
-| `68` | `TSUMOGIRI` |
-| `69` | `RIICHI` |
-| `70` | `TSUMO` |
-| `71` | `RON` |
-| `72` | `PON` |
-| `73` | `OPEN_KAN` |
-| `74-76` | `CHI_L`, `CHI_M`, `CHI_R` |
-| `77` | `PASS` |
-| `78` | `DUMMY` |
+`observe_type="2D"` exists, but its design is not yet fixed. You can use it for experiments, but we do not recommend treating it as a stable interface yet.
 
 ## Rewards
 
@@ -129,8 +125,12 @@ Examples:
 - exhaustive draw can produce tenpai / noten payments
 - illegal actions end the game immediately with the standard illegal-action penalty
 
+For how to consume these rewards in turn-based MARL training (per-player reward accumulator + GAE), see the [API → Using `auto` rewards in RL](api.md#using-auto-rewards-in-rl) section.
+
 ## Termination
 
 - `round_mode="single"` terminates after the first round ends.
 - `round_mode="east"` runs East-only progression with `round_limit=4`.
 - `round_mode="half"` runs East-South progression with `round_limit=8`.
+
+In multi-round modes, the next-round transition behavior is controlled by `next_round_style` (see [API](api.md#round-transition-style-next_round_style)).
