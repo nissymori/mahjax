@@ -36,7 +36,7 @@ from mahjax.no_red_mahjong.env import (
     NoRedMahjong,
     _replace_state,
 )
-env = NoRedMahjong()
+env = NoRedMahjong(round_mode="single")
 
 jitted_init = jax.jit(_init)
 jitted_step = jax.jit(_step)
@@ -1160,6 +1160,236 @@ class TestEnv(unittest.TestCase):
             f"{state.round_state.action_history[2, :final_step_count]} != {tsumogiri_history}"
         )
         self.assertEqual(final_step_count, (state.round_state.action_history[0] != -1).sum(), f"{final_step_count} != {(state.round_state.action_history[0] != -1).sum()}")
+
+
+class TestNextRoundStyle(unittest.TestCase):
+    """Verify the default ``auto`` next_round_style (no DUMMY sharing) and that
+    the opt-in ``dummy_share`` mode preserves the original DUMMY-rotation flow."""
+
+    def _ron_legal_mask(self, ron_player: int = 0):
+        return (
+            jnp.zeros((4, Action.NUM_ACTION), dtype=jnp.bool_)
+            .at[ron_player, Action.RON].set(True)
+        )
+
+    def test_default_is_auto(self):
+        e = NoRedMahjong()
+        self.assertEqual(e.next_round_style, "auto")
+
+    def test_invalid_style_raises(self):
+        with self.assertRaises(ValueError):
+            NoRedMahjong(next_round_style="bogus")  # type: ignore[arg-type]
+
+    def test_auto_ron_advances_to_next_round_in_one_step(self):
+        # half mode + normal: a single RON step should land us directly in the
+        # next round init state (no dummy phase).
+        env_auto = NoRedMahjong(round_mode="half", next_round_style="auto")
+        state = env_auto.init(jax.random.PRNGKey(7))
+        state = _replace_state(
+            state,
+            legal_action_mask=self._ron_legal_mask(0),
+            current_player=jnp.int8(0),
+        )
+        next_state = env_auto.step(state, jnp.int32(Action.RON))
+        self.assertFalse(bool(next_state.terminated))
+        self.assertFalse(bool(next_state.round_state.terminated_round))
+        self.assertEqual(int(next_state.round_state.dummy_count), 0)
+        # The new current_player is the (new) dealer of the next round.
+        self.assertEqual(
+            int(next_state.current_player), int(next_state.round_state.dealer)
+        )
+        # Legal action mask is NOT DUMMY-only — the next-round draw produced
+        # discard / TSUMOGIRI options for the new dealer.
+        self.assertFalse(
+            bool(next_state.legal_action_mask[Action.DUMMY])
+            and int(next_state.legal_action_mask.sum()) == 1
+        )
+
+    def test_dummy_share_ron_keeps_dummy_phase(self):
+        # half mode + round_end_share: a single RON step leaves us in the DUMMY
+        # sharing phase exactly as the legacy behavior.
+        env_share = NoRedMahjong(round_mode="half", next_round_style="dummy_share")
+        state = env_share.init(jax.random.PRNGKey(7))
+        state = _replace_state(
+            state,
+            legal_action_mask=self._ron_legal_mask(0),
+            current_player=jnp.int8(0),
+        )
+        next_state = env_share.step(state, jnp.int32(Action.RON))
+        self.assertFalse(bool(next_state.terminated))
+        self.assertTrue(bool(next_state.round_state.terminated_round))
+        self.assertEqual(int(next_state.round_state.dummy_count), 0)
+        # Only DUMMY is legal for every seat.
+        self.assertTrue(bool(next_state.players.legal_action_mask[:, Action.DUMMY].all()))
+
+    def test_auto_single_mode_terminates_like_legacy(self):
+        # single + normal: terminated_round should imply terminated (env-level rule).
+        env_auto = NoRedMahjong(round_mode="single", next_round_style="auto")
+        state = env_auto.init(jax.random.PRNGKey(11))
+        state = _replace_state(
+            state,
+            legal_action_mask=self._ron_legal_mask(0),
+            current_player=jnp.int8(0),
+        )
+        next_state = env_auto.step(state, jnp.int32(Action.RON))
+        self.assertTrue(bool(next_state.terminated))
+
+    def test_auto_game_end_sets_terminated_with_final_score(self):
+        # Final round (round == round_limit), dealer not top and no continuation
+        # ⇒ game ends. Confirm score = score + rank_points + kyotaku bonus.
+        env_auto = NoRedMahjong(round_mode="half", next_round_style="auto")
+        state = env_auto.init(jax.random.PRNGKey(3))
+        # Note: env.init overrides round_limit to 8 for half. Override it here
+        # so that the test setup matches the legacy state-level convention used
+        # by ``test_next_round`` (round == round_limit triggers ``is_final_round``).
+        state = _replace_state(
+            state,
+            legal_action_mask=jnp.zeros((4, Action.NUM_ACTION), dtype=jnp.bool_)
+                .at[0, Action.RON].set(True),
+            current_player=jnp.int8(0),
+            dealer=jnp.int8(0),
+            score=jnp.array([310, 310, 190, 190], dtype=jnp.int32),
+            init_wind=jnp.array([0, 1, 2, 3], dtype=jnp.int8),
+            round=jnp.int8(7),
+            round_limit=jnp.int8(7),
+            kyotaku=jnp.int8(3),
+            has_won=jnp.array([False, False, False, False], dtype=jnp.bool_),
+        )
+        next_state = env_auto.step(state, jnp.int32(Action.RON))
+        self.assertTrue(bool(next_state.terminated))
+        # Score reflects rank_points + kyotaku on top, matching the legacy
+        # round_end_share final-score computation.
+        expected = jnp.array([370, 320, 180, 160], dtype=jnp.int32)
+        # ``rewards`` from the RON itself were [0, 0, 0, 0] in this stub setup,
+        # so the final score should equal expected (score + rank_points + kyotaku).
+        self.assertTrue(
+            bool(jnp.all(next_state.round_state.score == expected)),
+            f"got {next_state.round_state.score}, expected {expected}",
+        )
+
+    def test_auto_preserves_rewards_across_round_transition(self):
+        # The reward vector produced by the RON-ending step must survive the
+        # auto-advance to the next round init.
+        env_auto = NoRedMahjong(round_mode="half", next_round_style="auto")
+        state = env_auto.init(jax.random.PRNGKey(99))
+        # Force a non-zero reward by setting last_player so _ron's payout is
+        # meaningful; we only inspect that the reward shape is intact.
+        state = _replace_state(
+            state,
+            legal_action_mask=self._ron_legal_mask(0),
+            current_player=jnp.int8(0),
+            last_player=jnp.int8(2),
+        )
+        next_state = env_auto.step(state, jnp.int32(Action.RON))
+        # Reward shape preserved
+        self.assertEqual(next_state.rewards.shape, (4,))
+        # Game continues (not the final round)
+        self.assertFalse(bool(next_state.terminated))
+
+
+class TestAutoDummyShareParity(unittest.TestCase):
+    """Assert that ``auto`` mode collapses the dummy_share rotation phase into
+    a single env.step while producing the same end state. ``mahjax_tenhou_test``
+    validates the dummy_share trajectory against real tenhou mjlogs; this
+    parity test bridges that validation across to ``auto``."""
+
+    def _ron_legal_mask(self, ron_player: int = 0):
+        return (
+            jnp.zeros((4, Action.NUM_ACTION), dtype=jnp.bool_)
+            .at[ron_player, Action.RON].set(True)
+        )
+
+    def _force_ron_state(self, env, key, ron_player: int = 0):
+        state = env.init(key)
+        return _replace_state(
+            state,
+            legal_action_mask=self._ron_legal_mask(ron_player),
+            current_player=jnp.int8(ron_player),
+        )
+
+    def test_auto_matches_dummy_share_at_mid_game_round_transition(self):
+        # auto's 1-step round transition == dummy_share's 5-step (RON + 4 DUMMY)
+        # transition, modulo:
+        # - step_count (auto +1, share +5)
+        # - rewards (auto preserves the round-end vector from the RON step;
+        #   dummy_share resets it to zero in the _make_state-based init)
+        env_auto = NoRedMahjong(round_mode="half", next_round_style="auto")
+        env_share = NoRedMahjong(round_mode="half", next_round_style="dummy_share")
+        key = jax.random.PRNGKey(2026)
+
+        state_auto = env_auto.step(
+            self._force_ron_state(env_auto, key), jnp.int32(Action.RON)
+        )
+        state_share = env_share.step(
+            self._force_ron_state(env_share, key), jnp.int32(Action.RON)
+        )
+        rewards_at_ron = state_share.rewards  # delivered at RON step in dummy_share
+        for _ in range(4):
+            state_share = env_share.step(state_share, jnp.int32(Action.DUMMY))
+
+        # Mid-game: both at next-round init.
+        self.assertFalse(bool(state_auto.terminated))
+        self.assertFalse(bool(state_share.terminated))
+        self.assertFalse(bool(state_auto.round_state.terminated_round))
+        self.assertFalse(bool(state_share.round_state.terminated_round))
+        self.assertEqual(int(state_auto.round_state.dummy_count), 0)
+        self.assertEqual(int(state_share.round_state.dummy_count), 0)
+
+        rs_a, rs_s = state_auto.round_state, state_share.round_state
+        self.assertEqual(int(state_auto.current_player), int(state_share.current_player))
+        self.assertEqual(int(rs_a.dealer), int(rs_s.dealer))
+        self.assertEqual(int(rs_a.round), int(rs_s.round))
+        self.assertEqual(int(rs_a.honba), int(rs_s.honba))
+        self.assertEqual(int(rs_a.kyotaku), int(rs_s.kyotaku))
+        self.assertTrue(bool(jnp.all(rs_a.score == rs_s.score)))
+        self.assertTrue(bool(jnp.all(rs_a.deck == rs_s.deck)))
+        self.assertTrue(bool(jnp.all(rs_a.dora_indicators == rs_s.dora_indicators)))
+        self.assertEqual(int(rs_a.next_deck_ix), int(rs_s.next_deck_ix))
+        self.assertEqual(int(rs_a.last_draw), int(rs_s.last_draw))
+
+        ps_a, ps_s = state_auto.players, state_share.players
+        self.assertTrue(bool(jnp.all(ps_a.hand == ps_s.hand)))
+        self.assertTrue(bool(jnp.all(ps_a.has_won == ps_s.has_won)))
+        self.assertTrue(bool(jnp.all(ps_a.legal_action_mask == ps_s.legal_action_mask)))
+        self.assertTrue(
+            bool(jnp.all(state_auto.legal_action_mask == state_share.legal_action_mask))
+        )
+
+        # auto preserves the round-end rewards; dummy_share's were delivered at
+        # the RON step (captured in rewards_at_ron) and zeroed afterwards.
+        self.assertTrue(bool(jnp.all(state_auto.rewards == rewards_at_ron)))
+
+    def test_auto_matches_dummy_share_at_game_end(self):
+        # When RON ends the game, auto terminates after the RON step; dummy_share
+        # terminates one step later (DUMMY 1 detects _is_game_end at dc==0).
+        # Compare the two terminal states: same terminated, same final score,
+        # same rewards.
+        env_auto = NoRedMahjong(round_mode="half", next_round_style="auto")
+        env_share = NoRedMahjong(round_mode="half", next_round_style="dummy_share")
+        key = jax.random.PRNGKey(2026)
+        forced = dict(
+            dealer=jnp.int8(0),
+            score=jnp.array([310, 310, 190, 190], dtype=jnp.int32),
+            init_wind=jnp.array([0, 1, 2, 3], dtype=jnp.int8),
+            round=jnp.int8(7),
+            round_limit=jnp.int8(7),
+            kyotaku=jnp.int8(3),
+            has_won=jnp.array([False, False, False, False], dtype=jnp.bool_),
+        )
+
+        state_auto = _replace_state(self._force_ron_state(env_auto, key), **forced)
+        state_share = _replace_state(self._force_ron_state(env_share, key), **forced)
+
+        state_auto = env_auto.step(state_auto, jnp.int32(Action.RON))
+        state_share = env_share.step(state_share, jnp.int32(Action.RON))
+        state_share = env_share.step(state_share, jnp.int32(Action.DUMMY))
+
+        self.assertTrue(bool(state_auto.terminated))
+        self.assertTrue(bool(state_share.terminated))
+        self.assertTrue(
+            bool(jnp.all(state_auto.round_state.score == state_share.round_state.score))
+        )
+        self.assertTrue(bool(jnp.all(state_auto.rewards == state_share.rewards)))
 
 
 if __name__ == "__main__":

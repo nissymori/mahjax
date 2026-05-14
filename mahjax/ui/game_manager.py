@@ -742,11 +742,12 @@ class GameManager:
         if env_id in ("red_mahjong", "no_red_mahjong") and agent.agent_id == "rule_based":
             agent = self.registry.get("rule_based_red")
         if env_id == "red_mahjong":
-            env = RedMahjong(round_mode=round_mode)
+            env = RedMahjong(round_mode=round_mode, next_round_style="dummy_share")
         else:
             env = RedMahjong(
                 round_mode=round_mode,
                 game_config=RedGameConfig(use_red_fives=jnp.bool_(False)),
+                next_round_style="dummy_share",
             )
         rng = jax.random.PRNGKey(seed)
         rng, init_key = jax.random.split(rng)

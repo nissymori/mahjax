@@ -264,17 +264,23 @@ class RedMahjong(Env):
             -30,
         ],  # No oka, 10-30, SAIKOUISEN rule https://saikouisen.com/about/rules/
         game_config: Optional[GameConfig] = None,
+        next_round_style: Literal["auto", "dummy_share"] = "auto",
     ):
         if round_mode not in ("single", "east", "half"):
             raise ValueError(f"round_mode must be one of ('single', 'east', 'half'), got: {round_mode}")
         if observe_type == "2D":
             raise ValueError(f"observe type 2D is not developed yet")
+        if next_round_style not in ("auto", "dummy_share"):
+            raise ValueError(
+                f"next_round_style must be one of ('auto', 'dummy_share'), got: {next_round_style}"
+            )
         self.round_mode = round_mode
         self.one_round = round_mode == "single"
         self.round_limit = jnp.int8(4 if round_mode == "east" else 8)
         self.observe_func = _observe_dict if observe_type == "dict" else _observe_2D
         self.order_points = order_points
         self.game_config = _resolve_game_config(game_config)
+        self.next_round_style = next_round_style
 
     def init(self, key: PRNGKey) -> State:
         """Return the initial state. Note that no internal state of
@@ -308,8 +314,11 @@ class RedMahjong(Env):
             order_points=jnp.array(self.order_points, dtype=jnp.int32),
         )
 
+        step_fn = (
+            _step_auto if self.next_round_style == "auto" else _step_dummy_share
+        )
         stepped_state = _replace_state(
-            _step(state, action, self.game_config),
+            step_fn(state, action, self.game_config),
             step_count=state.step_count + 1,
         )
         state = jax.lax.cond(
@@ -322,6 +331,13 @@ class RedMahjong(Env):
             lambda: _replace_state(state, terminated=TRUE),
             lambda: state,
         )
+        # ``auto`` next_round_style: see the comment in no_red_mahjong/env.py.
+        if self.next_round_style == "auto":
+            state = jax.lax.cond(
+                state.round_state.terminated_round & ~state.terminated & ~jnp.bool_(self.one_round),
+                lambda: _advance_to_next_round_auto(state, self.game_config),
+                lambda: state,
+            )
         state = jax.lax.cond(
             is_illegal,
             lambda: self._step_with_illegal_action(state, current_player),
@@ -549,20 +565,46 @@ def _append_action_history(state: State, action: Array) -> Array:
     return action_history.at[2, state.step_count].set(history_tsumogiri)
 
 
-def _step(state: State, action: Array, game_config: Optional[GameConfig] = None) -> State:
-    """
-    Branch the process according to the action
-    The type of action is referred to mahjong/_action.py
+def _step_dummy_share(
+    state: State, action: Array, game_config: Optional[GameConfig] = None
+) -> State:
+    """Step used by ``next_round_style='dummy_share'``.
+
+    Dispatch table includes the dummy-rotation ``_next_round`` branch (selected
+    when ``action == DUMMY``) so that callers can drive the four-DUMMY share
+    phase explicitly. Heavier than ``_step_auto`` because both
+    ``_special_next_round`` and ``_next_round`` are pre-computed every step.
     """
     action_history = _append_action_history(state, action)
-    state = _replace_state(state,   # type:ignore
-        action_history=action_history
-    )
-    state = _dispatch_step_eager(state, action, game_config)
+    state = _replace_state(state, action_history=action_history)  # type:ignore
+    state = _dispatch_action_dummy_share(state, action, game_config)
     return _finalize_step_state(state, game_config, update_shanten=TRUE)
 
 
-def _dispatch_step_eager(state: State, action: Array, game_config: Optional[GameConfig] = None) -> State:
+def _step_auto(
+    state: State, action: Array, game_config: Optional[GameConfig] = None
+) -> State:
+    """Step used by ``next_round_style='auto'`` (RL default).
+
+    Skips the dummy-rotation ``_next_round`` branch entirely — under ``auto``
+    the auto-advance in ``RedMahjong.step`` is responsible for round
+    transitions, and ``DUMMY`` is never a legal action. The dispatch table
+    still keeps the ``_special_next_round`` branch for ``KYUUSHU``.
+    """
+    action_history = _append_action_history(state, action)
+    state = _replace_state(state, action_history=action_history)  # type:ignore
+    state = _dispatch_action_auto(state, action, game_config)
+    return _finalize_step_state(state, game_config, update_shanten=TRUE)
+
+
+# Back-compat alias for internal tests that import ``_step`` directly. They
+# exercise the dummy-rotation flow, which is exactly ``_step_dummy_share``.
+_step = _step_dummy_share
+
+
+def _dispatch_action_dummy_share(
+    state: State, action: Array, game_config: Optional[GameConfig] = None
+) -> State:
     discard_state = _discard(state, action, game_config)
     kan_state = _kan(state, action, game_config)
     riichi_state = _riichi(state)
@@ -603,7 +645,56 @@ def _dispatch_step_eager(state: State, action: Array, game_config: Optional[Game
     )
 
 
-def _dispatch_step_lazy(state: State, action: Array, game_config: Optional[GameConfig] = None) -> State:
+def _dispatch_action_auto(
+    state: State, action: Array, game_config: Optional[GameConfig] = None
+) -> State:
+    """Dispatch table for ``auto`` next_round_style. Drops the ``_next_round``
+    (dummy rotation) computation — its slot is a no-op since ``DUMMY`` is
+    never a legal action under ``auto`` (any erroneous DUMMY is caught by
+    ``env.step``'s ``is_illegal`` check).
+    """
+    discard_state = _discard(state, action, game_config)
+    kan_state = _kan(state, action, game_config)
+    riichi_state = _riichi(state)
+    ron_state = _ron(state, game_config)
+    tsumo_state = _tsumo(state, game_config)
+    pon_state = _pon(state, action)
+    chi_state = _chi(state, action)
+    pass_state = _pass(state, game_config)
+    _, next_round_rng = jax.random.split(state.round_state.rng_key)
+    prepared_next_round = _prepare_next_round_assets(next_round_rng)
+    special_next_round_state = _special_next_round(
+        state,
+        game_config,
+        next_round_rng=next_round_rng,
+        prepared_next_round=prepared_next_round,
+    )
+    fn_idx = ACTION_FUN_MAP[action]
+    return jax.lax.switch(
+        fn_idx,
+        [
+            lambda: discard_state,
+            lambda: kan_state,
+            lambda: riichi_state,
+            lambda: ron_state,
+            lambda: tsumo_state,
+            lambda: pon_state,
+            lambda: chi_state,
+            lambda: pass_state,
+            lambda: special_next_round_state,
+            lambda: state,  # DUMMY: no-op; illegal under ``auto``, env.step catches it.
+        ],
+    )
+
+
+def _dispatch_action_lazy(
+    state: State, action: Array, game_config: Optional[GameConfig] = None
+) -> State:
+    """Lazy dispatcher used by :func:`verify_step` only. Avoids the eager
+    pre-computation of every branch — branches are built as ``lambda s: ...``
+    so ``jax.lax.switch`` only traces the selected branch. Slower compile but
+    smaller working set; reserved for replay verification.
+    """
     fn_idx = ACTION_FUN_MAP[action]
     return jax.lax.switch(
         fn_idx,
@@ -621,6 +712,41 @@ def _dispatch_step_lazy(state: State, action: Array, game_config: Optional[GameC
         ],
         state,
     )
+
+
+def _step_verify_lazy(
+    state: State, action: Array, game_config: Optional[GameConfig] = None
+) -> State:
+    action_history = _append_action_history(state, action)
+    state = _replace_state(state, action_history=action_history)
+    state = _dispatch_action_lazy(state, action, game_config)
+    return _finalize_step_state(state, game_config, update_shanten=FALSE)
+
+
+def verify_step(
+    state: State,
+    action: Array,
+    game_config: Optional[GameConfig] = None,
+) -> tuple[State, Array]:
+    """Step variant for replay verification.
+
+    Returns ``(state_after, is_illegal)``. Unlike :class:`RedMahjong`'s public
+    ``step``, this does **not** apply the illegal-action penalty: when ``action``
+    is illegal, the input state is returned unchanged together with
+    ``is_illegal=True``. Used by ``mahjax_tenhou_test`` to compare env behavior
+    against tenhou mjlogs without triggering the env's penalty path.
+    """
+    is_illegal = ~state.legal_action_mask[action]
+    stepped_state = _replace_state(
+        _step_verify_lazy(state, action, game_config),
+        step_count=state.step_count + 1,
+    )
+    state = jax.lax.cond(
+        (state.terminated | state.truncated) | is_illegal,
+        lambda: state,
+        lambda: stepped_state,
+    )
+    return state, is_illegal
 
 
 def _finalize_step_state(
@@ -658,38 +784,6 @@ def _finalize_step_state(
         ),
         lambda: state,
     )
-
-
-def _step_lazy(state: State, action: Array, game_config: Optional[GameConfig] = None) -> State:
-    action_history = _append_action_history(state, action)
-    state = _replace_state(state, action_history=action_history)
-    state = _dispatch_step_lazy(state, action, game_config)
-    return _finalize_step_state(state, game_config, update_shanten=TRUE)
-
-
-def verify_step(
-    state: State,
-    action: Array,
-    game_config: Optional[GameConfig] = None,
-) -> tuple[State, Array]:
-    is_illegal = ~state.legal_action_mask[action]
-    stepped_state = _replace_state(
-        _step_verify_lazy(state, action, game_config),
-        step_count=state.step_count + 1,
-    )
-    state = jax.lax.cond(
-        (state.terminated | state.truncated) | is_illegal,
-        lambda: state,
-        lambda: stepped_state,
-    )
-    return state, is_illegal
-
-
-def _step_verify_lazy(state: State, action: Array, game_config: Optional[GameConfig] = None) -> State:
-    action_history = _append_action_history(state, action)
-    state = _replace_state(state, action_history=action_history)
-    state = _dispatch_step_lazy(state, action, game_config)
-    return _finalize_step_state(state, game_config, update_shanten=FALSE)
 
 
 def _draw(state: State, game_config: Optional[GameConfig] = None) -> State:
@@ -2057,6 +2151,86 @@ def _next_round(
         dc == jnp.int8(3),
         lambda: final_start_state,
         lambda: rotate_state,  # Early return here
+    )
+
+
+def _advance_to_next_round_auto(
+    state: State,
+    game_config: Optional[GameConfig] = None,
+) -> State:
+    """``auto`` next_round_style round transition (no DUMMY sharing) for red_mahjong.
+
+    Mirrors ``no_red_mahjong._advance_to_next_round_auto``: called when
+    ``terminated_round`` becomes True (RON / TSUMO / 流局) and the env is not in
+    ``single`` mode. Branches into game-end (terminated=True with final score) or
+    next-round init state (rewards from the round-end step are preserved).
+    """
+    hora = state.players.has_won  # (4,)
+    is_tempai = state.players.can_win.any(axis=-1)  # (4,)
+    dealer = state.round_state.dealer
+
+    order = jnp.argsort(-state.round_state.score)
+    rank_points = (
+        jnp.zeros_like(state.round_state.score).at[order].set(state.round_state.order_points)
+    )
+    score_with_rank = state.round_state.score + rank_points
+    top_after_rank = jnp.argmax(score_with_rank)
+    final_score = score_with_rank.at[top_after_rank].add(10 * state.round_state.kyotaku)
+
+    is_eight_consecutive_deals = state.round_state.honba >= 8
+    has_other_than_dealer_won = hora.any() & ~hora[dealer]
+    will_dealer_continue = jnp.logical_or(
+        is_tempai[dealer] & ~has_other_than_dealer_won, hora[dealer]
+    ) & ~is_eight_consecutive_deals
+
+    top_pre_rank = jnp.argmax(state.round_state.score)
+    is_final_round = state.round_state.round == state.round_state.round_limit
+    has_dealer_end = jnp.logical_not(will_dealer_continue)
+    is_dealer_top = jnp.arange(4)[top_pre_rank] == state.round_state.dealer
+    has_minus_score = (state.round_state.score < 0).any()
+    _is_game_end = (
+        (is_final_round & has_dealer_end)
+        | has_minus_score
+        | (is_final_round & is_dealer_top)
+    )
+
+    next_round = jnp.where(will_dealer_continue, state.round_state.round, state.round_state.round + 1)
+    has_winner = hora.any()
+    next_honba = jnp.where(
+        ~has_winner | will_dealer_continue, state.round_state.honba + 1, 0
+    )
+    next_dealer = jnp.where(will_dealer_continue, dealer, (dealer + 1) % 4)
+
+    _, next_round_rng = jax.random.split(state.round_state.rng_key)
+    prepared = _prepare_next_round_assets(next_round_rng, game_config)
+    base_next = _make_state(
+        rng_key=next_round_rng,
+        current_player=next_dealer,
+        dealer=next_dealer,
+        seat_wind=_calc_wind(next_dealer),
+        round=next_round,
+        round_limit=state.round_state.round_limit,
+        order_points=state.round_state.order_points,
+        honba=next_honba,
+        kyotaku=state.round_state.kyotaku,
+        score=state.round_state.score,
+    )
+    next_round_state = _init_for_next_round_from_prepared(base_next, prepared, game_config)
+    next_round_state = _replace_state(next_round_state,
+        current_player=jnp.int8(next_round_state.round_state.dealer),
+        rewards=state.rewards,
+        step_count=state.step_count,
+    )
+
+    terminated_state = _replace_state(state,
+        score=jnp.int32(final_score),
+        terminated=TRUE,
+    )
+
+    return jax.lax.cond(
+        _is_game_end,
+        lambda: terminated_state,
+        lambda: next_round_state,
     )
 
 
