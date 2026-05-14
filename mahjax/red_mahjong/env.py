@@ -901,10 +901,9 @@ def _discard(state: State, tile: Array, game_config: Optional[GameConfig] = None
     legal_action_mask_4p = legal_action_mask_4p.at[c_p, :].set(
         FALSE
     )  # Set the legal action for the player who discarded the tile to False
-    is_three_player_ron = (
-        config.enable_special_abortive_draw
-        & (legal_action_mask_4p[:, Action.RON].sum() >= 3)
-    )
+    # 三家和 (triple ron) is decided in ``_ron`` itself when the third player
+    # actually declares RON. Counting RON candidates pre-emptively here would
+    # mis-fire when one of the three candidates ends up passing.
     is_four_kan_draw = (
         config.enable_special_abortive_draw
         & had_after_kan
@@ -926,17 +925,12 @@ def _discard(state: State, tile: Array, game_config: Optional[GameConfig] = None
         is_haitei=state.round_state.is_haitei | is_abortive_draw_normal,
     )
     state = jax.lax.cond(
-        is_three_player_ron,
+        is_four_kan_draw,
         lambda: _trigger_special_abortive_draw(
             _replace_state(state, last_player=jnp.int8(c_p), target=jnp.int8(tile))
         ),
         lambda: jax.lax.cond(
-            is_four_kan_draw,
-            lambda: _trigger_special_abortive_draw(
-                _replace_state(state, last_player=jnp.int8(c_p), target=jnp.int8(tile))
-            ),
-            lambda: jax.lax.cond(
-                no_meld_player | (is_abortive_draw_normal & no_ron_player),
+            no_meld_player | (is_abortive_draw_normal & no_ron_player),
             lambda: _replace_state(state,   # type:ignore
                 current_player=jnp.int8((c_p + 1) % 4),
                 last_player=jnp.int8(c_p),
@@ -954,7 +948,6 @@ def _discard(state: State, tile: Array, game_config: Optional[GameConfig] = None
                     TRUE
                 ),  # Add the pass action to the legal action
                 draw_next=FALSE,
-            ),
             ),
         ),
     )
@@ -1294,34 +1287,28 @@ def _kan(state: State, action, game_config: Optional[GameConfig] = None):
         FALSE
     )  # Disable the legal action for the player who declared the KAN
     state = _replace_state(state, legal_action_mask=legal_action_mask_4p)
-    is_three_player_ron = (
-        config.enable_special_abortive_draw
-        & (legal_action_mask_4p[:, Action.RON].sum() >= 3)
-    )
+    # Triple ron is settled inside ``_ron`` itself; only added-kan opens up the
+    # robbing-kan window (closed/open kan are not ronnable in default rules).
     next_ron_player, can_any_ron = _next_ron_player(legal_action_mask_4p, c_p)
     return jax.lax.cond(
-        is_three_player_ron,
-        lambda: _trigger_special_abortive_draw(state),
-        lambda: jax.lax.cond(
-            is_added_kan & can_any_ron,
-            lambda: _replace_state(state,   # type:ignore
-                target=jnp.int8(tile),
-                last_player=c_p,
-                current_player=jnp.int8(next_ron_player),
-                legal_action_mask=state.players.legal_action_mask.at[
-                    next_ron_player, Action.PASS
-                ].set(
-                    TRUE
-                ),  # Robbing KAN player can PASS
-                kan_declared=TRUE,  # KAN is declared
-                draw_next=FALSE,
-            ),
-            lambda: _replace_state(state,   # type:ignore
-                target=jnp.int8(-1),
-                legal_action_mask=ZERO_MASK_2D,
-                kan_declared=TRUE,  # KAN is declared
-                draw_next=FALSE,
-            ),
+        is_added_kan & can_any_ron,
+        lambda: _replace_state(state,   # type:ignore
+            target=jnp.int8(tile),
+            last_player=c_p,
+            current_player=jnp.int8(next_ron_player),
+            legal_action_mask=state.players.legal_action_mask.at[
+                next_ron_player, Action.PASS
+            ].set(
+                TRUE
+            ),  # Robbing KAN player can PASS
+            kan_declared=TRUE,  # KAN is declared
+            draw_next=FALSE,
+        ),
+        lambda: _replace_state(state,   # type:ignore
+            target=jnp.int8(-1),
+            legal_action_mask=ZERO_MASK_2D,
+            kan_declared=TRUE,  # KAN is declared
+            draw_next=FALSE,
         ),
     )
 
@@ -1667,7 +1654,22 @@ def _ron(state: State, game_config: Optional[GameConfig] = None) -> State:
     next_ron_player, can_any_ron = _next_ron_player(
         remaining_ron_mask, state.round_state.last_player
     )
-    continue_double_ron = config.allow_double_ron & can_any_ron
+    # 三家和: this is the 3rd RON declared on the same discard. Trigger
+    # ``_trigger_special_abortive_draw`` instead of applying this RON's
+    # score / has_won — abortive draw means no one wins.
+    # (The prior two RONs' scores and has_won bits have already been written
+    # to ``state`` by previous ``_ron`` calls; we leave those as-is, a known
+    # small inaccuracy vs tenhou's "no payment, no winners" rule.)
+    is_triple_ron = (
+        config.enable_special_abortive_draw
+        & ((state.players.has_won.sum() + 1) >= 3)
+    )
+    triple_ron_state = _trigger_special_abortive_draw(state)
+    # ``continue_ron`` covers both 2nd-RON (double) and 3rd-RON (triple) cases:
+    # we hand the turn to the next eligible RON candidate so they can choose
+    # RON / PASS. ``allow_double_ron`` config flag gates the whole multi-RON
+    # behaviour (legacy name).
+    continue_ron = config.allow_double_ron & can_any_ron
     continue_state = _replace_state(
         state,
         current_player=jnp.int8(next_ron_player),
@@ -1688,7 +1690,15 @@ def _ron(state: State, game_config: Optional[GameConfig] = None) -> State:
         legal_action_mask=ZERO_MASK_2D.at[:, Action.DUMMY].set(TRUE),
         draw_next=FALSE,
     )
-    return jax.lax.cond(continue_double_ron, lambda: continue_state, lambda: final_state)
+    return jax.lax.cond(
+        is_triple_ron,
+        lambda: triple_ron_state,
+        lambda: jax.lax.cond(
+            continue_ron,
+            lambda: continue_state,
+            lambda: final_state,
+        ),
+    )
 
 
 def _tsumo(state: State, game_config: Optional[GameConfig] = None) -> State:
