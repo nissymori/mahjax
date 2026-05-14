@@ -2,7 +2,7 @@ import numpy as np
 import jax.numpy as jnp
 
 from mahjax.red_mahjong.action import Action
-from mahjax.red_mahjong.env import _observe_2D, _observe_dict
+from mahjax.red_mahjong.env import _observe_dict
 from mahjax.red_mahjong.meld import Meld
 from mahjax.red_mahjong.state import default_state
 from mahjax.red_mahjong.tile import River, Tile
@@ -127,94 +127,3 @@ def test_observe_dict_returns_relative_view() -> None:
     assert obs["prevalent_wind"].item() == 1
     assert obs["seat_wind"].item() == 1
 
-
-def test_observe_2d_hand_and_game_blocks_match_state() -> None:
-    state = _make_state()
-    obs = np.array(_observe_2D(state))
-
-    expected_hand = np.zeros((7, 34), dtype=np.float32)
-    expected_hand[0, [1, 2, 3, 4]] = 1.0
-    expected_hand[1, [2, 3, 4]] = 1.0
-    expected_hand[2, [3, 4]] = 1.0
-    expected_hand[3, [4]] = 1.0
-    expected_hand[4, [1, 3]] = 1.0
-    expected_hand[5, :] = 1.0
-    expected_hand[6, :] = 2.0 / 6.0
-
-    expected_game = np.zeros((15, 34), dtype=np.float32)
-    expected_game[0, :] = (260 + 250) / 1250.0
-    expected_game[1, :] = (240 + 250) / 1250.0
-    expected_game[2, :] = (270 + 250) / 1250.0
-    expected_game[3, :] = (230 + 250) / 1250.0
-    expected_game[4, :] = 1.0 / 3.0
-    expected_game[5, :] = 5.0 / 7.0
-    expected_game[6, :] = 2.0 / 10.0
-    expected_game[7, :] = 4.0 / 10.0
-    expected_game[8, :] = 0.0
-    expected_game[9, :] = 1.0 / 3.0
-    expected_game[10, :] = 1.0
-    expected_game[11, 0] = 1.0
-    assert obs.shape == (381, 34)
-    np.testing.assert_allclose(obs[:HAND_END], expected_hand)
-    np.testing.assert_allclose(obs[HAND_END:GAME_END], expected_game, atol=1e-6)
-
-
-def test_observe_2d_river_meld_and_strategic_blocks_match_state() -> None:
-    state = _make_state()
-    obs = np.array(_observe_2D(state))
-
-    np.testing.assert_array_equal(obs[GAME_END + 0], _one_hot(0))
-    np.testing.assert_array_equal(obs[GAME_END + 24], _one_hot(1))
-    np.testing.assert_array_equal(obs[GAME_END + 48], _one_hot(2))
-    np.testing.assert_array_equal(obs[GAME_END + 72], _one_hot(3))
-    np.testing.assert_array_equal(obs[GAME_END + 96 + 72], np.ones((34,), dtype=np.float32))
-    np.testing.assert_array_equal(obs[GAME_END + 192 + 48], np.ones((34,), dtype=np.float32))
-
-    meld_block = obs[RIVER_END:MELD_END]
-    np.testing.assert_array_equal(meld_block[0], np.full((34,), 2.0, dtype=np.float32))
-    np.testing.assert_array_equal(meld_block[1], np.full((34,), 3.0, dtype=np.float32))
-    np.testing.assert_array_equal(meld_block[16], np.full((34,), 1.0, dtype=np.float32))
-    np.testing.assert_array_equal(meld_block[17], np.full((34,), 2.0, dtype=np.float32))
-    np.testing.assert_allclose(
-        meld_block[32],
-        np.full((34,), Action.PON / Action.NUM_ACTION, dtype=np.float32),
-    )
-    np.testing.assert_allclose(
-        meld_block[33],
-        np.full((34,), Action.CHI_L / Action.NUM_ACTION, dtype=np.float32),
-    )
-
-    strategic_block = obs[MELD_END:]
-    np.testing.assert_array_equal(strategic_block[0], np.ones((34,), dtype=np.float32))
-    np.testing.assert_array_equal(strategic_block[1], np.zeros((34,), dtype=np.float32))
-    np.testing.assert_array_equal(strategic_block[7], _one_hot(3))
-    np.testing.assert_array_equal(strategic_block[12], np.ones((34,), dtype=np.float32))
-    np.testing.assert_array_equal(strategic_block[13], np.ones((34,), dtype=np.float32))
-    np.testing.assert_array_equal(strategic_block[14], np.zeros((34,), dtype=np.float32))
-    np.testing.assert_array_equal(strategic_block[15], np.ones((34,), dtype=np.float32))
-    np.testing.assert_array_equal(strategic_block[16], np.ones((34,), dtype=np.float32))
-    np.testing.assert_array_equal(strategic_block[17], np.ones((34,), dtype=np.float32))
-    np.testing.assert_array_equal(strategic_block[18], np.ones((34,), dtype=np.float32))
-    np.testing.assert_array_equal(strategic_block[19], np.ones((34,), dtype=np.float32))
-    np.testing.assert_array_equal(strategic_block[20], np.ones((34,), dtype=np.float32))
-    np.testing.assert_array_equal(strategic_block[21], np.ones((34,), dtype=np.float32))
-    np.testing.assert_array_equal(strategic_block[22], np.zeros((34,), dtype=np.float32))
-
-
-def test_observe_2d_reorders_player_axes_from_current_player() -> None:
-    base_state = _make_state()
-    state = base_state.replace(
-        current_player=jnp.int8(1),
-        legal_action_mask=base_state.players.legal_action_mask[1],
-        round_state=base_state.round_state.replace(shanten_current_player=jnp.int8(1)),
-    )
-
-    obs = np.array(_observe_2D(state))
-    strategic_block = obs[MELD_END:]
-
-    np.testing.assert_array_equal(obs[GAME_END + 0], _one_hot(1))
-    np.testing.assert_array_equal(obs[GAME_END + 24], _one_hot(2))
-    np.testing.assert_array_equal(obs[GAME_END + 48], _one_hot(3))
-    np.testing.assert_array_equal(obs[GAME_END + 72], _one_hot(0))
-    np.testing.assert_array_equal(strategic_block[0], np.zeros((34,), dtype=np.float32))
-    np.testing.assert_array_equal(strategic_block[3], np.ones((34,), dtype=np.float32))
