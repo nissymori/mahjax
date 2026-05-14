@@ -29,7 +29,7 @@ from .state import GameConfig, State, default_game_config, default_state
 from .tile import River, Tile
 from .types import Array, PRNGKey
 from .yaku import Yaku
-from .obs import _observe_dict, _observe_2D
+from .observation import _observe_dict, _observe_2D
 
 v_can_win = jax.vmap(
     jax.vmap(Hand.can_ron, in_axes=(None, 0)), in_axes=(0, None)
