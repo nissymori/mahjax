@@ -1,15 +1,11 @@
 from typing import Dict
-
-import jax
 import jax.numpy as jnp
+from mahjax.red_mahjong.env import State, Tile
+from mahjax.red_mahjong.env import hand_counts_to_idx
+from mahjax.red_mahjong.env import Array
 
-from mahjax._src.types import Array
-from mahjax.no_red_mahjong.state import State
-from mahjax.no_red_mahjong.tile import Tile
-from mahjax.no_red_mahjong.action import Action
-from mahjax.no_red_mahjong.meld import Meld
-from mahjax.no_red_mahjong.tile import River
 
+@jax.jit
 def hand_counts_to_idx(counts: Array, fill: int = -1, hand_size: int = 14) -> Array:
     # Check the input in the JIT outer loop, but keep the minimum guard
     counts = counts.astype(jnp.int32)
@@ -32,12 +28,12 @@ def hand_counts_to_idx(counts: Array, fill: int = -1, hand_size: int = 14) -> Ar
     out = sorted_vals[:hand_size]
     out = jnp.where(out == fill, fill, out).astype(jnp.int32)
     return out
-    
+
 def _observe_dict(state: State) -> Dict:
     """
     - hand: (14,) player's hand [0-33], -1 means empty
-    - last_draw: (1,) The last drawn tile [0-33], -1 means no draw
-    - action history: (3, 200) action history [player, action, is_tsumogiri], player index is relative to the current player in [0, 3], discards store the discarded tile, non-discard actions store the raw action id, and is_tsumogiri is 0/1 for discards and -1 otherwise
+    - last_draw: (1,) The last drawn tile [0-36], -1 means no draw
+    - action history: (3, 200) action history [player, action(tile), tsumogiri], player index is relative to the current player in [0, 3], discards store the actual tile in [0, 36], non-discard actions store the raw action id in [0, 86], and tsumogiri is 0/1 for discards and -1 otherwise
     - shanten count: (1,) The number of shanten (0-6)
     - furiten: (1,) Whether the player is in furiten [True/False]
     - scores: (4,) The scores of the players ordered from the current player's perspective (c_p, right, across, left)
@@ -64,8 +60,6 @@ def _observe_dict(state: State) -> Dict:
     )
     action_history = state.round_state.action_history.at[0, :].set(relative_player_history)
 
-    last_draw = state.round_state.last_draw
-
     # game features
     shanten_c_p = state.round_state.shanten_current_player
     furiten = state.players.furiten_by_discard[c_p] | state.players.furiten_by_pass[c_p]
@@ -73,12 +67,12 @@ def _observe_dict(state: State) -> Dict:
     _round = state.round_state.round
     honba = state.round_state.honba
     kyotaku = state.round_state.kyotaku
-    prevalent_wind = state.round_state.seat_wind[c_p]
-    seat_wind = state.round_state.init_wind[c_p]
-    dora_indicators = state.round_state.dora_indicators[:4]  # (4,)
+    prevalent_wind = jnp.int8(state.round_state.round // 4)
+    seat_wind = state.round_state.seat_wind[c_p]
+    dora_indicators = jnp.where(state.round_state.dora_indicators[:4] >= 0, Tile.to_tile_type(state.round_state.dora_indicators[:4]), state.round_state.dora_indicators[:4])
     return {
         "hand": hand_c_p_14,
-        "last_draw": last_draw,
+        "last_draw": state.round_state.last_draw,
         "action_history": action_history,
         "shanten_count": shanten_c_p,
         "furiten": furiten,
@@ -97,3 +91,4 @@ def _observe_2D(state: State) -> Array:
     TBD
     """
     pass
+  

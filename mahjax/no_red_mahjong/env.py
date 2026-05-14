@@ -213,6 +213,8 @@ class NoRedMahjong(Env):
     ):
         if round_mode not in ("single", "east", "half"):
             raise ValueError(f"round_mode must be one of ('single', 'east', 'half'), got: {round_mode}")
+        if observe_type == "2D":
+            raise ValueError(f"observe type 2D is not developed yet")
         self.round_mode = round_mode
         self.one_round = round_mode == "single"
         self.round_limit = jnp.int8(4 if round_mode == "east" else 8)
