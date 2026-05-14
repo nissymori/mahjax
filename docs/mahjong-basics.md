@@ -126,7 +126,7 @@ From this section onward, the examples use the English tiles only.
 ![3p](assets/tiles/en/3p.svg){ width="34" } ![4p](assets/tiles/en/4p.svg){ width="34" } ![5p](assets/tiles/en/5p.svg){ width="34" }
 ![4s](assets/tiles/en/4s.svg){ width="34" } ![5s](assets/tiles/en/5s.svg){ width="34" } ![6s](assets/tiles/en/6s.svg){ width="34" }
 ![6s](assets/tiles/en/6s.svg){ width="34" } ![7s](assets/tiles/en/7s.svg){ width="34" } ![8s](assets/tiles/en/8s.svg){ width="34" }
-![2p](assets/tiles/en/2p.svg){ width="34" } ![2p](assets/tiles/en/2p.svg){ width="34" }
+![8s](assets/tiles/en/8s.svg){ width="34" } ![8s](assets/tiles/en/8s.svg){ width="34" }
 
 This hand contains only suit tiles from **2 to 8**.
 No terminals (`1` or `9`) and no honors appear, so it qualifies for **tanyao**.
@@ -136,8 +136,8 @@ No terminals (`1` or `9`) and no honors appear, so it qualifies for **tanyao**.
 ![rd](assets/tiles/en/rd.svg){ width="34" } ![rd](assets/tiles/en/rd.svg){ width="34" } ![rd](assets/tiles/en/rd.svg){ width="34" }
 ![2m](assets/tiles/en/2m.svg){ width="34" } ![3m](assets/tiles/en/3m.svg){ width="34" } ![4m](assets/tiles/en/4m.svg){ width="34" }
 ![4p](assets/tiles/en/4p.svg){ width="34" } ![5p](assets/tiles/en/5p.svg){ width="34" } ![6p](assets/tiles/en/6p.svg){ width="34" }
-![7s](assets/tiles/en/7s.svg){ width="34" } ![8s](assets/tiles/en/8s.svg){ width="34" } ![9s](assets/tiles/en/9s.svg){ width="34" }
-![5m](assets/tiles/en/5m.svg){ width="34" } ![5m](assets/tiles/en/5m.svg){ width="34" }
+![5s](assets/tiles/en/5s.svg){ width="34" } ![6s](assets/tiles/en/6s.svg){ width="34" } ![7s](assets/tiles/en/7s.svg){ width="34" }
+![9s](assets/tiles/en/9s.svg){ width="34" } ![9s](assets/tiles/en/9s.svg){ width="34" }
 
 A triplet of dragons is a basic yaku.
 This is one of the easiest yaku to recognize at a glance.
