@@ -57,6 +57,9 @@ class PPOWithRegArgs(BaseModel):
     vf_coef: float = 0.5
     # Magnet hyperparameters
     mag_coef: float = 0.2
+    update_magnet: bool = False
+    magnet_update_interval: int = 1
+    init_magnet_from_pretrained: bool = True
     mag_divergence_type: Literal["kl", "l2"] = "kl"
     pretrained_model_path: Optional[str] = "bc_params.pkl"
     # For logging and saving
@@ -65,6 +68,9 @@ class PPOWithRegArgs(BaseModel):
     do_eval: bool = True
     eval_interval: int = 10
     eval_num_envs: int = 1000
+    eval_vs_rand: bool = True
+    eval_vs_baseline: bool = True
+    eval_vs_magnet: bool = False
     viz_max_steps: int = 1000
     viz_out_dir: str = "fig"
     viz_filename: str = "ppo_with_reg_agent_game.svg"
@@ -197,8 +203,8 @@ def process_trajectory(transitions: Transition):
 
 
 # --- 3. PARAMETER UPDATE ---
-def make_update_fn(network: nn.Module, magnet_params: Optional[Dict[str, Any]] = None):
-    def update_parameters(train_state, key, batch_data):
+def make_update_fn(network: nn.Module, use_magnet: bool = False):
+    def update_parameters(train_state, magnet_params, key, batch_data):
         flat_transitions, advantages, targets, valid_mask = batch_data
 
         def train_epoch(epoch_carry, _):
@@ -228,7 +234,7 @@ def make_update_fn(network: nn.Module, magnet_params: Optional[Dict[str, Any]] =
 
                     # REGULARIZATION LOSS
                     mag_kl = 0.0
-                    if magnet_params is not None:
+                    if use_magnet:
                         mag_logits, _ = network.apply(magnet_params, transition_mb.observation)
                         mag_dists = distrax.Categorical(logits=jnp.where(transition_mb.action_mask, mag_logits, NEG))
                         if args.mag_divergence_type == "kl":
@@ -281,15 +287,17 @@ def make_evaluator(network: nn.Module, num_eval_envs, baseline_params):
 
     baseline_actor = make_net_actor(baseline_params)
 
-    def evaluate(params, key):
+    def evaluate(params, magnet_params, key):
         agent_actor = make_net_actor(params)
-        vs_rand_fn = one_vs_three(agent_actor, random_actor)
-        vs_base_fn = one_vs_three(agent_actor, baseline_actor)
-        base_vs_agent_fn = one_vs_three(baseline_actor, agent_actor)
-        key_ret, key_rand, key_base, key_base_vs_agent = jax.random.split(key, 4)
-        log = {f"vs_rand/{k}": v for k, v in vs_rand_fn(key_rand).items()}
-        log.update({f"vs_baseline/{k}": v for k, v in vs_base_fn(key_base).items()})
-        log.update({f"base_vs_agent/{k}": v for k, v in base_vs_agent_fn(key_base_vs_agent).items()})
+        key_ret, k_rand, k_base, k_mag = jax.random.split(key, 4)
+        log = {}
+        if args.eval_vs_rand:
+            log.update({f"vs_rand/{k}": v for k, v in one_vs_three(agent_actor, random_actor)(k_rand).items()})
+        if args.eval_vs_baseline:
+            log.update({f"vs_baseline/{k}": v for k, v in one_vs_three(agent_actor, baseline_actor)(k_base).items()})
+        if args.eval_vs_magnet:
+            magnet_actor = make_net_actor(magnet_params)
+            log.update({f"vs_magnet/{k}": v for k, v in one_vs_three(agent_actor, magnet_actor)(k_mag).items()})
         return key_ret, log
     return evaluate
 
@@ -306,8 +314,17 @@ def train(rng_key):
         params=params,
         tx=optax.adamw(args.lr, eps=1e-5)
     )
-    # Load baseline parameters
+    # Load baseline parameters (used for evaluation comparison)
     if args.pretrained_model_path:
+        print(f"Loading baseline: {args.pretrained_model_path}", flush=True)
+        with open(args.pretrained_model_path, "rb") as f: baseline_params = pickle.load(f)
+        if not isinstance(baseline_params, dict): baseline_params = {"params": baseline_params}
+    else:
+        print("Using random baseline.", flush=True); baseline_params = params
+
+    # Initialize magnet parameters (used for regularization)
+    use_magnet = args.mag_coef > 0.0
+    if use_magnet and args.init_magnet_from_pretrained and args.pretrained_model_path:
         print(f"Loading anchor: {args.pretrained_model_path}", flush=True)
         with open(args.pretrained_model_path, "rb") as f: magnet_params = pickle.load(f)
         if not isinstance(magnet_params, dict): magnet_params = {"params": magnet_params}
@@ -315,23 +332,23 @@ def train(rng_key):
         print("Using random anchor.", flush=True); magnet_params = params
     # Initialize environment states
     env_state = jax.vmap(BASE_ENV.init)(jax.random.split(key_reset, args.num_envs))
-    
+
     # --- JIT FUNCTIONS ---
     collect_rollout_fn = jax.jit(make_collect_rollout_fn(network))
     process_traj_fn = jax.jit(process_trajectory)
-    update_step_fn = jax.jit(make_update_fn(network, magnet_params))
-    
-    evaluator_fn = jax.jit(make_evaluator(network, args.eval_num_envs, magnet_params))
+    update_step_fn = jax.jit(make_update_fn(network, use_magnet=use_magnet))
+
+    evaluator_fn = jax.jit(make_evaluator(network, args.eval_num_envs, baseline_params))
     steps, start_time = 0, time.time()
 
-    def eval_and_log(rng, steps, update_idx, params):
-        rng, eval_logs = evaluator_fn(params, rng)
+    def eval_and_log(rng, steps, update_idx, params, magnet_params):
+        rng, eval_logs = evaluator_fn(params, magnet_params, rng)
         eval_logs = {k: float(v) for k, v in eval_logs.items()}
         wandb.log({"steps": steps, "update": update_idx, **eval_logs}); print({"steps": steps, **eval_logs}, flush=True)
         return rng
 
     if args.do_eval:
-        rng = eval_and_log(rng, steps, 0, train_state.params)
+        rng = eval_and_log(rng, steps, 0, train_state.params, magnet_params)
 
     for i in range(NUM_UPDATES):
         # 1. Collect Data
@@ -341,7 +358,10 @@ def train(rng_key):
         batch_data = process_traj_fn(transitions)
         # 3. Update Parameters
         rng, key_update = jax.random.split(rng)
-        train_state, loss_metrics = update_step_fn(train_state, key_update, batch_data)
+        train_state, loss_metrics = update_step_fn(train_state, magnet_params, key_update, batch_data)
+        # 4. Optionally refresh magnet to track the current policy
+        if args.update_magnet and use_magnet and (i + 1) % args.magnet_update_interval == 0:
+            magnet_params = train_state.params
         
         steps += BATCH_SIZE
         inv_len = jnp.mean(transitions.is_new_episode.astype(jnp.float32))
