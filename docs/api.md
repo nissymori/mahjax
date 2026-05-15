@@ -170,7 +170,7 @@ The state returned by `env.step` is already the **next round's init state** (new
    k+4     DUMMY            False             0           0      ← next round's init state
 ```
 
-This matches the "次の局へ" / "next round" button in interactive UIs and the round-end packet broadcast in mjai-style protocols. It is also the style validated against tenhou mjlogs by `mahjax_tenhou_test`.
+This matches the "次の局へ" / "next round" button in interactive UIs.
 
 State equivalence (proved by `TestAutoDummyShareParity` in `tests/`): for the same initial state, the next-round init produced by **one `auto` step** equals the next-round init produced by **five `dummy_share` steps (RON + 4 × DUMMY)**, comparing every round-level and player-level field. The only intentional differences are `step_count` (which advances per `env.step` call) and `rewards` (preserved by `auto` on the transition step; delivered by `dummy_share` on the RON step and zeroed thereafter).
 
@@ -226,6 +226,5 @@ With `dummy_share` instead, the rewarded step (RON) is followed by four DUMMY st
 
 - Driving an interactive UI (the user clicks "next round" after seeing the round-end summary).
 - Round-end packet replay against external logs (e.g. mjai / mjlog) where every seat is expected to observe the round-end state.
-- Tests / harnesses that need to inspect the in-between round-end state explicitly (e.g. score breakdown, win declaration UI). `mahjax_tenhou_test` uses this style.
 
 For everything else, use `auto`.
