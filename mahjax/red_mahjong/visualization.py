@@ -322,7 +322,7 @@ def _player_group(
     offset += _W
 
     meld_count = int(state.players.meld_counts[player])
-    for m in range(min(meld_count, MAX_MELDS_PER_PLAYER)):
+    for m in reversed(range(min(meld_count, MAX_MELDS_PER_PLAYER))):
         meld = state.players.melds[player, m]
         if bool(Meld.is_empty(meld)):
             continue
@@ -449,10 +449,16 @@ def save_svg(
     state: EnvState,
     filename: str | Path,
     show_all_hands: bool = True,
+    visible_player: int = 0,
     language: Language = "ja",
 ) -> None:
     Path(filename).write_text(
-        render_round_svg(state, show_all_hands=show_all_hands, language=language),
+        render_round_svg(
+            state,
+            show_all_hands=show_all_hands,
+            visible_player=visible_player,
+            language=language,
+        ),
         encoding="utf-8",
     )
 
@@ -514,6 +520,7 @@ def render_svg_animation(
     states: list[EnvState],
     frame_duration_seconds: float = 0.2,
     show_all_hands: bool = True,
+    visible_player: int = 0,
     language: Language = "ja",
 ) -> str:
     language = _normalize_language(language)
@@ -525,7 +532,12 @@ def render_svg_animation(
     style += f"@keyframes _k{{0%,{step}%{{visibility:visible}}{step * 1.000001}%,100%{{visibility:hidden}}}}"
     images: list[str] = []
     for i, state in enumerate(states):
-        svg = render_round_svg(state, show_all_hands=show_all_hands, language=language)
+        svg = render_round_svg(
+            state,
+            show_all_hands=show_all_hands,
+            visible_player=visible_player,
+            language=language,
+        )
         uri = "data:image/svg+xml;base64," + base64.b64encode(svg.encode("utf-8")).decode("ascii")
         frame_id = f"_fr{i:x}"
         images.append(
@@ -545,6 +557,7 @@ def save_svg_animation(
     filename: str | Path,
     frame_duration_seconds: float = 0.2,
     show_all_hands: bool = True,
+    visible_player: int = 0,
     language: Language = "ja",
 ) -> None:
     Path(filename).write_text(
@@ -552,6 +565,7 @@ def save_svg_animation(
             states,
             frame_duration_seconds=frame_duration_seconds,
             show_all_hands=show_all_hands,
+            visible_player=visible_player,
             language=language,
         ),
         encoding="utf-8",

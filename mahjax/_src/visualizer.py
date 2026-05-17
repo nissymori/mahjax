@@ -228,12 +228,20 @@ def save_svg(
     scale: Optional[float] = None,
     language: Language = "ja",
     use_english: bool = False,
+    show_all_hands: bool = True,
+    visible_player: int = 0,
 ) -> None:
     if use_english:
         language = "en"
     backend = _mahjong_svg_backend(state.env_id)
     if backend is not None:
-        backend.save_svg(state, filename, language=language)
+        backend.save_svg(
+            state,
+            filename,
+            show_all_hands=show_all_hands,
+            visible_player=visible_player,
+            language=language,
+        )
         return
     v = Visualizer(color_theme=color_theme, scale=scale)
     v.get_dwg(states=state, use_english=use_english).saveas(filename)
@@ -248,6 +256,8 @@ def save_svg_animation(
     frame_duration_seconds: Optional[float] = None,
     language: Language = "ja",
     use_english: bool = False,
+    show_all_hands: bool = True,
+    visible_player: int = 0,
 ) -> None:
     if use_english:
         language = "en"
@@ -258,6 +268,8 @@ def save_svg_animation(
             filename,
             frame_duration_seconds=frame_duration_seconds
             or global_config.frame_duration_seconds,
+            show_all_hands=show_all_hands,
+            visible_player=visible_player,
             language=language,
         )
         return

@@ -120,12 +120,14 @@ def save_svg(
     state: State,
     filename: str | Path,
     show_all_hands: bool = True,
+    visible_player: int = 0,
     language: Language = "ja",
 ) -> None:
     Path(filename).write_text(
         render_round_svg(
             state,
             show_all_hands=show_all_hands,
+            visible_player=visible_player,
             language=language,
         ),
         encoding="utf-8",
@@ -136,12 +138,14 @@ def render_svg_animation(
     states: Sequence[State],
     frame_duration_seconds: float = 0.2,
     show_all_hands: bool = True,
+    visible_player: int = 0,
     language: Language = "ja",
 ) -> str:
     return render_red_svg_animation(
         [to_red_visual_state(state) for state in states],
         frame_duration_seconds=frame_duration_seconds,
         show_all_hands=show_all_hands,
+        visible_player=visible_player,
         language=language,
     )
 
@@ -151,6 +155,7 @@ def save_svg_animation(
     filename: str | Path,
     frame_duration_seconds: float = 0.2,
     show_all_hands: bool = True,
+    visible_player: int = 0,
     language: Language = "ja",
 ) -> None:
     Path(filename).write_text(
@@ -158,6 +163,7 @@ def save_svg_animation(
             states,
             frame_duration_seconds=frame_duration_seconds,
             show_all_hands=show_all_hands,
+            visible_player=visible_player,
             language=language,
         ),
         encoding="utf-8",
