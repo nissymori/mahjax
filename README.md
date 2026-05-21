@@ -26,7 +26,7 @@
 
 ## Overview
 
-- 🚀 **Vectorized Environment:** Extremely fast (approx. **2M steps/sec** on 8x A100 GPUs).
+- 🚀 **Vectorized Environment:** Extremely fast (approx. **2M steps/sec** (no-red) and **1M steps/sec** (red) on 8x A100 GPUs).
 - 🎨 **Rich Visualization:** SVG-based visualization with bilingual support **for those unfamiliar with Kanji**.
 - 🎮 **Playable Interface:** A web-based UI allows you to play directly against the agents you train.
 - 📚 **RL Examples:** Simple examples for Behavior Cloning + PPO in the [`examples/`](https://github.com/nissymori/mahjax/tree/main/examples).
