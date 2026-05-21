@@ -21,7 +21,7 @@ You need Python 3.10+. Use `--reload` while developing but turn it off in produc
 
 ## Using the UI
 
-- **Header controls**: choose the agent, match length (`hanchan` or `one_round`), seat (fixed or random), optional seed, display names, AI delay in ms, and whether to hide opponent hands. The Start and End buttons spawn or delete sessions.
+- **Header controls**: choose the agent, match length (`single`, `east`, or `half`), seat (fixed or random), optional seed, display names, AI delay in ms, and whether to hide opponent hands. The Start and End buttons spawn or delete sessions.
 - **Board & actions**: the human seat stays at the bottom. Tile buttons map to discard IDs (`0–33`). Extra buttons cover riichi, tsumo, ron, pass, kan, pon, and chi. If only a dummy action remains, an “Advance” button sends `Action.DUMMY`.
 - **Scoreboard & log**: scores use turn order relative to the human and display current deltas. Logs show discards, calls, and declarations.
 - **Round summaries**: when `_terminated_round` flips on, the server returns `roundSummary`, and the UI shows standings plus winner info. Press “Next Round,” or “End Game” if `isGameEnd` is true.

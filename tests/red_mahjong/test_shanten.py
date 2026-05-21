@@ -3,7 +3,7 @@ import unittest
 import jax
 import jax.numpy as jnp
 import json
-import os
+from pathlib import Path
 
 from mahjax.red_mahjong.shanten import Shanten
 
@@ -13,7 +13,10 @@ jitted_number = jax.jit(Shanten.number)
 class TestShanten(unittest.TestCase):
     def test_shanten(self):
         # Load test data
-        test_file = os.path.join(os.path.dirname(__file__), "assets/shanten.json")
+        test_dir = Path(__file__).resolve().parent
+        test_file = test_dir / "assets" / "shanten.json"
+        if not test_file.exists():
+            test_file = test_dir.parent / "no_red_mahjong" / "assets" / "shanten.json"
         with open(test_file, "r") as f:
             data = json.load(f)
 

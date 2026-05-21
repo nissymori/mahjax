@@ -15,14 +15,22 @@
     </div>
     <div id="controls">
       <label>
+        <span data-i18n="controls.env">Rules</span>
+        <select id="envSelect">
+          <option value="no_red_mahjong" data-i18n-env="no_red_mahjong">赤なし</option>
+          <option value="red_mahjong" data-i18n-env="red_mahjong">赤あり</option>
+        </select>
+      </label>
+      <label>
         <span data-i18n="controls.agent">Agent</span>
         <select id="agentSelect"></select>
       </label>
       <label>
         <span data-i18n="controls.mode">Mode</span>
         <select id="modeSelect">
-          <option value="hanchan" data-i18n-mode="hanchan">半荘戦</option>
-          <option value="one_round" data-i18n-mode="one_round">一局戦</option>
+          <option value="half" data-i18n-mode="half">半荘戦</option>
+          <option value="east" data-i18n-mode="east">東風戦</option>
+          <option value="single" data-i18n-mode="single">一局戦</option>
         </select>
       </label>
       <label>

@@ -1,2 +1,5 @@
 include LICENSE
 recursive-include mahjax/_src/cache *.npz
+recursive-include mahjax/_src/assets *.svg
+recursive-include mahjax/ui/static *
+

@@ -31,8 +31,9 @@ STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 
 class CreateGameRequest(BaseModel):
+    env_id: Literal["no_red_mahjong", "red_mahjong"] = Field("no_red_mahjong")
     agent_id: Optional[str] = Field(None, description="Agent identifier")
-    mode: Literal["one_round", "hanchan"] = Field("hanchan")
+    mode: Literal["single", "east", "half"] = Field("half")
     seed: Optional[int] = Field(None, description="RNG seed. Random if omitted.")
     human_seat: Optional[int] = Field(None, ge=0, le=3)
     random_seat: bool = False
@@ -48,7 +49,8 @@ class CreateGameRequest(BaseModel):
 
 
 class ActionRequest(BaseModel):
-    action: int = Field(..., ge=0, le=78)
+    # Support both no_red (0-78) and red (0-86) action spaces.
+    action: int = Field(..., ge=0, le=86)
 
 
 class AutoRequest(BaseModel):
@@ -65,7 +67,7 @@ class VisibilityRequest(BaseModel):
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="MahJax Human vs AI UI", version="0.1.0")
+    app = FastAPI(title="MahJax Human vs AI UI", version="0.1.1")
     manager = GameManager()
     manager_lock = asyncio.Lock()
     app.state.manager = manager
@@ -114,9 +116,10 @@ def create_app() -> FastAPI:
             player_names = [f"{base_ai_name} {i+1}" for i in range(4)]
             player_names[human_seat] = req.human_name or "You"
             session = manager.create_session(
+                env_id=req.env_id,
                 agent_id=agent.agent_id,
                 human_seat=human_seat,
-                one_round=req.mode == "one_round",
+                round_mode=req.mode,
                 seed=seed,
                 player_names=player_names,
                 ai_delay_ms=req.ai_delay_ms,

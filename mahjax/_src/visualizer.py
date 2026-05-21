@@ -1,10 +1,4 @@
-# NOTE: This file is copied and modified from Pgx (https://github.com/sotetsuk/pgx).
-# Copyright belongs to the original authors.
-# We keep tracking the updates of original Pgx implementation.
-# We try to minimize the modification to this file. Exceptions includes:
-#   - remove unnesesary env implementation since mahjax only support mahjong environment.
-#
-# Copyright 2023 The Pgx Authors.
+# Copyright 2025 The Mahjax Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -29,6 +23,7 @@ import svgwrite  # type: ignore
 from mahjax.core import State
 
 ColorTheme = Literal["light", "dark"]
+TileStyle = Literal["standard", "bilingual"]
 
 
 @dataclass
@@ -101,7 +96,6 @@ class Visualizer:
     def get_dwg(
         self,
         states,
-        use_english=False,
     ):
         try:
             SIZE = len(states.current_player)
@@ -117,7 +111,7 @@ class Visualizer:
             WIDTH = 1
             HEIGHT = 1
 
-        self._set_config_by_state(states, use_english=use_english)
+        self._set_config_by_state(states)
         assert self._make_dwg_group is not None
 
         GRID_SIZE = self.config["GRID_SIZE"]
@@ -194,42 +188,34 @@ class Visualizer:
         dwg.add(group)
         return dwg
 
-    def _set_config_by_state(self, _state: State, use_english=False):  # noqa: C901
-        assert _state.env_id == "mahjong"
-        from mahjax._src.dwg.mahjong_visualizer import (_make_mahjong_dwg_en,
-                                                        _make_mahjong_dwg_jp)
-
-        self.config["GRID_SIZE"] = 10
-        self.config["BOARD_WIDTH"] = 70
-        self.config["BOARD_HEIGHT"] = 70
-        self._make_dwg_group = (
-            _make_mahjong_dwg_en if use_english else _make_mahjong_dwg_jp
-        )  # type:ignore
-        if (
-            self.config["COLOR_THEME"] is None and self.config["COLOR_THEME"] == "dark"
-        ) or self.config["COLOR_THEME"] == "dark":
-            self.config["COLOR_SET"] = ColorSet(
-                "black",
-                "white",
-                "black",
-                "black",
-                "white",
-                "black",
-                "black",
-            )
-        else:
-            self.config["COLOR_SET"] = ColorSet(
-                "black",
-                "white",
-                "black",
-                "black",
-                "white",
-                "black",
-                "black",
-            )
+    def _set_config_by_state(self, _state: State):  # noqa: C901
+        raise NotImplementedError(
+            "DWG-based board renderer is removed for mahjong. Use SVG-based renderer via state.to_svg()/save_svg()."
+        )
 
     def _get_nth_state(self, states: State, i):
         return jax.tree_util.tree_map(lambda x: x[i], states)
+
+
+def _to_red_env_state(state: State):
+    """Convert a state to the red_mahjong visualizer representation."""
+    if state.env_id == "red_mahjong":
+        return state
+    from mahjax.no_red_mahjong.visualization import to_red_visual_state
+
+    return to_red_visual_state(state)
+
+
+def _mahjong_svg_backend(env_id: str):
+    if env_id == "red_mahjong":
+        from mahjax.red_mahjong import visualization as backend
+
+        return backend
+    if env_id in ("mahjong", "no_red_mahjong"):
+        from mahjax.no_red_mahjong import visualization as backend
+
+        return backend
+    return None
 
 
 def save_svg(
@@ -238,13 +224,22 @@ def save_svg(
     *,
     color_theme: Optional[Literal["light", "dark"]] = None,
     scale: Optional[float] = None,
-    use_english: bool = False,
+    tile_style: TileStyle = "standard",
+    show_all_hands: bool = True,
+    visible_player: int = 0,
 ) -> None:
-    if state.env_id.startswith("minatar"):
-        state.save_svg(filename=filename)
-    else:
-        v = Visualizer(color_theme=color_theme, scale=scale)
-        v.get_dwg(states=state, use_english=use_english).saveas(filename)
+    backend = _mahjong_svg_backend(state.env_id)
+    if backend is not None:
+        backend.save_svg(
+            state,
+            filename,
+            show_all_hands=show_all_hands,
+            visible_player=visible_player,
+            tile_style=tile_style,
+        )
+        return
+    v = Visualizer(color_theme=color_theme, scale=scale)
+    v.get_dwg(states=state).saveas(filename)
 
 
 def save_svg_animation(
@@ -254,11 +249,22 @@ def save_svg_animation(
     color_theme: Optional[Literal["light", "dark"]] = None,
     scale: Optional[float] = None,
     frame_duration_seconds: Optional[float] = None,
-    use_english: bool = False,
+    tile_style: TileStyle = "standard",
+    show_all_hands: bool = True,
+    visible_player: int = 0,
 ) -> None:
-    assert not states[0].env_id.startswith(
-        "minatar"
-    ), "MinAtar does not support svg animation."
+    backend = _mahjong_svg_backend(states[0].env_id)
+    if backend is not None:
+        backend.save_svg_animation(
+            states,
+            filename,
+            frame_duration_seconds=frame_duration_seconds
+            or global_config.frame_duration_seconds,
+            show_all_hands=show_all_hands,
+            visible_player=visible_player,
+            tile_style=tile_style,
+        )
+        return
     v = Visualizer(color_theme=color_theme, scale=scale)
 
     if frame_duration_seconds is None:
@@ -267,7 +273,7 @@ def save_svg_animation(
     frame_groups = []
     dwg = None
     for i, state in enumerate(states):
-        dwg = v.get_dwg(states=state, use_english=use_english)
+        dwg = v.get_dwg(states=state)
         assert (
             len([e for e in dwg.elements if type(e) is svgwrite.container.Group]) == 1
         ), "Drawing must contain only one group"

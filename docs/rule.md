@@ -1,8 +1,8 @@
 # Supported Mahjong Games
 
-Mahjax currently implements 4-player Japanese Riichi Mahjong variants.
+MahJax currently implements 4-player Japanese Riichi Mahjong variants.
 To get familiar with the basic rules, please refer to the official rulebook:
-[European Riichi Mahjong Rules (2016, EN)](http://mahjong-europe.org/portal/images/docs/Riichi-rules-2016-EN.pdf).
+[European Riichi Mahjong Rules (2025, EN)](http://mahjong-europe.org/portal/images/docs/Riichi-rules-2025-EN.pdf).
 
 While different variants require different strategies due to their specific rules, we believe the core skills they demand are the same:
 
@@ -10,7 +10,7 @@ While different variants require different strategies due to their specific rule
 - Risk management (defense vs. attack)
 - Reading and inferring opponents’ hands
 
-At the moment, Mahjax provides only **No red (aka no red dora)** variant.
+MahJax currently provides both **No-Red Mahjong** and **Red Mahjong** variants.
 
 The “red” in red mahjong refers to **additional dora tiles assigned to 5 tiles** (usually 5m, 5p, 5s). This has a large impact on strategy:
 
@@ -34,20 +34,19 @@ These rules emphasize careful yaku construction and more traditional scoring wit
 ## Red Mahjong
 
 Red mahjong, especially the rule set used by [Tenhou](https://tenhou.net/), is currently the **most popular** variant both in AI research and in commercial online games.
-We are intended to include this rule in a near furture.
+MahJax includes a `red_mahjong` environment with red fives.
 
 ### Research Projects Using/Targeting Red Rules
 
 - [Suphx](https://arxiv.org/abs/2003.13590): First top-player level mahjong agent trained by Deep RL.
-- [Mjx](https://github.com/mjx-project/mjx): C++ based simulator for tenhou rule.
-- [Mortal](https://github.com/Equim-chan/Mortal): Rust-based simulator + agent traning code. They also provides the [reviewer](https://mjai.ekyu.moe/) by their trained agent.
-- [NAGA](https://naga.dmv.nico/naga_report/top/): Agent reached 10-dan in tenhou. They also provide a service to review the playlog by the agent.
+- [Mjx](https://github.com/mjx-project/mjx): C++-based simulator for Tenhou rules.
+- [Mortal](https://github.com/Equim-chan/Mortal): Rust-based simulator and agent training code. They also provide a [reviewer](https://mjai.ekyu.moe/) powered by their trained agent.
+- [NAGA](https://naga.dmv.nico/naga_report/top/): Agent that reached 10-dan on Tenhou. They also provide a service to review play logs with the agent.
 
 ### Games Using/Supporting Red Rules
 
 - [Tenhou](https://tenhou.net/)
-- [Mahjong Soul](https://mahjongsoul.yo-star.com/)
-- [MJ Mahjong](https://sega-mj.com/)
+- [Mahjong Soul](https://mahjongsoul.yo-star.com/) (There are minor differences.)
 
 These environments typically feature fast-paced play and high average hand values, making them attractive both for players and for AI research.
 
@@ -55,10 +54,9 @@ These environments typically feature fast-paced play and high average hand value
 
 ## Future Pathways
 
-Planned future extensions for Mahjax include:
+Planned future extensions for MahJax include:
 
-- **Support tenhou rule (Most prioritized)**.
 - Supporting additional **4-player Japanese Riichi Mahjong** rule sets
 - Integrating **3-player Japanese Mahjong** rules
 
-These expansions aim to make Mahjax a more comprehensive platform for both Mahjong AI research and gameplay experimentation.
+These expansions aim to make MahJax a more comprehensive platform for both Mahjong AI research and gameplay experimentation.

@@ -1,36 +1,24 @@
-# Copyright 2025 The Mahjax Authors.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+from __future__ import annotations
 
-
-import os
+from pathlib import Path
 from typing import Tuple
+import importlib.resources as resources
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 
-from mahjax._src.types import Array
-from mahjax.red_mahjong.action import Action
-from mahjax.red_mahjong.hand import Hand
-from mahjax.red_mahjong.meld import EMPTY_MELD, Meld
+from .constants import DORA_ARRAY
+from .hand import Hand
+from .meld import EMPTY_MELD, Meld
+from .tile import Tile
+from .types import Array
 
-DIR = os.path.join(os.path.dirname(__file__), "../_src/cache")
 
-
-def load_yaku_cache():
-    with np.load(os.path.join(DIR, "yaku_cache.npz"), allow_pickle=False) as data:
-        return jnp.asarray(data["data"], dtype=jnp.uint32)
+def load_yaku_cache() -> jnp.ndarray:
+    with resources.as_file(resources.files("mahjax._src.cache").joinpath("yaku_cache.npz")) as path:
+        with np.load(path, allow_pickle=False) as data:
+            return jnp.asarray(data["data"], dtype=jnp.uint32)
 
 
 WIND_TILE = jnp.array([27, 28, 29, 30], dtype=jnp.int8)
@@ -39,150 +27,194 @@ TANYAO_TILE = jnp.array(
     [1, 2, 3, 4, 5, 6, 7, 10, 11, 12, 13, 14, 15, 16, 19, 20, 21, 22, 23, 24, 25],
     dtype=jnp.int8,
 )
-KOKUSHI_TILE = jnp.array(
-    [0, 8, 9, 17, 18, 26, 27, 28, 29, 30, 31, 32, 33], dtype=jnp.int8
-)
+KOKUSHI_TILE = jnp.array([0, 8, 9, 17, 18, 26, 27, 28, 29, 30, 31, 32, 33], dtype=jnp.int8)
 ALL_GREEN_TILE = jnp.array([19, 20, 21, 23, 25, 32], dtype=jnp.int8)
 SCORES = jnp.array(
     [2000, 2000, 3000, 3000, 4000, 4000, 4000, 6000, 6000, 8000, 8000, 8000],
     dtype=jnp.int32,
-)  # 5-15 fan TODO: Add the scores for yakuman over 15 fan
+)
+NUM_TENHOU_YAKU = 52
 
 
-def one_hot_at(x: Array, idx: Array) -> Array:
-    one_hot = jax.nn.one_hot(idx, x.shape[0])
-    return x @ one_hot
+powers_of_5_full = jnp.concatenate([5 ** jnp.arange(8, -1, -1)] * 3)
 
 
-powers_of_5_full = jnp.concatenate(
-    [
-        5 ** jnp.arange(8, -1, -1),  # for suit 0
-        5 ** jnp.arange(8, -1, -1),  # for suit 1
-        5 ** jnp.arange(8, -1, -1),  # for suit 2
-    ]
-)  # shape = (27,)
+def _one_hot_at(x: Array, idx: Array) -> Array:
+    return x @ jax.nn.one_hot(idx, x.shape[0])
+
+
+def _dora_array_from_state(state: object) -> jnp.ndarray:
+    def update_dora_counts(dora_counts: Array, dora_indicator: Array) -> Array:
+        is_valid = dora_indicator != -1
+        dora_tile_type = Tile.to_tile_type(dora_indicator)
+        return dora_counts.at[DORA_ARRAY[dora_tile_type]].add(is_valid)
+
+    dora_counts = jnp.zeros(Tile.NUM_TILE_TYPE, dtype=jnp.int8)
+    dora_counts = jax.vmap(update_dora_counts, in_axes=(None, 0))(
+        dora_counts, state.round_state.dora_indicators
+    ).sum(axis=0)
+    ura_dora_counts = jnp.zeros(Tile.NUM_TILE_TYPE, dtype=jnp.int8)
+    ura_dora_counts = jax.vmap(update_dora_counts, in_axes=(None, 0))(
+        ura_dora_counts, state.round_state.ura_dora_indicators
+    ).sum(axis=0)
+    return jnp.stack([dora_counts, ura_dora_counts], axis=0)
+
+
+class _Internal:
+    FullyConcealedHand = 0
+    Riichi = 1
+    Ippatsu = 2
+    RobbingKan = 3
+    DrawAfterKan = 4
+    BottomOfTheSea = 5
+    BottomOfTheRiver = 6
+    Pinfu = 7
+    AllSimples = 8
+    PureDoubleChis = 9
+    SeatWindEast = 10
+    SeatWindSouth = 11
+    SeatWindWest = 12
+    SeatWindNorth = 13
+    PrevalentWindEast = 14
+    PrevalentWindSouth = 15
+    PrevalentWindWest = 16
+    PrevalentWindNorth = 17
+    WhiteDragon = 18
+    GreenDragon = 19
+    RedDragon = 20
+    DoubleRiichi = 21
+    SevenPairs = 22
+    OutsideHand = 23
+    PureStraight = 24
+    MixedTripleChis = 25
+    TriplePons = 26
+    ThreeKans = 27
+    AllPons = 28
+    ThreeConcealedPons = 29
+    LittleThreeDragons = 30
+    AllTerminalsAndHonors = 31
+    TwicePureDoubleChis = 32
+    TerminalsInAllSets = 33
+    HalfFlush = 34
+    FullFlush = 35
+    Renhou = 36
+    BlessingOfHeaven = 37
+    BlessingOfEarth = 38
+    BigThreeDragons = 39
+    FourConcealedPons = 40
+    CompletedFourConcealedPons = 41
+    AllHonors = 42
+    AllGreen = 43
+    AllTerminals = 44
+    NineGates = 45
+    PureNineGates = 46
+    ThirteenOrphans = 47
+    CompletedThirteenOrphans = 48
+    BigFourWinds = 49
+    LittleFourWinds = 50
+    FourKans = 51
+    MAX_PATTERNS = 3
+
+    _FAN_OPEN = jnp.zeros((NUM_TENHOU_YAKU,), dtype=jnp.int32)
+    _FAN_OPEN = _FAN_OPEN.at[OutsideHand].set(1)
+    _FAN_OPEN = _FAN_OPEN.at[TerminalsInAllSets].set(2)
+    _FAN_OPEN = _FAN_OPEN.at[PureStraight].set(1)
+    _FAN_OPEN = _FAN_OPEN.at[MixedTripleChis].set(1)
+    _FAN_OPEN = _FAN_OPEN.at[TriplePons].set(2)
+    _FAN_OPEN = _FAN_OPEN.at[AllPons].set(2)
+    _FAN_OPEN = _FAN_OPEN.at[ThreeConcealedPons].set(2)
+    _FAN_OPEN = _FAN_OPEN.at[ThreeKans].set(2)
+    _FAN_OPEN = _FAN_OPEN.at[SevenPairs].set(2)
+    _FAN_OPEN = _FAN_OPEN.at[AllSimples].set(1)
+    _FAN_OPEN = _FAN_OPEN.at[HalfFlush].set(2)
+    _FAN_OPEN = _FAN_OPEN.at[FullFlush].set(5)
+    _FAN_OPEN = _FAN_OPEN.at[AllTerminalsAndHonors].set(2)
+    _FAN_OPEN = _FAN_OPEN.at[LittleThreeDragons].set(2)
+    _FAN_OPEN = _FAN_OPEN.at[WhiteDragon].set(1)
+    _FAN_OPEN = _FAN_OPEN.at[GreenDragon].set(1)
+    _FAN_OPEN = _FAN_OPEN.at[RedDragon].set(1)
+    _FAN_OPEN = _FAN_OPEN.at[SeatWindEast].set(1).at[SeatWindSouth].set(1).at[SeatWindWest].set(1).at[SeatWindNorth].set(1)
+    _FAN_OPEN = _FAN_OPEN.at[PrevalentWindEast].set(1).at[PrevalentWindSouth].set(1).at[PrevalentWindWest].set(1).at[PrevalentWindNorth].set(1)
+    _FAN_CLOSED = _FAN_OPEN
+    _FAN_CLOSED = _FAN_CLOSED.at[FullyConcealedHand].set(1)
+    _FAN_CLOSED = _FAN_CLOSED.at[Riichi].set(1)
+    _FAN_CLOSED = _FAN_CLOSED.at[Pinfu].set(1)
+    _FAN_CLOSED = _FAN_CLOSED.at[PureDoubleChis].set(1)
+    _FAN_CLOSED = _FAN_CLOSED.at[TwicePureDoubleChis].set(3)
+    _FAN_CLOSED = _FAN_CLOSED.at[OutsideHand].set(2)
+    _FAN_CLOSED = _FAN_CLOSED.at[TerminalsInAllSets].set(3)
+    _FAN_CLOSED = _FAN_CLOSED.at[PureStraight].set(2)
+    _FAN_CLOSED = _FAN_CLOSED.at[MixedTripleChis].set(2)
+    _FAN_CLOSED = _FAN_CLOSED.at[HalfFlush].set(3)
+    _FAN_CLOSED = _FAN_CLOSED.at[FullFlush].set(6)
+    FAN = jnp.stack([_FAN_OPEN, _FAN_CLOSED], axis=0)
+
+    YAKUMAN = jnp.zeros((NUM_TENHOU_YAKU,), dtype=jnp.int32)
+    YAKUMAN = YAKUMAN.at[BigThreeDragons].set(1)
+    YAKUMAN = YAKUMAN.at[FourConcealedPons].set(1)
+    YAKUMAN = YAKUMAN.at[CompletedFourConcealedPons].set(1)
+    YAKUMAN = YAKUMAN.at[AllHonors].set(1)
+    YAKUMAN = YAKUMAN.at[AllGreen].set(1)
+    YAKUMAN = YAKUMAN.at[AllTerminals].set(1)
+    YAKUMAN = YAKUMAN.at[NineGates].set(1)
+    YAKUMAN = YAKUMAN.at[PureNineGates].set(1)
+    YAKUMAN = YAKUMAN.at[ThirteenOrphans].set(1)
+    YAKUMAN = YAKUMAN.at[CompletedThirteenOrphans].set(1)
+    YAKUMAN = YAKUMAN.at[BigFourWinds].set(2)
+    YAKUMAN = YAKUMAN.at[LittleFourWinds].set(1)
+    YAKUMAN = YAKUMAN.at[FourKans].set(1)
+
+    YAKU_UPDATE_INDICES = jnp.array(
+        [
+            Pinfu,
+            PureDoubleChis,
+            TwicePureDoubleChis,
+            OutsideHand,
+            TerminalsInAllSets,
+            PureStraight,
+            MixedTripleChis,
+            TriplePons,
+            AllPons,
+            ThreeConcealedPons,
+            ThreeKans,
+        ],
+        dtype=jnp.int32,
+    )
+    YAKU_BEST_UPDATE_INDICES = jnp.array(
+        [
+            AllSimples,
+            HalfFlush,
+            FullFlush,
+            AllTerminalsAndHonors,
+            WhiteDragon,
+            GreenDragon,
+            RedDragon,
+            LittleThreeDragons,
+            FullyConcealedHand,
+            Riichi,
+        ],
+        dtype=jnp.int32,
+    )
+    YAKUMAN_UPDATE_INDICES = jnp.array(
+        [
+            BigThreeDragons,
+            BigFourWinds,
+            LittleFourWinds,
+            NineGates,
+            ThirteenOrphans,
+            AllTerminals,
+            AllHonors,
+            AllGreen,
+            FourConcealedPons,
+            FourKans,
+        ],
+        dtype=jnp.int32,
+    )
 
 
 class Yaku:
     CACHE = load_yaku_cache()
-    MAX_PATTERNS = 3
-    # The terminology basically follows:
-    # http://mahjong-europe.org/portal/images/docs/riichi_scoresheet_EN.pdf
-    Pinfu = 0  # 平和
-    PureDoubleChis = 1  # 一盃口
-    TwicePureDoubleChis = 2  # 二盃口
-    OutsideHand = 3  # 混全帯么九
-    TerminalsInAllSets = 4  # 純全帯么九
-    PureStraight = 5  # 一気通貫
-    MixedTripleChis = 6  # 三色同順
-    TriplePons = 7  # 三色同刻
-    AllPons = 8  # 対々和
-    ThreeConcealedPons = 9  # 三暗刻
-    ThreeKans = 10  # 三槓子
-    SevenPairs = 11  # 七対子
-    AllSimples = 12  # 断么九
-    HalfFlush = 13  # 混一色
-    FullFlush = 14  # 清一色
-    AllTerminalsAndHonors = 15  # 混老頭
-    LittleThreeDragons = 16  # 小三元
-    WhiteDragon = 17  # 白
-    GreenDragon = 18  # 發
-    RedDragon = 19  # 中
-    PrevelantWind = 20  # 場風
-    SeatWind = 21  # 自風
-    FullyConcealedHand = 22  # 門前清自摸和
-    Riichi = 23  # 立直
-    # yakuman
-    BigThreeDragons = 24  # 大三元
-    LittleFourWinds = 25  # 小四喜
-    BigFourWinds = 26  # 大四喜
-    NineGates = 27  # 九蓮宝燈
-    ThirteenOrphans = 28  # 国士無双
-    AllTerminals = 29  # 清老頭
-    AllHonors = 30  # 字一色
-    AllGreen = 31  # 緑一色
-    FourConcealedPons = 32  # 四暗刻 TODO: Maybe need to distinguish 四暗刻単騎
-    FourKans = 33  # 四槓子
-
-    # fmt: off
-    FAN = jnp.array([
-        [0,0,0,1,2,1,1,2,2,2,2,0,1,2,5,2,2,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0],  # noqa
-        [1,1,3,2,3,2,2,2,2,2,2,2,1,3,6,2,2,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0],  # noqa
-    ])
-    YAKUMAN = jnp.array([
-        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,2,1,1,1,1,1,1,1  # noqa
-    ])
-    # fmt: on
-
-    YAKU_UPDATE_INDICES = jnp.array(
-        [
-            Pinfu,  # 平和
-            PureDoubleChis,  # 一盃口
-            TwicePureDoubleChis,  # 二盃口
-            OutsideHand,  # 混全帯么九
-            TerminalsInAllSets,  # 純全帯么九
-            PureStraight,  # 一気通貫
-            MixedTripleChis,  # 三色同順
-            TriplePons,  # 三色同刻
-            AllPons,  # 対々和
-            ThreeConcealedPons,  # 三暗刻
-            ThreeKans,  # 三槓子
-        ],
-        dtype=jnp.int32,
-    )
-
-    YAKU_BEST_UPDATE_INDICES = jnp.array(
-        [
-            AllSimples,  # 断么九
-            HalfFlush,  # 混一色
-            FullFlush,  # 清一色
-            AllTerminalsAndHonors,  # 混老頭
-            WhiteDragon,  # 白
-            GreenDragon,  # 發
-            RedDragon,  # 中
-            LittleThreeDragons,  # 小三元
-            PrevelantWind,  # 場風
-            SeatWind,  # 自風
-            FullyConcealedHand,  # 門前清自摸和
-            Riichi,  # 立直
-        ],
-        dtype=jnp.int32,
-    )
-
-    YAKUMAN_UPDATE_INDICES = jnp.array(
-        [
-            BigThreeDragons,  # 大三元
-            LittleFourWinds,  # 小四喜
-            BigFourWinds,  # 大四喜
-            NineGates,  # 九蓮宝燈
-            ThirteenOrphans,  # 国士無双
-            AllTerminals,  # 清老頭
-            AllHonors,  # 字一色
-            AllGreen,  # 緑一色
-            FourConcealedPons,  # 四暗刻
-            FourKans,  # 四槓子
-        ],
-        dtype=jnp.int32,
-    )
-
-    @staticmethod
-    def score(
-        fan: Array,
-        fu: Array,
-    ) -> int:
-        """
-        Calculate the score from fan and fu
-        - For yakuman, the score is 8000 * fan
-        - For other yaku, the score is fu << (fan + 2)
-        """
-        score = fu << (fan + 2)
-        return jax.lax.cond(
-            fu == 0,
-            lambda: jnp.int32(
-                8000 * fan
-            ),  # In the case of yakuman, the fan contains the number of yakuman.
-            lambda: (score < 2000) * score + (score >= 2000) * SCORES[fan - 4],
-        )
+    MAX_PATTERNS = _Internal.MAX_PATTERNS
 
     @staticmethod
     def head(code: Array) -> Array:
@@ -222,29 +254,19 @@ class Yaku:
 
     @staticmethod
     def is_triple_chow(chow: Array) -> Array:
-        return (
-            ((chow & 0b1000000001000000001) == 0b1000000001000000001)
-            | ((chow >> 1 & 0b1000000001000000001) == 0b1000000001000000001)
-            | ((chow >> 2 & 0b1000000001000000001) == 0b1000000001000000001)
-            | ((chow >> 3 & 0b1000000001000000001) == 0b1000000001000000001)
-            | ((chow >> 4 & 0b1000000001000000001) == 0b1000000001000000001)
-            | ((chow >> 5 & 0b1000000001000000001) == 0b1000000001000000001)
-            | ((chow >> 6 & 0b1000000001000000001) == 0b1000000001000000001)
-        ) == 1
+        pat = 0b1000000001000000001
+        out = (chow & pat) == pat
+        for s in range(1, 8):
+            out = out | ((chow >> s & pat) == pat)
+        return out
 
     @staticmethod
     def is_triple_pung(pung: Array) -> Array:
-        return (
-            ((pung & 0b1000000001000000001) == 0b1000000001000000001)
-            | ((pung >> 1 & 0b1000000001000000001) == 0b1000000001000000001)
-            | ((pung >> 2 & 0b1000000001000000001) == 0b1000000001000000001)
-            | ((pung >> 3 & 0b1000000001000000001) == 0b1000000001000000001)
-            | ((pung >> 4 & 0b1000000001000000001) == 0b1000000001000000001)
-            | ((pung >> 5 & 0b1000000001000000001) == 0b1000000001000000001)
-            | ((pung >> 6 & 0b1000000001000000001) == 0b1000000001000000001)
-            | ((pung >> 7 & 0b1000000001000000001) == 0b1000000001000000001)
-            | ((pung >> 8 & 0b1000000001000000001) == 0b1000000001000000001)
-        ) == 1
+        pat = 0b1000000001000000001
+        out = (pung & pat) == pat
+        for s in range(1, 9):
+            out = out | ((pung >> s & pat) == pat)
+        return out
 
     @staticmethod
     def update(
@@ -261,38 +283,23 @@ class Yaku:
         last_tile_type: Array,
         is_ron: Array,
     ) -> Tuple:
-        """
-        Update the statistics to calculate yaku.
-        - They are precalculated for meld.
-        - We update the statistics based on the hand information.
-        - Each statistics is encoded into cache suitwise.
-        """
         chow = Yaku.chow(code)
         pung = Yaku.pung(code)
-
         open_end = (chow ^ (chow & 1)) << 2 | (chow ^ (chow & 0b1000000))
-        # An open ended wait (両面待ち) can be made at this position
         in_range = suit == last_tile_type // 9
         pos = last_tile_type % 9
-
-        is_pinfu &= (in_range == 0) | (open_end >> pos & 1) == 1
-        is_pinfu &= pung == 0
-        has_outside &= Yaku.outside(code) == 1
-
-        n_double_chow += Yaku.n_double_chow(code)
-        all_chow |= chow << 9 * suit
-        all_pung |= pung << 9 * suit
-
+        is_pinfu = is_pinfu & (((in_range == 0) | (((open_end >> pos) & 1) == 1)) & (pung == 0))
+        has_outside = has_outside & (Yaku.outside(code) == 1)
+        n_double_chow = n_double_chow + Yaku.n_double_chow(code)
+        all_chow = all_chow | (chow << (9 * suit))
+        all_pung = all_pung | (pung << (9 * suit))
         n_pung = Yaku.n_pung(code)
-        # The number of pungs (刻子)
-        chow_range = chow | chow << 1 | chow << 2
-
-        loss = is_ron & in_range & ((chow_range >> pos & 1) == 0) & (pung >> pos & 1)
-        # If the player ron and the chow becomes a meld, the loss is counted
-        n_concealed_pung += n_pung - loss
-
-        nine_gates |= Yaku.nine_gates(code) == 1
+        chow_range = chow | (chow << 1) | (chow << 2)
+        loss = is_ron & in_range & (((chow_range >> pos) & 1) == 0) & (((pung >> pos) & 1) == 1)
+        n_concealed_pung = n_concealed_pung + n_pung - loss
+        nine_gates = nine_gates | (Yaku.nine_gates(code) == 1)
         outside_pung = pung & 0b100000001
+        n_outside_pung = (outside_pung & 1) + ((outside_pung >> 8) & 1)
         strong = (
             in_range
             & (
@@ -304,9 +311,8 @@ class Yaku:
             >> pos
             & 1
         )
-        # A strong wait (カンチャン, ペンチャン, 単騎) can be made at this position
-        loss <<= outside_pung >> pos & 1
-        fu += 4 * (n_pung + (outside_pung > 0)) - 2 * loss + 2 * strong
+        outside_loss = loss & ((outside_pung >> pos) & 1)
+        fu = fu + 4 * n_pung + 4 * n_outside_pung - 2 * loss - 2 * outside_loss + 2 * strong
         return (
             is_pinfu,
             has_outside,
@@ -319,7 +325,48 @@ class Yaku:
         )
 
     @staticmethod
-    def judge(
+    def _chi_index(action: Array) -> Array:
+        return jnp.where(
+            (action == 78) | (action == 79),
+            jnp.int32(0),
+            jnp.where(
+                (action == 80) | (action == 81),
+                jnp.int32(1),
+                jnp.where((action == 82) | (action == 83), jnp.int32(2), jnp.int32(-1)),
+            ),
+        )
+
+    @staticmethod
+    def _calc_addition(meld: Array) -> Array:
+        target = Meld.target(meld)
+        action = Meld.action(meld)
+        addition = jnp.zeros(34, dtype=jnp.int8)
+        addition = addition.at[target].set(3 * Meld.is_pon(meld).astype(jnp.int8) + 4 * Meld.is_kan(meld).astype(jnp.int8))
+        chi_idx = Yaku._chi_index(action)
+        start = jnp.clip(target - chi_idx, 0, 31)
+        is_chi = Meld.is_chi(meld).astype(jnp.int8)
+        addition = addition.at[start].set(addition[start] + is_chi)
+        addition = addition.at[start + 1].set(addition[start + 1] + is_chi)
+        addition = addition.at[start + 2].set(addition[start + 2] + is_chi)
+        return addition * (meld != EMPTY_MELD).astype(jnp.int8)
+
+    @staticmethod
+    def flatten(hand: Array, melds: Array, n_meld: Array) -> Array:
+        del n_meld
+        addition = jax.vmap(Yaku._calc_addition)(melds).sum(axis=0)
+        return Hand.to_34(hand) + addition
+
+    @staticmethod
+    def score(fan: Array, fu: Array) -> Array:
+        raw = fu * jnp.left_shift(1, fan + 2)
+        return jax.lax.cond(
+            fu == 0,
+            lambda: 8000 * fan,
+            lambda: jnp.where(raw < 2000, raw, SCORES[jnp.clip(fan - 4, 0, 11)]),
+        )
+
+    @staticmethod
+    def judge_hand_related(
         hand: Array,
         melds: Array,
         n_meld: Array,
@@ -329,106 +376,92 @@ class Yaku:
         prevalent_wind: Array,
         seat_wind: Array,
         dora: Array,
-    ) -> Tuple:
-        """
-        Judge the yaku of the hand.
-        - hand: Hand vector (34,) has 13 tiles
-        - melds: Melds vector (4,)
-        - n_meld: Number of melds (1,)
-        - last_tile: The tile that is added to the hand
-        - riichi: Whether the player has riichi (4,)
-        - is_ron: Whether the winning type is ron (4,)
-        - prevalent_wind: Prevalent wind (0-3)
-        - seat_wind: Seat wind (0-3)
-        - dora: Dora vector (2, 34)
-        """
-        # Add the last tile to the hand and determine the yaku
+    ) -> Tuple[Array, Array, Array]:
         hand = Hand.add(hand, last_tile)
-        last_tile_type = last_tile
-
-        # Depending on the presence of riichi, the dora is obtained. dora is of shape (2, 34). dora[0] is the front dora only, dora[1] includes the ura dora.
+        red_fan = jnp.int32(0)
+        if hand.shape[0] == Tile.NUM_TILE_TYPE_WITH_RED:
+            red_fan = jnp.sum(hand[Tile.NUM_TILE_TYPE:]).astype(jnp.int32) + jnp.sum(Meld.contains_red(melds)).astype(jnp.int32)
+            hand = Hand.to_34(hand)
+            last_tile_type = Tile.to_tile_type(last_tile)
+        else:
+            last_tile_type = last_tile
         dora = jnp.where(riichi, dora.sum(axis=0), dora[0])
-        # Set the winds
         seat_wind_tile_type = WIND_TILE[seat_wind]
         prevalent_wind_tile_type = WIND_TILE[prevalent_wind]
 
-        # Check the necessary conditions for the hand FullyConcealedHand and Pinfu
-        is_hand_concealed = jnp.all(
-            (Action.is_selfkan(Meld.action(melds)) & (Meld.src(melds) == 0))
-            | (melds == EMPTY_MELD)
-        )  # The parts without melds are melds==0
+        is_hand_concealed = jnp.all(Meld.is_closed_kan(melds) | (melds == EMPTY_MELD))
         is_pinfu = jnp.full(
             Yaku.MAX_PATTERNS,
             is_hand_concealed
+            & (n_meld == 0)
             & (last_tile_type < 27)
             & jnp.all(hand[27:31] < 3)
             & (hand[seat_wind_tile_type] == 0)
             & (hand[prevalent_wind_tile_type] == 0)
             & jnp.all(hand[31:34] == 0),
         )
-
-        # Calculate the variables necessary for the yaku of the OutsideHand(混全帯么九), pung, and shuntsu (chow)
         has_outside = jnp.full(
-            Yaku.MAX_PATTERNS, jnp.all(Meld.has_outside(melds) | (melds == EMPTY_MELD))
+            Yaku.MAX_PATTERNS,
+            jnp.all(Meld.has_outside(melds) | (melds == EMPTY_MELD)),
         )
-        all_chow = jnp.full(
-            Yaku.MAX_PATTERNS, jnp.any(Meld.chow(melds) & (melds != EMPTY_MELD))
-        ).astype(jnp.int32)
-        all_pung = jnp.full(
-            Yaku.MAX_PATTERNS, jnp.any(Meld.suited_pung(melds) & (melds != EMPTY_MELD))
-        ).astype(jnp.int32)
-        # The number of kans (槓子)
+        meld_chow_bits = jax.lax.reduce(
+            jax.vmap(Meld.chow)(melds).astype(jnp.int32),
+            jnp.int32(0), jax.lax.bitwise_or, (0,),
+        )
+        meld_pung_bits = jax.lax.reduce(
+            jax.vmap(Meld.suited_pung)(melds).astype(jnp.int32),
+            jnp.int32(0), jax.lax.bitwise_or, (0,),
+        )
+        all_chow = jnp.full(Yaku.MAX_PATTERNS, meld_chow_bits, dtype=jnp.int32)
+        all_pung = jnp.full(Yaku.MAX_PATTERNS, meld_pung_bits, dtype=jnp.int32)
         n_kan = jnp.sum(Meld.is_kan(melds) & (melds != EMPTY_MELD))
         n_closed_kan = jnp.sum(Meld.is_closed_kan(melds) & (melds != EMPTY_MELD))
-        # Initialize the variables necessary for the yaku of TwicePureDoubleChis(二盃口), Yaku related to Pons, and NineGates(九蓮宝燈)
-        n_double_chow = jnp.full(Yaku.MAX_PATTERNS, 0)
-        n_concealed_pung = jnp.full(Yaku.MAX_PATTERNS, 0)
-        nine_gates = jnp.full(Yaku.MAX_PATTERNS, False)
-        # Closed kans are also counted as pungs
-        n_concealed_pung += (
+        n_concealed_pung = (
             jnp.sum(hand[27:] >= 3)
             - (is_ron & (last_tile_type >= 27) & (hand[last_tile_type] >= 3))
             + n_closed_kan
         )
-        # Calculate the fu of the melds and honors in the hand
+
+        honor_tile_types = jnp.arange(27, 34, dtype=jnp.int32)
+        ron_penalty = (is_ron & (honor_tile_types == last_tile_type)).astype(jnp.int32)
+        # Yakuhai pair fu: 役牌対子 2 符; 連風（場風＝自風の同じ牌の対子）は 4 符（2+2 を重ねない）
+        seat_tt = seat_wind_tile_type
+        prev_tt = prevalent_wind_tile_type
+        seat_pair = hand[seat_tt] == 2
+        prev_pair = hand[prev_tt] == 2
+        renfu_pair = (seat_tt == prev_tt) & seat_pair
+        wind_pair_fu = jnp.where(renfu_pair, jnp.int32(4), jnp.int32(0))
+        wind_pair_fu = wind_pair_fu + jnp.where((~renfu_pair) & seat_pair, jnp.int32(2), jnp.int32(0))
+        wind_pair_fu = wind_pair_fu + jnp.where((~renfu_pair) & prev_pair, jnp.int32(2), jnp.int32(0))
         fu = jnp.full(
             Yaku.MAX_PATTERNS,
             2 * (is_ron == 0)
             + jnp.sum(Meld.fu(melds))
-            + (hand[seat_wind_tile_type] == 2) ** 2  # Head fu for seat wind
-            + (hand[prevalent_wind_tile_type] == 2) ** 2  # Head fu for prevalent wind
-            + jnp.any(hand[31:] == 2) * 2  # Head fu for dragons
-            + jnp.sum(
-                (hand[27:34] == 3)
-                * 4
-                * (2 - (is_ron & (jnp.arange(27, 34) == last_tile_type)))
-            )  # Fu for concealed tiles of honors
-            + ((27 <= last_tile_type) & (hand[last_tile_type] == 2)),
+            + wind_pair_fu
+            + jnp.any(hand[31:] == 2).astype(jnp.int32) * 2
+            + jnp.sum((hand[27:34] == 3).astype(jnp.int32) * 4 * (2 - ron_penalty))
+            + ((27 <= last_tile_type) & (hand[last_tile_type] == 2)).astype(jnp.int32),
             dtype=jnp.int32,
         )
+        codes = (hand[:27].astype(jnp.int32) * powers_of_5_full).reshape(3, 9).sum(axis=1)
 
-        codes = (
-            (hand[:27].astype(int) * powers_of_5_full).reshape(3, 9).sum(axis=1)
-        )  # (3,)
-
-        # Update the variables based on the information of the tiles (since there are chows, it is complicated)
-        def _update_yaku(suit: Array, tpl: Tuple) -> Tuple:
+        def _update_yaku(suit: int, tpl: Tuple) -> Tuple:
             code = codes[suit]
             return Yaku.update(
-                tpl[0],
-                tpl[1],
-                tpl[2],
-                tpl[3],
-                tpl[4],
-                tpl[5],
-                tpl[6],
-                tpl[7],
-                code,
-                suit,
-                last_tile_type,
-                is_ron,
+                tpl[0], tpl[1], tpl[2], tpl[3], tpl[4], tpl[5], tpl[6], tpl[7],
+                code, jnp.int32(suit), last_tile_type, is_ron,
             )
 
+        init = (
+            is_pinfu,
+            has_outside,
+            jnp.zeros((Yaku.MAX_PATTERNS,), dtype=jnp.int32),
+            all_chow,
+            all_pung,
+            jnp.full(Yaku.MAX_PATTERNS, n_concealed_pung),
+            jnp.full(Yaku.MAX_PATTERNS, False),
+            fu,
+        )
         (
             is_pinfu,
             has_outside,
@@ -438,232 +471,232 @@ class Yaku:
             n_concealed_pung,
             nine_gates,
             fu,
-        ) = jax.lax.fori_loop(
-            0,
-            3,
-            _update_yaku,
-            (
-                is_pinfu,
-                has_outside,
-                n_double_chow,
-                all_chow,
-                all_pung,
-                n_concealed_pung,
-                nine_gates,
-                fu,
-            ),
-        )
+        ) = jax.lax.fori_loop(0, 3, _update_yaku, init)
 
-        fu *= is_pinfu == 0
-        fu += 20 + 10 * (is_hand_concealed & is_ron)
-        fu += 10 * ((is_hand_concealed == 0) & (fu == 20))
+        fu = fu * (is_pinfu == 0)
+        fu = fu + 20 + 10 * (is_hand_concealed & is_ron)
+        fu = fu + 10 * ((~is_hand_concealed) & (fu == 20))
 
-        # Combine the melds and the hand
-        flatten = Yaku.flatten(hand, melds, n_meld)  # (34,)
-
+        flatten = Yaku.flatten(hand, melds, n_meld)
         four_winds = jnp.sum(flatten[27:31] >= 3)
         three_dragons = jnp.sum(flatten[31:34] >= 3)
-
-        has_tanyao = jnp.any(
-            jax.vmap(one_hot_at, in_axes=(None, 0))(flatten, TANYAO_TILE)
-        )
+        has_tanyao = jnp.any(jax.vmap(lambda i: _one_hot_at(flatten, TANYAO_TILE[i]))(jnp.arange(21)))
         has_honor = jnp.any(flatten[27:] > 0)
         is_flush = (
-            jnp.any(flatten[0:9] > 0).astype(int)
-            + jnp.any(flatten[9:18] > 0).astype(int)
-            + jnp.any(flatten[18:27] > 0).astype(int)
+            jnp.any(flatten[0:9] > 0).astype(jnp.int32)
+            + jnp.any(flatten[9:18] > 0).astype(jnp.int32)
+            + jnp.any(flatten[18:27] > 0).astype(jnp.int32)
         ) == 1
 
         yaku_update_values = jnp.stack(
             [
-                is_pinfu,  # Pinfu(平和)
-                is_hand_concealed & (n_double_chow == 1),  # PureDoubleChis(一盃口)
-                n_double_chow == 2,  # TwicePureDoubleChis(二盃口)
-                has_outside & has_honor & has_tanyao,  # OutsideHand(混全帯么九)
-                has_outside & (has_honor == 0),  # TerminalsInAllSets(純全帯么九)
-                Yaku.is_pure_straight(all_chow),  # PureStraight(一気通貫)
-                Yaku.is_triple_chow(all_chow),  # MixedTripleChis(三色同順)
-                Yaku.is_triple_pung(all_pung),  # TriplePons(三色同刻)
-                all_chow == 0,  # AllPons(対々和)
-                n_concealed_pung == 3,  # ThreeConcealedPons(三暗刻)
-                jnp.repeat(n_kan == 3, Yaku.MAX_PATTERNS),  # ThreeKans(三槓子)
+                is_pinfu,
+                is_hand_concealed & (n_double_chow == 1),
+                n_double_chow == 2,
+                has_outside & has_honor & has_tanyao,
+                has_outside & (has_honor == 0),
+                Yaku.is_pure_straight(all_chow),
+                Yaku.is_triple_chow(all_chow),
+                Yaku.is_triple_pung(all_pung),
+                all_chow == 0,
+                n_concealed_pung == 3,
+                jnp.repeat(n_kan == 3, Yaku.MAX_PATTERNS),
             ]
-        )  # (13,)
+        )
+        yaku = jnp.zeros((NUM_TENHOU_YAKU, Yaku.MAX_PATTERNS), dtype=jnp.bool_)
+        yaku = yaku.at[_Internal.YAKU_UPDATE_INDICES, :].set(yaku_update_values)
 
-        yaku = jnp.full((Yaku.FAN.shape[1], Yaku.MAX_PATTERNS), False)
-        yaku = yaku.at[Yaku.YAKU_UPDATE_INDICES].set(yaku_update_values)
-
-        fan = Yaku.FAN[jnp.where(is_hand_concealed, 1, 0)]
-        best_pattern = jnp.argmax(jnp.dot(fan, yaku) * 200 + fu)
-
-        yaku_best = yaku.T[best_pattern]
+        fan_row = _Internal.FAN[jnp.where(is_hand_concealed, 1, 0)]
+        best_pattern = jnp.argmax(jnp.dot(fan_row, yaku) * 200 + fu)
+        yaku_best = yaku[:, best_pattern]
         fu_best = fu[best_pattern]
-        fu_best += -fu_best % 10
+        fu_best = fu_best + (-fu_best % 10)
 
-        # Seven pairs judgment
-        is_mentsu_hand = yaku_best[Yaku.TwicePureDoubleChis] | (jnp.sum(hand == 2) < 7)
-        yaku_best = yaku_best * is_mentsu_hand + (1 - is_mentsu_hand) * jnp.full(
-            Yaku.FAN.shape[1], False
-        ).at[Yaku.SevenPairs].set(jnp.bool_(True))
-        fu_best = fu_best * is_mentsu_hand + (1 - is_mentsu_hand) * 25
+        is_mentsu_hand = yaku_best[_Internal.TwicePureDoubleChis] | (jnp.sum(hand == 2) < 7)
+        yaku_best = jnp.where(
+            is_mentsu_hand,
+            yaku_best,
+            jnp.zeros(NUM_TENHOU_YAKU, dtype=jnp.bool_).at[_Internal.SevenPairs].set(True),
+        )
+        fu_best = jnp.where(is_mentsu_hand, fu_best, 25)
         has_outside_in_flatten = jnp.any(flatten[OUTSIDE_TILE] > 0)
 
-        yaku_best_update_values = jnp.array(
+        yaku_best_update = jnp.array(
             [
-                jnp.logical_not(
-                    (has_honor | has_outside_in_flatten)
-                ),  # AllSimples(断么九)
-                is_flush & has_honor,  # HalfFlush(混一色)
-                is_flush & (has_honor == 0),  # FullFlush(清一色)
-                has_tanyao == 0,  # AllTerminalsAndHonors(混老頭)
-                flatten[31] >= 3,  # WhiteDragon(白)
-                flatten[32] >= 3,  # GreenDragon(發)
-                flatten[33] >= 3,  # RedDragon(中)
-                jnp.all(flatten[31:34] >= 2)
-                & (three_dragons >= 2),  # LittleThreeDragons(小三元)
-                flatten[prevalent_wind_tile_type] >= 3,  # PrevelantWind(場風)
-                flatten[seat_wind_tile_type] >= 3,  # SeatWind(自風)
-                is_hand_concealed & (is_ron == 0),  # FullyConcealedHand(門前清自摸和)
-                riichi,  # Riichi(立直)
+                ~(has_honor | has_outside_in_flatten),
+                is_flush & has_honor,
+                is_flush & (has_honor == 0),
+                has_tanyao == 0,
+                flatten[31] >= 3,
+                flatten[32] >= 3,
+                flatten[33] >= 3,
+                jnp.all(flatten[31:34] >= 2) & (three_dragons >= 2),
+                is_hand_concealed & (is_ron == 0),
+                riichi,
             ],
             dtype=jnp.bool_,
         )
+        yaku_best = yaku_best.at[_Internal.YAKU_BEST_UPDATE_INDICES].set(yaku_best_update)
+        yaku_best = yaku_best.at[_Internal.PrevalentWindEast + prevalent_wind].set(flatten[prevalent_wind_tile_type] >= 3)
+        yaku_best = yaku_best.at[_Internal.SeatWindEast + seat_wind].set(flatten[seat_wind_tile_type] >= 3)
 
-        yaku_best = yaku_best.at[Yaku.YAKU_BEST_UPDATE_INDICES].set(
-            yaku_best_update_values
-        )
+        win_tile_count = hand[last_tile_type]
+        four_concealed_tsumo = jnp.any((n_concealed_pung == 4) & (win_tile_count >= 3) & (is_ron == 0))
+        four_concealed_single = jnp.any((n_concealed_pung == 4) & (win_tile_count == 2))
         yakuman_update_values = jnp.array(
             [
-                three_dragons == 3,  # BigThreeDragons(大三元)
-                jnp.all(flatten[27:31] >= 2)
-                & (four_winds == 3),  # LittleFourWinds(小四喜)
-                four_winds == 4,  # BigFourWinds(大四喜)
-                jnp.any(nine_gates),  # NineGates(九蓮宝燈)
-                jnp.all(hand[KOKUSHI_TILE] > 0)
-                & (has_tanyao == 0),  # ThirteenOrphans(国士無双)
-                (has_tanyao == 0) & (has_honor == 0),  # AllTerminals(清老頭)
-                jnp.all(flatten[0:27] == 0),  # AllHonors(字一色)
-                jnp.sum(flatten[ALL_GREEN_TILE]) == 14,  # AllGreen(緑一色)
-                jnp.any(n_concealed_pung == 4),  # FourConcealedPons(四暗刻)
-                n_kan == 4,  # FourKans(四槓子)
+                three_dragons == 3,
+                four_winds == 4,
+                jnp.all(flatten[27:31] >= 2) & (four_winds == 3),
+                jnp.any(nine_gates),
+                jnp.all(hand[KOKUSHI_TILE] > 0) & (has_tanyao == 0),
+                (has_tanyao == 0) & (has_honor == 0),
+                jnp.all(flatten[0:27] == 0),
+                jnp.sum(flatten[ALL_GREEN_TILE]) == 14,
+                four_concealed_tsumo,
+                n_kan == 4,
             ],
             dtype=jnp.bool_,
         )
-        yakuman = jnp.full(Yaku.FAN.shape[1], False)
-        yakuman = yakuman.at[Yaku.YAKUMAN_UPDATE_INDICES].set(yakuman_update_values)
-        yakuman_num = jnp.dot(yakuman, Yaku.YAKUMAN)
-        return jax.lax.cond(
-            jnp.any(yakuman),
-            lambda: (
-                yakuman.astype(jnp.bool_),
-                yakuman_num.astype(jnp.int32),
-                jnp.int32(0),
-            ),
-            lambda: (
-                yaku_best.astype(jnp.bool_),
-                (jnp.dot(fan, yaku_best) + jnp.dot(flatten, dora)).astype(jnp.int32),
-                fu_best.astype(jnp.int32),
-            ),
+        yakuman = jnp.zeros(NUM_TENHOU_YAKU, dtype=jnp.bool_)
+        yakuman = yakuman.at[_Internal.YAKUMAN_UPDATE_INDICES].set(yakuman_update_values)
+        yakuman = yakuman.at[_Internal.CompletedFourConcealedPons].set(four_concealed_single)
+        yakuman_num = jnp.dot(yakuman.astype(jnp.int32), _Internal.YAKUMAN)
+
+        def _ret_yakuman() -> Tuple[Array, Array, Array]:
+            return yakuman, yakuman_num.astype(jnp.int32), jnp.int32(0)
+
+        def _ret_normal() -> Tuple[Array, Array, Array]:
+            fan_val = jnp.dot(_Internal.FAN[jnp.where(is_hand_concealed, 1, 0)], yaku_best.astype(jnp.int32)) + jnp.dot(flatten, dora) + red_fan
+            return yaku_best, fan_val.astype(jnp.int32), fu_best.astype(jnp.int32)
+
+        return jax.lax.cond(jnp.any(yakuman), _ret_yakuman, _ret_normal)
+
+    @staticmethod
+    def judge(
+        hand: Array,
+        is_ron: Array,
+        player: Array,
+        rs: object,
+    ) -> Tuple[Array, Array, Array]:
+        p = jnp.int32(player)
+        melds = rs.players.melds[p]
+        n_meld = rs.players.meld_counts[p]
+        last_tile = jnp.where(is_ron, rs.round_state.target, rs.round_state.last_draw)
+        riichi = rs.players.riichi[p]
+        prevalent_wind = jnp.int32(rs.round_state.round // 4)
+        seat_wind = jnp.int32(rs.round_state.seat_wind[p])
+        dora = _dora_array_from_state(rs)
+        return Yaku.judge_hand_related(
+            hand=hand,
+            melds=melds,
+            n_meld=n_meld,
+            last_tile=last_tile,
+            riichi=riichi,
+            is_ron=is_ron,
+            prevalent_wind=prevalent_wind,
+            seat_wind=seat_wind,
+            dora=dora,
         )
 
     @staticmethod
-    def flatten(hand: Array, melds: Array, n_meld: Array) -> Array:
-        """
-        Return the hand with the melds added
-        """
-        addition = jax.vmap(Yaku._calc_addition, in_axes=(0))(melds).sum(axis=0)
-        return hand + addition
+    def judge_other(
+        *,
+        is_ron: Array,
+        is_riichi: Array,
+        is_ippatsu: Array = False,
+        is_robbing_kan: Array = False,
+        is_after_kan: Array = False,
+        is_bottom_of_the_sea: Array = False,
+        is_bottom_of_the_river: Array = False,
+        is_double_riichi: Array = False,
+        is_blessing_of_heaven: Array = False,
+        is_blessing_of_earth: Array = False,
+    ) -> Tuple[Array, Array, Array, Array]:
+        is_ron = jnp.bool_(is_ron)
+        is_riichi = jnp.bool_(is_riichi)
+        is_ippatsu = jnp.bool_(is_ippatsu) & is_riichi
+        is_robbing_kan = jnp.bool_(is_robbing_kan) & is_ron
+        is_after_kan = jnp.bool_(is_after_kan) & (~is_ron)
+        is_bottom_of_the_sea = jnp.bool_(is_bottom_of_the_sea) & (~is_ron)
+        is_bottom_of_the_river = jnp.bool_(is_bottom_of_the_river) & is_ron
+        is_double_riichi = jnp.bool_(is_double_riichi) & is_riichi
+        is_blessing_of_heaven = jnp.bool_(is_blessing_of_heaven) & (~is_ron)
+        is_blessing_of_earth = jnp.bool_(is_blessing_of_earth) & (~is_ron)
 
-    @staticmethod
-    def _calc_addition(meld: Array) -> Array:
-        target, action = Meld.target(meld), Meld.action(meld)
-        idx = action - Action.PON + 1
-        addition = jnp.zeros(34, dtype=jnp.int8)
-        addition_pon_kan = addition.at[target].set(
-            (3 + (idx == 0) + (idx == 2)) * Meld.is_pon(meld) + 4 * Meld.is_kan(meld)
-        )
-        start = target - (
-            idx - 3
-        )  # idx = 3 => CHI_L, idx = 4 => CHI_M, idx = 5 => CHI_R
-        addition_chi = addition.at[jnp.array([start, start + 1, start + 2])].set(
-            1
-        ) * Meld.is_chi(meld)
-        return (addition_pon_kan + addition_chi) * (
-            meld != EMPTY_MELD
-        )  # When meld is empty, it does not exist
+        normal = jnp.zeros(NUM_TENHOU_YAKU, dtype=jnp.bool_)
+        normal = normal.at[_Internal.Ippatsu].set(is_ippatsu)
+        normal = normal.at[_Internal.RobbingKan].set(is_robbing_kan)
+        normal = normal.at[_Internal.DrawAfterKan].set(is_after_kan)
+        normal = normal.at[_Internal.BottomOfTheSea].set(is_bottom_of_the_sea)
+        normal = normal.at[_Internal.BottomOfTheRiver].set(is_bottom_of_the_river)
+        normal = normal.at[_Internal.DoubleRiichi].set(is_double_riichi)
+
+        yakuman = jnp.zeros(NUM_TENHOU_YAKU, dtype=jnp.bool_)
+        yakuman = yakuman.at[_Internal.BlessingOfHeaven].set(is_blessing_of_heaven)
+        yakuman = yakuman.at[_Internal.BlessingOfEarth].set(is_blessing_of_earth)
+
+        normal_fan = jnp.sum(normal.astype(jnp.int32))
+        yakuman_num = jnp.sum(yakuman.astype(jnp.int32))
+        return normal, yakuman, normal_fan.astype(jnp.int32), yakuman_num.astype(jnp.int32)
 
     @staticmethod
     def judge_yakuman(
         hand: Array,
-        melds: Array,
-        n_meld: Array,
-        last_tile: Array,
-        riichi: Array,
         is_ron: Array,
-        prevalent_wind: Array,
-        seat_wind: Array,
-        dora: Array,
-    ) -> Tuple:
-        """
-        Judge only yakuman
-        """
-        # Judge the hand with the last tile added
+        player: Array,
+        rs: object,
+    ) -> Tuple[Array, Array, Array]:
+        p = jnp.int32(player)
+        melds = rs.players.melds[p]
+        last_tile = jnp.where(is_ron, rs.round_state.target, rs.round_state.last_draw)
         hand = Hand.add(hand, last_tile)
-        last_tile_type = last_tile
-        # Get the dora based on the presence or absence of riichi dora is (2, 34) shape dora[0] is the visible dora, dora[1] includes the hidden dora
-        dora = jnp.where(riichi, dora[1], dora[0])
-
-        # Judgment of the necessary conditions for Pinfu and the hand concealed
-        is_hand_concealed = jnp.all(
-            (Action.is_selfkan(Meld.action(melds)) & (Meld.src(melds) == 0))
-            | (melds == EMPTY_MELD)
-        )  # When meld is empty, melds==EMPTY_MELD
+        if hand.shape[0] == Tile.NUM_TILE_TYPE_WITH_RED:
+            hand = Hand.to_34(hand)
+            last_tile_type = Tile.to_tile_type(last_tile)
+        else:
+            last_tile_type = last_tile
         n_kan = jnp.sum(Meld.is_kan(melds) & (melds != EMPTY_MELD))
         n_closed_kan = jnp.sum(Meld.is_closed_kan(melds) & (melds != EMPTY_MELD))
-
-        n_concealed_pung = jnp.full(Yaku.MAX_PATTERNS, 0)
-        nine_gates = jnp.full(Yaku.MAX_PATTERNS, False)
-        # Concealed kans are also counted as pungs
-        n_concealed_pung += (
-            jnp.sum(hand >= 3) - (is_ron & (hand[last_tile_type] >= 3)) + n_closed_kan
-        )
-
-        codes = (
-            (hand[:27].astype(int) * powers_of_5_full).reshape(3, 9).sum(axis=1)
-        )  # (3,)
-
-        nine_gates = Yaku.nine_gates(codes)
-
-        # Combine the melds and the hand
-        flatten = Yaku.flatten(hand, melds, n_meld)  # (34,)
-
+        n_concealed_pung = jnp.sum(hand >= 3) - (is_ron & (hand[last_tile_type] >= 3)) + n_closed_kan
+        codes = (hand[:27].astype(jnp.int32) * powers_of_5_full).reshape(3, 9).sum(axis=1)
+        nine_gates = jnp.any(jax.vmap(Yaku.nine_gates)(codes))
+        flatten = Yaku.flatten(hand, melds, jnp.int8(0))
         four_winds = jnp.sum(flatten[27:31] >= 3)
         three_dragons = jnp.sum(flatten[31:34] >= 3)
-
-        has_tanyao = jnp.any(
-            jax.vmap(one_hot_at, in_axes=(None, 0))(flatten, TANYAO_TILE)
-        )
+        has_tanyao = jnp.any(jax.vmap(lambda i: _one_hot_at(flatten, TANYAO_TILE[i]))(jnp.arange(21)))
         has_honor = jnp.any(flatten[27:] > 0)
-
+        win_tile_count = hand[last_tile_type]
+        four_concealed_tsumo = (n_concealed_pung == 4) & (win_tile_count >= 3) & (is_ron == 0)
+        four_concealed_single = (n_concealed_pung == 4) & (win_tile_count == 2)
         yakuman_update_values = jnp.array(
             [
-                three_dragons == 3,  # BigThreeDragons(大三元)
-                jnp.all(flatten[27:31] >= 2)
-                & (four_winds == 3),  # LittleFourWinds(小四喜)
-                four_winds == 4,  # BigFourWinds(大四喜)
-                jnp.any(nine_gates),  # NineGates(九蓮宝燈)
-                jnp.all(hand[KOKUSHI_TILE] > 0)
-                & (has_tanyao == 0),  # ThirteenOrphans(国士無双)
-                (has_tanyao == 0) & (has_honor == 0),  # AllTerminals(清老頭)
-                jnp.all(flatten[0:27] == 0),  # AllHonors(字一色)
-                jnp.sum(flatten[ALL_GREEN_TILE]) == 14,  # AllGreen(緑一色)
-                jnp.any(n_concealed_pung == 4)
-                & is_hand_concealed,  # FourConcealedPons(四暗刻)
-                n_kan == 4,  # FourKans(四槓子)
+                three_dragons == 3,
+                four_winds == 4,
+                jnp.all(flatten[27:31] >= 2) & (four_winds == 3),
+                nine_gates,
+                jnp.all(hand[KOKUSHI_TILE] > 0) & (has_tanyao == 0),
+                (has_tanyao == 0) & (has_honor == 0),
+                jnp.all(flatten[0:27] == 0),
+                jnp.sum(flatten[ALL_GREEN_TILE]) == 14,
+                four_concealed_tsumo,
+                n_kan == 4,
             ],
             dtype=jnp.bool_,
         )
-        yakuman = jnp.full(Yaku.FAN.shape[1], False)
-        yakuman = yakuman.at[Yaku.YAKUMAN_UPDATE_INDICES].set(yakuman_update_values)
-        yakuman_num = jnp.dot(yakuman, Yaku.YAKUMAN)
-        return yakuman, jnp.int32(yakuman_num), jnp.int32(0)
+        yakuman = jnp.zeros(NUM_TENHOU_YAKU, dtype=jnp.bool_)
+        yakuman = yakuman.at[_Internal.YAKUMAN_UPDATE_INDICES].set(yakuman_update_values)
+        yakuman = yakuman.at[_Internal.CompletedFourConcealedPons].set(four_concealed_single)
+        yakuman_num = jnp.dot(yakuman.astype(jnp.int32), _Internal.YAKUMAN)
+        return yakuman, yakuman_num.astype(jnp.int32), jnp.int32(0)
+
+
+for _name in dir(_Internal):
+    if _name.startswith('_'):
+        continue
+    _value = getattr(_Internal, _name)
+    if isinstance(_value, (int, jnp.integer)):
+        setattr(Yaku, _name, int(_value))
+
+
+__all__ = ['NUM_TENHOU_YAKU', 'Yaku']

@@ -30,6 +30,12 @@ TILE_LABELS = _NUMERAL_LABELS + HONOR_NAMES_JP
 
 
 def tile_label(tile: int) -> str:
+    if tile == 34:
+        return "5mr"
+    if tile == 35:
+        return "5pr"
+    if tile == 36:
+        return "5sr"
     if 0 <= tile < len(TILE_LABELS):
         return TILE_LABELS[tile]
     raise ValueError(f"Invalid tile index: {tile}")

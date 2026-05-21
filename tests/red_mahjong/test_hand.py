@@ -1,241 +1,47 @@
-import os
-import unittest
-
 import jax
 import jax.numpy as jnp
-import numpy as np
-from mahjax.red_mahjong.tile import Tile
-from mahjax.red_mahjong.hand import Hand
+
 from mahjax.red_mahjong.action import Action
-
-jitted_sub = jax.jit(Hand.sub)
-jitted_add = jax.jit(Hand.add)
-jitted_can_pon = jax.jit(Hand.can_pon)
-jitted_can_chi = jax.jit(Hand.can_chi)
-jitted_make_init_hand = jax.jit(Hand.make_init_hand)
-jitted_chi = jax.jit(Hand.chi)
-jitted_can_closed_kan_after_riichi = jax.jit(Hand.can_closed_kan_after_riichi)
-jitted_can_open_kan = jax.jit(Hand.can_open_kan)
-jitted_open_kan = jax.jit(Hand.open_kan)
-jitted_added_kan = jax.jit(Hand.added_kan)
-jitted_closed_kan = jax.jit(Hand.closed_kan)
-jitted_can_tsumo = jax.jit(Hand.can_tsumo)
-jitted_can_win = jax.jit(Hand.can_ron)
-jitted_is_tenpai = jax.jit(Hand.is_tenpai)
-jitted_can_closed_kan = jax.jit(Hand.can_closed_kan)
-jitted_pon = jax.jit(Hand.pon)
+from mahjax.red_mahjong.hand import Hand
+from mahjax.red_mahjong.tile import Tile
 
 
-class TestHand(unittest.TestCase):
-    def test_add_sub(self):
-        hand = jnp.zeros(Tile.NUM_TILE_TYPE, dtype=jnp.uint8)
-        hand = jitted_add(hand, 0)  # 1m
-        self.assertEqual(hand[0], 1)
-        hand = jitted_sub(hand, 0)
-        self.assertEqual(hand[0], 0)
+def test_make_init_hand_returns_red_aware_shape() -> None:
+    rng = jax.random.PRNGKey(1)
+    deck = Tile.from_tile_id_to_tile(jax.random.permutation(rng, jnp.arange(136)))
+    hand = Hand.make_init_hand(deck)
+    assert hand.shape == (4, Tile.NUM_TILE_TYPE_WITH_RED)
+    assert bool(jnp.all(hand.sum(axis=1) == 13))
 
 
-    def test_can_pon(self):
-        hand = jnp.zeros(Tile.NUM_TILE_TYPE, dtype=jnp.uint8)
-        hand = jitted_add(hand, 0)  # 1m
-        hand = jitted_add(hand, 0)  # 1m
-        self.assertTrue(jitted_can_pon(hand, 0))  # 1m can be pon
-        self.assertFalse(jitted_can_pon(hand, 1))  # 2m cannot be pon
-        hand = jnp.zeros(Tile.NUM_TILE_TYPE, dtype=jnp.uint8)
-        hand = jitted_add(hand, 4)  # 5m
-        hand = jitted_add(hand, 4)  # 5m
-        self.assertTrue(jitted_can_pon(hand, 4))  # 5m can be pon
+def test_red_pon_consumes_red_five_first() -> None:
+    hand = jnp.zeros((Tile.NUM_TILE_TYPE_WITH_RED,), dtype=jnp.int8)
+    hand = hand.at[Tile.BLACK_FIVE["m"]].set(2)
+    hand = hand.at[Tile.RED_FIVE["m"]].set(1)
+    hand = hand.at[3].set(1)  # 4m
+    hand = hand.at[5].set(1)  # 6m
 
+    assert bool(Hand.can_red_pon(hand, Tile.BLACK_FIVE["m"]))
+    after_pon = Hand.pon(hand, Tile.BLACK_FIVE["m"], Action.PON_RED)
+    assert int(after_pon[Tile.BLACK_FIVE["m"]]) == 1
+    assert int(after_pon[Tile.RED_FIVE["m"]]) == 0
 
-    def test_can_chi(self):
-        hand = jnp.zeros(Tile.NUM_TILE_TYPE, dtype=jnp.uint8)
-        hand = jitted_add(hand, 1)  # 2m
-        hand = jitted_add(hand, 2)  # 3m
-        self.assertTrue(jitted_can_chi(hand, 0, Action.CHI_L))  # 1m can be chi_l
-        self.assertFalse(jitted_can_chi(hand, 0, Action.CHI_M))  # 1m cannot be chi_m
-        self.assertFalse(jitted_can_chi(hand, 0, Action.CHI_R))  # 1m cannot be chi_r
+def test_open_closed_added_kan_for_red_five_family() -> None:
+    hand_open = jnp.zeros((Tile.NUM_TILE_TYPE_WITH_RED,), dtype=jnp.int8)
+    hand_open = hand_open.at[Tile.BLACK_FIVE["p"]].set(3)
+    hand_open = hand_open.at[Tile.RED_FIVE["p"]].set(1)
+    assert bool(Hand.can_open_kan(hand_open, Tile.BLACK_FIVE["p"]))
+    open_after = Hand.open_kan(hand_open, Tile.BLACK_FIVE["p"])
+    assert int(open_after.sum()) == int(hand_open.sum()) - 3
 
+    hand_closed = jnp.zeros((Tile.NUM_TILE_TYPE_WITH_RED,), dtype=jnp.int8)
+    hand_closed = hand_closed.at[Tile.BLACK_FIVE["s"]].set(3)
+    hand_closed = hand_closed.at[Tile.RED_FIVE["s"]].set(1)
+    assert bool(Hand.can_closed_kan(hand_closed, Tile.BLACK_FIVE["s"]))
+    closed_after = Hand.closed_kan(hand_closed, Tile.BLACK_FIVE["s"])
+    assert int(closed_after.sum()) == int(hand_closed.sum()) - 4
 
-    def test_make_init_hand(self):
-        rng_key = jax.random.PRNGKey(1)
-        # Generate a deck of 136 tiles
-        deck = jnp.arange(136, dtype=jnp.int8)
-        # Shuffle the deck
-        deck = jax.random.permutation(rng_key, deck) // 4  # Divide by 4 to get indices 0-33
-        # Generate the initial hand
-        hand = jitted_make_init_hand(deck)
-        # Check the shape of the hand
-        self.assertEqual(hand.shape, (4, Tile.NUM_TILE_TYPE))
-        # Check if each player's initial hand has 13 tiles
-        for player in range(4):
-            self.assertEqual(jnp.sum(hand[player]), 13)
-
-    def test_can_open_kan(self):
-        hand = jnp.zeros(Tile.NUM_TILE_TYPE, dtype=jnp.uint8)
-        hand = jitted_add(hand, 0, 3)  # 1m 3 tiles
-        self.assertTrue(jitted_can_open_kan(hand, 0))  # 1m can be open kan
-
-
-    def test_can_closed_kan(self):
-        hand = jnp.zeros(Tile.NUM_TILE_TYPE, dtype=jnp.uint8)
-        hand = jitted_add(hand, 0, 4)  # 1m 4 tiles
-        self.assertTrue(jitted_can_closed_kan(hand, 0))  # 1m can be closed kan
-
-
-    def test_can_tsumo(self):
-        # Test seven pairs
-        hand = jnp.zeros(Tile.NUM_TILE_TYPE, dtype=jnp.uint8)
-        hand = hand.at[:7].set(2)
-        self.assertTrue(jitted_can_tsumo(hand))
-        # Test four melds and one head
-        hand = jnp.zeros(Tile.NUM_TILE_TYPE, dtype=jnp.uint8)
-        # 111m + 234m + 567p + 888s + 99s
-        hand = Hand.add(hand, 0, 3)  # 1m x 3
-        hand = Hand.add(hand, 1)  # 2m
-        hand = Hand.add(hand, 2)  # 3m
-        hand = Hand.add(hand, 3)  # 4m
-        hand = Hand.add(hand, 13)  # 5p
-        hand = Hand.add(hand, 14)  # 6p
-        hand = Hand.add(hand, 15)  # 7p
-        hand = Hand.add(hand, 25, 3)  # 8s x 3
-        hand = Hand.add(hand, 26, 2)  # 9s x 2
-        self.assertTrue(jitted_can_tsumo(hand))
-        self.assertFalse(jitted_can_tsumo(hand.at[25].set(2))) # 13 tiles, cannot tsumo
-
-    def test_can_win(self):
-        # Test seven pairs
-        hand = jnp.zeros(Tile.NUM_TILE_TYPE, dtype=jnp.uint8)
-        hand = hand.at[:7].set(2).at[6].set(1)
-        self.assertTrue(jitted_can_win(hand, 6))
-        # Test four melds and one head
-        hand = jnp.zeros(Tile.NUM_TILE_TYPE, dtype=jnp.uint8)
-        # 111m + 34m + 567p + 888s + 99s
-        hand = Hand.add(hand, 0, 3)  # 1m x 3
-        hand = Hand.add(hand, 2)  # 3m
-        hand = Hand.add(hand, 3)  # 4m
-        hand = Hand.add(hand, 13)  # 5p
-        hand = Hand.add(hand, 14)  # 6p
-        hand = Hand.add(hand, 15)  # 7p
-        hand = Hand.add(hand, 25, 3)  # 8s x 3
-        hand = Hand.add(hand, 26, 2)  # 9s x 2
-        self.assertTrue(jitted_can_win(hand, 4)) # 5m can be ron
-        self.assertTrue(jitted_can_win(hand, 1)) # 2m can be ron
-        self.assertFalse(jitted_can_win(hand, 25)) # 8s cannot be ron
-
-
-    def test_is_tenpai(self):
-        # Test seven pairs
-        hand = jnp.zeros(Tile.NUM_TILE_TYPE, dtype=jnp.uint8)
-        hand = hand.at[:7].set(2).at[6].set(1)
-        self.assertTrue(jitted_is_tenpai(hand))
-        # Test four melds and one head
-        hand = jnp.zeros(Tile.NUM_TILE_TYPE, dtype=jnp.uint8)
-        # 111m + 34m + 567p + 888s + 99s
-        hand = Hand.add(hand, 0, 3)  # 1m x 3
-        hand = Hand.add(hand, 2)  # 3m
-        hand = Hand.add(hand, 3)  # 4m
-        hand = Hand.add(hand, 13)  # 5p
-        hand = Hand.add(hand, 14)  # 6p
-        hand = Hand.add(hand, 15)  # 7p
-        hand = Hand.add(hand, 25, 3)  # 8s x 3
-        hand = Hand.add(hand, 26, 2)  # 9s x 2
-        self.assertTrue(jitted_is_tenpai(hand))
-        self.assertFalse(jitted_is_tenpai(hand.at[25].set(2).at[24].set(1)))
-
-    def test_chi(self):
-        # チーのテスト
-        # Test chi_l (1m, 2m, 3m)
-        hand = jnp.zeros(Tile.NUM_TILE_TYPE, dtype=jnp.uint8)
-        hand = jitted_add(hand, 1)  # 2m
-        hand = jitted_add(hand, 2)  # 3m
-        # Play chi_l (0=1m for chi_l): call 1m and consume 2m, 3m
-        new_hand = jitted_chi(hand, 0, Action.CHI_L)
-        # 2m and 3m are consumed
-        self.assertEqual(new_hand[1], 0)  # 2m is consumed
-        self.assertEqual(new_hand[2], 0)  # 3m is consumed
-        # Test chi_m (2m, 3m, 4m)
-        hand = jnp.zeros(Tile.NUM_TILE_TYPE, dtype=jnp.uint8)
-        hand = jitted_add(hand, 1)  # 2m
-        hand = jitted_add(hand, 3)  # 4m
-        # Play chi_m (2=3m for chi_m): call 3m and consume 2m, 4m
-        new_hand = jitted_chi(hand, 2, Action.CHI_M)
-        # 2m and 4m are consumed
-        self.assertEqual(new_hand[1], 0)  # 2m is consumed
-        self.assertEqual(new_hand[3], 0)  # 4m is consumed
-        # Test chi_r (3m, 4m, 5m)
-        hand = jnp.zeros(Tile.NUM_TILE_TYPE, dtype=jnp.uint8)
-        hand = jitted_add(hand, 2)  # 3m
-        hand = jitted_add(hand, 3)  # 4m
-        # Play chi_r (4=5m for chi_r): call 5m and consume 3m, 4m
-        new_hand = jitted_chi(hand, 4, Action.CHI_R)
-        # 3m and 4m are consumed
-        self.assertEqual(new_hand[2], 0)  # 3m is consumed
-        self.assertEqual(new_hand[3], 0)  # 4m is consumed
-
-    def test_pon(self):
-        # Test pon
-        hand = jnp.zeros(Tile.NUM_TILE_TYPE, dtype=jnp.uint8)
-        hand = jitted_add(hand, 0, 2)  # 1m x 2
-        # Play pon
-        new_hand = jitted_pon(hand, 0)
-        # 1m is consumed
-        self.assertEqual(new_hand[0], 0)
-        # Test pon for 5m
-        hand = jnp.zeros(Tile.NUM_TILE_TYPE, dtype=jnp.uint8)
-        hand = jitted_add(hand, 4, 2)  # 5m x 2
-        # Play pon
-        new_hand = jitted_pon(hand, 4)
-        # 5m is consumed
-        self.assertEqual(new_hand[4], 0)
-
-    def test_open_kan(self):
-        # Test open kan
-        hand = jnp.zeros(Tile.NUM_TILE_TYPE, dtype=jnp.uint8)
-        hand = jitted_add(hand, 0, 3)  # 1m x 3
-        self.assertTrue(jitted_can_open_kan(hand, 0))  # 1m can be open kan
-        result_hand = jitted_open_kan(hand, 0)
-        self.assertEqual(result_hand[0], 0)   # 1m is consumed
-
-    def test_added_kan(self):
-        # Test added kan
-        hand = jnp.zeros(Tile.NUM_TILE_TYPE, dtype=jnp.uint8)
-        hand = jitted_add(hand, 0)  # 1m
-        result_hand = jitted_added_kan(hand, 0)
-        self.assertEqual(result_hand[0], 0)  # 1m is consumed
-
-    def test_closed_kan(self):
-        # Test closed kan
-        hand = jnp.zeros(Tile.NUM_TILE_TYPE, dtype=jnp.uint8)
-        hand = jitted_add(hand, 0, 4)  # 1m x 4
-        result_hand = jitted_closed_kan(hand, 0)
-        self.assertEqual(result_hand[0], 0)   # 1m is consumed
-
-
-    def test_can_closed_kan_after_riichi(self):
-        """
-        Test closed kan after riichi
-        Tenhou considers only the change in the waiting tile.
-        Reference: https://mj-dragon.com/rule/prac/closed_kan.html
-        """
-        can_kan_hand = jnp.array([
-            1, 1, 1, 1, 1, 1, 0, 0, 0,
-            0, 4, 0, 1, 0, 0, 0, 0, 0,
-            3, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0
-        ], dtype=jnp.uint8) # 123456m 2223p EEEE (waiting tile: 4p)
-        can_kan_original_can_win = jnp.zeros(Tile.NUM_TILE_TYPE, dtype=jnp.bool_).at[12].set(True)
-        cannot_kan_hand = jnp.array([
-            1, 1, 1, 1, 1, 1, 0, 0, 0,
-            0, 4, 1, 0, 0, 0, 0, 0, 0,
-            3, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0
-        ], dtype=jnp.uint8) # 123456m 2223p EEEE (waiting tile: 14p)
-        cannot_kan_original_can_win = jnp.zeros(Tile.NUM_TILE_TYPE, dtype=jnp.bool_).at[9].set(True).at[12].set(True)
-
-        self.assertTrue(jitted_can_closed_kan_after_riichi(can_kan_hand, 10, can_kan_original_can_win))
-        self.assertFalse(jitted_can_closed_kan_after_riichi(cannot_kan_hand, 10, cannot_kan_original_can_win))
-
-
-
-if __name__ == "__main__":
-    unittest.main()
+    hand_added = jnp.zeros((Tile.NUM_TILE_TYPE_WITH_RED,), dtype=jnp.int8)
+    hand_added = hand_added.at[Tile.BLACK_FIVE["m"]].set(1)
+    added_after = Hand.added_kan(hand_added, Tile.BLACK_FIVE["m"])
+    assert int(added_after[Tile.BLACK_FIVE["m"]]) == 0

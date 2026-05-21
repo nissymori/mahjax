@@ -16,74 +16,103 @@
 import jax
 import jax.numpy as jnp
 
-from mahjax._src.types import Array
-from mahjax.red_mahjong.action import Action
+from .types import Array
+from .action import Action
+from .constants import RED_FIVE_TILE_IDS, RED_FIVE_TILE_TYPES
 
 
 class Tile:
     """
     tile_id: when all 136 tiles are distinguished
     tile_type: tile type (0-33) refer to mjx
+    tile: local tile index (0-36) where 34..36 are red 5m/5p/5s
     """
 
     NUM_TILE_ID = 136
     NUM_TILE_TYPE = 34
-    # convert tile_id (0-135) to tile (0-34)
-    # basically, divide tile_id by 4.
-    FROM_TILE_ID_TO_TILE = (jnp.arange(136) // 4).astype(jnp.uint8)
+    NUM_TILE_TYPE_WITH_RED = 37
+    BLACK_FIVE = {"m": 4, "p": 13, "s": 22}
+    RED_FIVE = {"m": 34, "p": 35, "s": 36}
+
+    _from_tile_id = (jnp.arange(136, dtype=jnp.int32) // 4).astype(jnp.int8)
+    _from_tile_id = _from_tile_id.at[jnp.array(RED_FIVE_TILE_IDS, dtype=jnp.int32)].set(
+        jnp.array([RED_FIVE["m"], RED_FIVE["p"], RED_FIVE["s"]], dtype=jnp.int8)
+    )
+    FROM_TILE_ID_TO_TILE = _from_tile_id
 
     @staticmethod
     def from_tile_id_to_tile(tile_id: Array) -> Array:
-        """
-        Convert tile_id (0-135) to tile (0-34).
-        """
         return Tile.FROM_TILE_ID_TO_TILE[tile_id]
 
     @staticmethod
+    def is_tile_red(tile: Array) -> Array:
+        return tile >= Tile.NUM_TILE_TYPE
+
+    @staticmethod
+    def to_tile_type(tile: Array) -> Array:
+        tile = jnp.asarray(tile, dtype=jnp.int32)
+        return jnp.where(
+            tile == Tile.RED_FIVE["m"],
+            Tile.BLACK_FIVE["m"],
+            jnp.where(
+                tile == Tile.RED_FIVE["p"],
+                Tile.BLACK_FIVE["p"],
+                jnp.where(tile == Tile.RED_FIVE["s"], Tile.BLACK_FIVE["s"], tile),
+            ),
+        ).astype(jnp.int32)
+
+    @staticmethod
+    def to_red(tile_type: Array) -> Array:
+        tile_type = jnp.asarray(tile_type, dtype=jnp.int32)
+        return jnp.where(
+            tile_type == Tile.BLACK_FIVE["m"],
+            Tile.RED_FIVE["m"],
+            jnp.where(
+                tile_type == Tile.BLACK_FIVE["p"],
+                Tile.RED_FIVE["p"],
+                jnp.where(tile_type == Tile.BLACK_FIVE["s"], Tile.RED_FIVE["s"], tile_type),
+            ),
+        ).astype(jnp.int32)
+
+    @staticmethod
+    def is_tile_type_five(tile_type: Array) -> Array:
+        tile_type = jnp.asarray(tile_type, dtype=jnp.int32)
+        return (tile_type == RED_FIVE_TILE_TYPES[0]) | (tile_type == RED_FIVE_TILE_TYPES[1]) | (tile_type == RED_FIVE_TILE_TYPES[2])
+
+    @staticmethod
     def is_tile_type_seven(tile_type: Array) -> bool:
-        """
-        Check if the given tile type is 7.
-        Used for swap-calling judgment.
-        """
+        tile_type = Tile.to_tile_type(tile_type)
         return (tile_type % 9 == 6) & (tile_type < 27)
 
     @staticmethod
     def is_tile_type_three(tile_type: Array) -> bool:
-        """
-        Check if the given tile type is 3.
-        Used for swap-calling judgment.
-        """
+        tile_type = Tile.to_tile_type(tile_type)
         return (tile_type % 9 == 2) & (tile_type < 27)
 
+    @staticmethod
     def is_tile_four_wind(tile: Array) -> bool:
-        """
-        Check if the given tile is four winds.
-        """
-        return (27 <= tile) & (tile < 31)
+        tile_type = Tile.to_tile_type(tile)
+        return (27 <= tile_type) & (tile_type < 31)
+
+    @staticmethod
+    def is_yaochu(tile: Array) -> Array:
+        tile_type = Tile.to_tile_type(tile)
+        num = tile_type % 9
+        return (tile_type >= 27) | (num == 0) | (num == 8)
 
 
-# ---- 16-bit layout ----
-# [15..14] unused
-# [13..11] meld_type (0:none,1:pon,2:open_kan,3:chi_l,4:chi_m,5:chi_r)
-# [10..9]  src (0..3; 0=not set(there is no self-kan in the river))
-# [8]      TSUMOGIRI (1=tsumogiri)
-# [7]      GRAY  (1=gray)
-# [6]      RIICHI(1=riichi)
-# [5..0]   TILE  (0..33)
-
-TILE_MASK = jnp.uint16(0b0000000000111111)  # bits 0..5
+TILE_MASK = jnp.uint16(0b0000000000111111)
 BIT_RIICHI = jnp.uint16(1 << 6)
 BIT_GRAY = jnp.uint16(1 << 7)
 BIT_TSUMOGIRI = jnp.uint16(1 << 8)
 SRC_SHIFT = 9
 MT_SHIFT = 11
-SRC_MASK = jnp.uint16(0b11 << SRC_SHIFT)  # bits 10..9
-MT_MASK = jnp.uint16(0b111 << MT_SHIFT)  # bits 13..11
+SRC_MASK = jnp.uint16(0b11 << SRC_SHIFT)
+MT_MASK = jnp.uint16(0b111 << MT_SHIFT)
 EMPTY_RIVER = jnp.uint16(0xFFFF)
 
 
 class River:
-
     @staticmethod
     def add_discard(
         river: Array,
@@ -93,54 +122,50 @@ class River:
         is_tsumogiri: bool,
         is_riichi: bool,
     ) -> Array:
-        """
-        Record discard at (player, idx). Tsumogiri is automatically determined by action==Action.TSUMOGIRI.
-        src=0 (not set), meld_type=0 (none).
-        """
         tile_u16 = jnp.uint16(tile) & TILE_MASK
         tile_u16 = tile_u16 | BIT_TSUMOGIRI * jnp.uint16(is_tsumogiri)
         tile_u16 = tile_u16 | BIT_RIICHI * jnp.uint16(is_riichi)
         tile_u16 = tile_u16 | BIT_GRAY * jnp.uint16(False)
-        tile_u16 = tile_u16 | (
-            (jnp.uint16(0) & jnp.uint16(0b11)) << SRC_SHIFT
-        )  # src=0 (not set)
-        tile_u16 = tile_u16 | (
-            (jnp.uint16(0) & jnp.uint16(0b111)) << MT_SHIFT
-        )  # meld_type=0 (none)
+        tile_u16 = tile_u16 | ((jnp.uint16(0) & jnp.uint16(0b11)) << SRC_SHIFT)
+        tile_u16 = tile_u16 | ((jnp.uint16(0) & jnp.uint16(0b111)) << MT_SHIFT)
         return river.at[player, idx].set(tile_u16)
 
     @staticmethod
     def add_meld(
         river: Array, action: Array, player: Array, idx: Array, src: Array
     ) -> Array:
-        """
-        W   hen meld is established: update the tile at (player, idx) to "gray=1, src=src, meld_type=meld_type".
-        """
         tile_u16 = river[player, idx]
-        meld_type = (
-            action - Action.PON + 1
-        )  # 0:none, 1:pon, 2:open_kan, 3:chi_l, 4:chi_m, 5:chi_r
-        # --- reset related bits ---
-        tile_u16 = tile_u16 & ~BIT_GRAY  # reset gray
-        tile_u16 = tile_u16 & ~SRC_MASK  # reset src
-        tile_u16 = tile_u16 & ~MT_MASK  # reset meld_type
-        # --- set after resetting ---
+        meld_type = jnp.where(
+            (action == Action.PON) | (action == Action.PON_RED),
+            jnp.uint16(1),
+            jnp.where(
+                action == Action.OPEN_KAN,
+                jnp.uint16(2),
+                jnp.where(
+                    (action == Action.CHI_L) | (action == Action.CHI_L_RED),
+                    jnp.uint16(3),
+                    jnp.where(
+                        (action == Action.CHI_M) | (action == Action.CHI_M_RED),
+                        jnp.uint16(4),
+                        jnp.where(
+                            (action == Action.CHI_R) | (action == Action.CHI_R_RED),
+                            jnp.uint16(5),
+                            jnp.uint16(0),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        tile_u16 = tile_u16 & ~BIT_GRAY
+        tile_u16 = tile_u16 & ~SRC_MASK
+        tile_u16 = tile_u16 & ~MT_MASK
         tile_u16 = tile_u16 | BIT_GRAY
-        tile_u16 = tile_u16 | (
-            (jnp.uint16(src) & jnp.uint16(0b11)) << SRC_SHIFT
-        )  # set src
-        tile_u16 = tile_u16 | (
-            (jnp.uint16(meld_type) & jnp.uint16(0b111)) << MT_SHIFT
-        )  # set meld_type
+        tile_u16 = tile_u16 | ((jnp.uint16(src) & jnp.uint16(0b11)) << SRC_SHIFT)
+        tile_u16 = tile_u16 | ((meld_type & jnp.uint16(0b111)) << MT_SHIFT)
         return river.at[player, idx].set(tile_u16)
 
     @staticmethod
     def decode_river(river: Array) -> Array:
-        """
-        (4,18) uint16 → (6,4,18) int32 tensor (jittable single array).
-        Channel order: [tile, riichi, gray, tsumogiri, src, meld_type]
-        - empty(0xFFFF): tile=-1, riichi/gray/tsumo/src/meld_type=0
-        """
         empty = river == EMPTY_RIVER
         tile = (river & TILE_MASK).astype(jnp.int32)
         riichi = (river & BIT_RIICHI) != 0
@@ -157,13 +182,8 @@ class River:
         mt_i = jnp.where(empty, 0, meld_type)
         return jnp.stack([tile, riichi_i, gray_i, tsumog_i, src_i, mt_i], axis=0)
 
+    @staticmethod
     def decode_tile(river: Array) -> Array:
-        """
-        (4,18) uint16 → (6,4,18) int32 tensor (jittable single array).
-        Channel order: [tile, riichi, gray, tsumogiri, src, meld_type]
-        - empty(0xFFFF): tile=-1, riichi/gray/tsumo/src/meld_type=0
-        """
         empty = river == EMPTY_RIVER
         tile = (river & TILE_MASK).astype(jnp.int32)
-        tile = jnp.where(empty, -1, tile)
-        return tile
+        return jnp.where(empty, -1, tile)

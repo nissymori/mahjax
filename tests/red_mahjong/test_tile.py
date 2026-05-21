@@ -49,10 +49,10 @@ class TestTile(unittest.TestCase):
 
 class TestRiver(unittest.TestCase):
     def setUp(self):
-        self.river = jnp.full((4, 18), EMPTY_RIVER, dtype=jnp.uint16)
+        self.river = jnp.full((4, 24), EMPTY_RIVER, dtype=jnp.uint16)
 
     def test_decode_empty(self):
-        decoded = River.decode_river(self.river)  # (6,4,18)
+        decoded = River.decode_river(self.river)  # (6,4,24)
         # Empty space specification:
         # tile=-1, riichi=0, gray=0, tsumogiri=0, src=0, meld_type=0
         self.assertEqual(int(decoded.shape[0]), 6)
@@ -91,7 +91,15 @@ class TestRiver(unittest.TestCase):
             self.river, tile=5, player=player, idx=idx,
             is_tsumogiri=False, is_riichi=False
         )
-        for action in [Action.PON, Action.OPEN_KAN]:  # for pon and open kan
+        meld_types = {
+            Action.PON: 1,
+            Action.OPEN_KAN: 2,
+            Action.CHI_L: 3,
+            Action.CHI_M: 4,
+            Action.CHI_R: 5,
+        }
+
+        for action in [Action.PON, Action.OPEN_KAN]:
             for src in [1, 2, 3]:
                 test_river_for_pon_and_open_kan = River.add_meld(test_river, action=action, player=player, idx=idx, src=src)  # add meld
                 decoded = River.decode_river(test_river_for_pon_and_open_kan)  # decode river
@@ -100,7 +108,7 @@ class TestRiver(unittest.TestCase):
                 self.assertEqual(int(decoded[2, player, idx]), 1)             # gray
                 self.assertEqual(int(decoded[3, player, idx]), 0)             # tsumogiri (not set)
                 self.assertEqual(int(decoded[4, player, idx]), src)             # src
-                self.assertEqual(int(decoded[5, player, idx]), action - Action.PON + 1)             # meld_type
+                self.assertEqual(int(decoded[5, player, idx]), meld_types[action])             # meld_type
                 # Other spaces are empty
                 self.assertTrue(jnp.all(decoded[0, player, :idx] == -1))
                 self.assertTrue(jnp.all(decoded[0, player, idx+1:] == -1))
@@ -111,7 +119,7 @@ class TestRiver(unittest.TestCase):
             self.assertEqual(int(decoded[0, player, idx]), 5)             # tile
             self.assertEqual(int(decoded[2, player, idx]), 1)             # gray
             self.assertEqual(int(decoded[4, player, idx]), 3)             # src
-            self.assertEqual(int(decoded[5, player, idx]), action - Action.PON + 1)             # meld_type
+            self.assertEqual(int(decoded[5, player, idx]), meld_types[action])             # meld_type
             # Other spaces are empty
             self.assertTrue(jnp.all(decoded[0, player, :idx] == -1))
             self.assertTrue(jnp.all(decoded[0, player, idx+1:] == -1))

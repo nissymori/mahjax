@@ -33,10 +33,12 @@ version = { attr = "mahjax.__version__" }
 
 [tool.setuptools.packages.find]
 where = ["."]
+include = ["mahjax*"]
 
 [tool.setuptools.package-data]
-"*" = ["*.svg"]
+"*" = ["*.svg", "*/*.svg"]
 "mahjax._src.cache" = ["*.npz"]
+"mahjax.ui" = ["static/*"]
 
 [build-system]
 requires = ["setuptools>=77.0", "wheel"]

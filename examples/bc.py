@@ -17,14 +17,18 @@ from tqdm import tqdm
 
 import mahjax
 from mahjax._src.visualizer import save_svg_animation
-from mahjax.no_red_mahjong.players import rule_based_player
-
-# Import ACNet
-from network import ACNet
+from common import (
+    FIG_DIR,
+    default_bc_params_path,
+    default_dataset_path,
+    get_network_cls,
+    get_rule_based_player,
+)
 
 @dataclass
 class TrainConfig:
-    dataset_path: str = "mahjong_offline_data.pkl"
+    env_name: str = "no_red_mahjong"
+    dataset_path: str | None = None
     batch_size: int = 1024
     lr: float = 3e-4
     num_epochs: int = 5
@@ -32,9 +36,10 @@ class TrainConfig:
     val_split: float = 0.1
     
     # Visualization
-    viz_out_dir: str = "fig"
+    viz_out_dir: str = str(FIG_DIR)
     viz_filename: str = "bc_agent_game.svg"
     viz_max_steps: int = 1000
+    save_model_path: str | None = None
 
     # Wandb
     wandb_project: str = "mahjong-bc"
@@ -42,6 +47,7 @@ class TrainConfig:
 # cli
 conf_dict = OmegaConf.from_cli()
 cfg = TrainConfig(**conf_dict)
+NETWORK_CLS = get_network_cls(cfg.env_name)
 
 # --- Train State ---
 class AgentTrainState(TrainState):
@@ -59,7 +65,7 @@ def train_step(state: AgentTrainState, batch):
     
     def loss_fn(params):
         # method=ACNet.get_action_logits を指定してActorのみ計算
-        logits = state.apply_fn(params, obs, method=ACNet.get_action_logits)
+        logits = state.apply_fn(params, obs, method=NETWORK_CLS.get_action_logits)
         logits = jnp.where(mask, logits, -1e9)
         loss = optax.softmax_cross_entropy_with_integer_labels(logits, act).mean()
         return loss, logits
@@ -75,7 +81,7 @@ def train_step(state: AgentTrainState, batch):
 def eval_step(state: AgentTrainState, batch):
     obs, act, mask = batch['obs'], batch['act'], batch['mask']
     
-    logits = state.apply_fn(state.params, obs, method=ACNet.get_action_logits)
+    logits = state.apply_fn(state.params, obs, method=NETWORK_CLS.get_action_logits)
     logits = jnp.where(mask, logits, -1e9)
     loss = optax.softmax_cross_entropy_with_integer_labels(logits, act).mean()
     
@@ -83,20 +89,22 @@ def eval_step(state: AgentTrainState, batch):
     return loss, acc
 
 # --- Visualization ---
-def make_policy_fn(state: AgentTrainState):
+def make_policy_fn(state: AgentTrainState, network_cls):
     @jax.jit
     def policy(obs, mask, rng):
         # 推論時もActorのみを使用
-        logits = state.apply_fn(state.params, obs, method=ACNet.get_action_logits)
+        del rng
+        logits = state.apply_fn(state.params, obs, method=network_cls.get_action_logits)
         logits = jnp.where(mask, logits, -1e9)
         return jnp.argmax(logits, axis=-1)
     return policy
 
 def visualize_game(cfg, train_state):
     print("\n=== Visualizing Agent vs Rule-based ===", flush=True)
-    env = mahjax.make("no_red_mahjong", one_round=True, observe_type="dict")
+    env = mahjax.make(cfg.env_name, round_mode="single", observe_type="dict")
+    rule_based_player = get_rule_based_player(cfg.env_name)
     jitted_step = jax.jit(env.step)
-    policy_fn = make_policy_fn(train_state)
+    policy_fn = make_policy_fn(train_state, NETWORK_CLS)
     
     rng = jax.random.PRNGKey(cfg.seed + 999)
     state = env.init(rng)
@@ -118,7 +126,7 @@ def visualize_game(cfg, train_state):
         history.append(state)
         step += 1
             
-    print(f"Game End. Score: {state._score}", flush=True)
+    print(f"Game End. Score: {state.round_state.score}", flush=True)
     os.makedirs(cfg.viz_out_dir, exist_ok=True)
     save_path = os.path.join(cfg.viz_out_dir, cfg.viz_filename)
     save_svg_animation(history, save_path, frame_duration_seconds=0.5)
@@ -126,6 +134,10 @@ def visualize_game(cfg, train_state):
 
 # --- Main ---
 def main():
+    if cfg.dataset_path is None:
+        cfg.dataset_path = default_dataset_path(cfg.env_name)
+    if cfg.save_model_path is None:
+        cfg.save_model_path = default_bc_params_path(cfg.env_name)
     print(f"=== Starting BC Training (Config: {cfg}) ===", flush=True)
     wandb.init(project=cfg.wandb_project, config=cfg)
     # 1. Load Data
@@ -134,6 +146,11 @@ def main():
 
     with open(cfg.dataset_path, "rb") as f:
         data = pickle.load(f)
+    dataset_env_name = data.get("env_name", cfg.env_name)
+    if dataset_env_name != cfg.env_name:
+        raise ValueError(
+            f"Dataset env_name mismatch: cfg={cfg.env_name}, dataset={dataset_env_name}"
+        )
     
     obs_data = data['observation']
     act_data = data['action']
@@ -151,7 +168,7 @@ def main():
     print(f"Loaded {num_samples} samples. Train: {len(train_indices)}, Val: {len(val_indices)}")
     
     # 3. Init Model (ACNet)
-    model = ACNet()
+    model = NETWORK_CLS()
     rng = jax.random.PRNGKey(cfg.seed)
     rng, init_rng = jax.random.split(rng)
     
@@ -207,10 +224,10 @@ def main():
         })
 
     # 5. Save & Visualize
-    save_ckpt = "bc_params.pkl"
-    with open(save_ckpt, "wb") as f:
+    os.makedirs(os.path.dirname(cfg.save_model_path) or ".", exist_ok=True)
+    with open(cfg.save_model_path, "wb") as f:
         pickle.dump(train_state.params, f)
-    print(f"Params saved to {save_ckpt}")
+    print(f"Params saved to {cfg.save_model_path}")
 
     visualize_game(cfg, train_state)
 

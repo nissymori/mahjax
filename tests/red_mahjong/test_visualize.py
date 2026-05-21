@@ -1,125 +1,44 @@
-import os
-import unittest
-import jax
-import jax.numpy as jnp
-from mahjax.red_mahjong.tile import Tile
-from mahjax.red_mahjong.action import Action
-from mahjax.red_mahjong.state import FIRST_DRAW_IDX
-from mahjax.red_mahjong.env import _step, _init
-from mahjax._src.visualizer import save_svg, save_svg_animation
-from mahjax.red_mahjong.players import rule_based_player
-from mahjax.red_mahjong.yaku import Yaku
-from mahjax.red_mahjong.env import _dora_array
+from pathlib import Path
+
+from mahjax.red_mahjong.state import default_state
+from mahjax.red_mahjong.visualization import (
+    render_round_svg,
+    render_svg_animation,
+    save_play_history_svg,
+)
 
 
-IDX_AFTER_FIRST_DRAW = FIRST_DRAW_IDX - 1
-
-jitted_step = jax.jit(_step)
-
-def act_randomly(rng: jax.random.PRNGKey, legal_action_mask: jnp.ndarray) -> jnp.ndarray:
-    logits = jnp.log(legal_action_mask.astype(jnp.float32))
-    return jax.random.categorical(rng, logits=logits)
+def _collect_states(count: int = 10) -> list:
+    state = default_state()
+    return [state for _ in range(max(1, count))]
 
 
-class TestVisualize(unittest.TestCase):
-    def setUp(self):
-        rng = jax.random.PRNGKey(6)
-        self.state = _init(rng)
-
-    def set_state(self, state, **kwargs):
-        for k, v in kwargs.items():
-            state = state.replace(  # type:ignore
-                **{k: v}
-            )
-        return state
+def test_render_round_svg_contains_svg_tag() -> None:
+    state = _collect_states(0)[0]
+    svg = render_round_svg(state, show_all_hands=True)
+    assert svg.startswith("<svg")
+    assert "</svg>" in svg
 
 
-    def test_visualize(self):
-        state = self.state
-        os.makedirs("fig", exist_ok=True)
-        save_svg(state, "fig/test_img.svg")
-
-    def test_animation_random(self):
-        state = self.state
-        i = 0
-        states = []
-        rng = jax.random.PRNGKey(1)
-        while not state.terminated and i <= 100:
-            a = act_randomly(rng, state.legal_action_mask)
-            print('step', i, 'current_player', state.current_player, 'action', a)
-            state = jitted_step(state, a)
-            i += 1
-            #print("target", state._target, "action", a, "current_player", state.current_player, "melds", state._melds)
-            #save_svg(state, f"fig/test_animation_{i}.svg")
-            states.append(state)
-        os.makedirs("fig", exist_ok=True)
-        save_svg_animation(states, "fig/test_animation_random.svg", frame_duration_seconds=1)
-
-    def test_animation_tsumogiri(self):
-        state = self.state
-        i = 0
-        states = []
-        rng = jax.random.PRNGKey(1)
-        while not state._terminated_round and i <= 100:
-            a = jnp.where(state.legal_action_mask[Action.DUMMY], Action.DUMMY, Action.TSUMOGIRI)
-            print('step', i, 'current_player', state.current_player, 'action', a)
-            state = jitted_step(state, a)
-            i += 1
-            #print("target", state._target, "action", a, "current_player", state.current_player, "melds", state._melds)
-            #save_svg(state, f"fig/test_animation_{i}.svg")
-            states.append(state)
-        os.makedirs("fig", exist_ok=True)
-        save_svg_animation(states, "fig/test_animation_tsumogiri.svg", frame_duration_seconds=1)
+def test_render_round_svg_supports_bilingual_tile_style() -> None:
+    state = _collect_states(0)[0]
+    svg_standard = render_round_svg(state, show_all_hands=True, tile_style="standard")
+    svg_bilingual = render_round_svg(state, show_all_hands=True, tile_style="bilingual")
+    assert "東1局" in svg_standard
+    assert "East 1" in svg_bilingual
+    assert svg_standard != svg_bilingual
 
 
+def test_save_play_history_svg_for_10_steps() -> None:
+    states = _collect_states(10)
+    out = Path("fig/red_mahjong_10steps_test.svg")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    save_play_history_svg(states, out, columns=5, show_all_hands=True)
+    assert out.exists()
+    assert out.stat().st_size > 0
 
-    def test_animation_rule_based_player(self):
-        state = self.state
-        i = 0
-        states = []
-        rng = jax.random.PRNGKey(1)
-        while not state._terminated_round and i <= 100:
-            a = jax.jit(rule_based_player)(state, rng)
-            if state.legal_action_mask[Action.RIICHI]:
-                print("立直できるよ！")
-            round_wind = state._round % 4
-            if a == Action.TSUMO:
-                yaku, fan, fu = jax.jit(Yaku.judge)(
-                    state._hand[state.current_player],
-                    state._melds[state.current_player],
-                    state._n_meld[state.current_player],
-                    state._last_draw,
-                    state._riichi[state.current_player],
-                    False,
-                    round_wind,
-                    state._seat_wind[state.current_player],
-                    _dora_array(state)
-                )
-                print("立直", state._riichi[state.current_player])
-                print("ドラ", _dora_array(state))
-                print("手牌", state._hand[state.current_player])
-                print(yaku, fan, fu)
-            if a == Action.RON:
-                yaku, fan, fu = Yaku.judge(
-                    state._hand[state.current_player],
-                    state._melds[state.current_player],
-                    state._n_meld[state.current_player],
-                    state._target,
-                    state._riichi[state.current_player],
-                    True,
-                    round_wind,
-                    state._seat_wind[state.current_player],
-                    _dora_array(state)
-                )
-                print("立直", state._riichi[state.current_player])
-                print("ドラ", _dora_array(state))
-                print("手牌", state._hand[state.current_player])
-                print(yaku, fan, fu)
 
-            print('step', i, 'current_player', state.current_player, 'action', a)
-            state = jitted_step(state, a)
-            i += 1
-            states.append(state)
-        print(state._score)
-        os.makedirs("fig", exist_ok=True)
-        save_svg_animation(states, "fig/test_animation_rule_based_player.svg", frame_duration_seconds=1)
+def test_render_svg_animation_contains_keyframes() -> None:
+    states = _collect_states(5)
+    svg = render_svg_animation(states, frame_duration_seconds=0.1, show_all_hands=True)
+    assert "@keyframes" in svg

@@ -134,7 +134,7 @@ def _river_one_line(river, p: int, n: int | None = None) -> str:
     src = dec[4, p]         # (18,) 0..3
     mt = dec[5, p]          # (18,) 0:none, 1:pon, 2:open_kan, 3:chi_l, 4:chi_m, 5:chi_r
 
-    # If possible, display the actual number of discarded tiles (the most reliable way is to pass cs._n_river[p] from the test caller)
+    # If possible, display the actual number of discarded tiles (the most reliable way is to pass cs.players.discard_counts[p] from the test caller)
     length = int(n) if n is not None else 18
 
     out = []
@@ -167,36 +167,36 @@ def dump_debug(ls, cs, action, step:int):
     print(f"[STEP {step}] ACTION: {a} ({_act_name(a)}) C_P: {int(cs.current_player)}")
     print("-"*90)
     # Current player etc.
-    print(f"last_player(ls->cs): {int(ls.current_player)} -> {int(cs.current_player)}   /  discarder: {int(cs._last_player)}")
-    print(f"target: {int(cs._target)} ({_TILE_NAMES[int(cs._target)] if int(cs._target)>=0 else '-'})")
-    print(f"last_draw(ls,cs): {int(ls._last_draw)}->{int(cs._last_draw)}")
-    print(f"kan_declared: {bool(cs._kan_declared)}  rinshan: {bool(cs._can_after_kan)}  haitei: {bool(cs._is_haitei)}")
-    print(f"riichi_declared: {bool(cs._riichi_declared)}  terminated_round: {bool(cs._terminated_round)}  terminated: {bool(cs.terminated)}")
-    print(f"honba: {int(cs._honba)}  kyotaku: {int(cs._kyotaku)}  round: {int(cs._round)}  dealer: {int(cs._dealer)}")
+    print(f"last_player(ls->cs): {int(ls.current_player)} -> {int(cs.current_player)}   /  discarder: {int(cs.round_state.last_player)}")
+    print(f"target: {int(cs.round_state.target)} ({_TILE_NAMES[int(cs.round_state.target)] if int(cs.round_state.target)>=0 else '-'})")
+    print(f"last_draw(ls,cs): {int(ls.round_state.last_draw)}->{int(cs.round_state.last_draw)}")
+    print(f"kan_declared: {bool(cs.round_state.kan_declared)}  rinshan: {bool(cs.round_state.can_after_kan)}  haitei: {bool(cs.round_state.is_haitei)}")
+    print(f"riichi_declared: {bool(cs.players.riichi_declared.any())}  terminated_round: {bool(cs.round_state.terminated_round)}  terminated: {bool(cs.terminated)}")
+    print(f"honba: {int(cs.round_state.honba)}  kyotaku: {int(cs.round_state.kyotaku)}  round: {int(cs.round_state.round)}  dealer: {int(cs.round_state.dealer)}")
     print("-"*90)
     # Status of each player
     for p in range(4):
-        hand14 = int(cs._hand[p].sum())
-        print(f"[P{p}] hand={hand14}  riichi={bool(cs._riichi[p])}  furiten_by_river={bool(cs._furiten_by_discard[p])}  furiten_by_pass_ron={bool(cs._furiten_by_pass[p])}  menzen={bool(cs._is_hand_concealed[p])}  ippatsu={bool(cs._ippatsu[p])}  dbl_riichi={bool(cs._double_riichi[p])}")
-        print(f"      melds: {_melds_summary(cs._melds[p])}")
-        print(f"      hand:  {_hand_summary(cs._hand[p])}")
+        hand14 = int(cs.players.hand[p].sum())
+        print(f"[P{p}] hand={hand14}  riichi={bool(cs.players.riichi[p])}  furiten_by_river={bool(cs.players.furiten_by_discard[p])}  furiten_by_pass_ron={bool(cs.players.furiten_by_pass[p])}  menzen={bool(cs.players.is_hand_concealed[p])}  ippatsu={bool(cs.players.ippatsu[p])}  dbl_riichi={bool(cs.players.double_riichi[p])}")
+        print(f"      melds: {_melds_summary(cs.players.melds[p])}")
+        print(f"      hand:  {_hand_summary(cs.players.hand[p])}")
     print("-"*90)
     # River
     for p in range(4):
-        print(f"RIVER P{p}: {_river_one_line(cs._river, p)}")
+        print(f"RIVER P{p}: {_river_one_line(cs.players.river, p)}")
     print("-"*90)
     # Legal actions (current player and discarder's surroundings)
     cp = int(cs.current_player)
-    lp = int(cs._last_player)
-    print(f"LEGAL P{cp}: {_legal_summary(cs._legal_action_mask_4p[cp])}")
+    lp = int(cs.round_state.last_player)
+    print(f"LEGAL P{cp}: {_legal_summary(cs.players.legal_action_mask[cp])}")
     if 0 <= lp < 4:
-        print(f"LEGAL P{lp}: {_legal_summary(cs._legal_action_mask_4p[lp])}")
+        print(f"LEGAL P{lp}: {_legal_summary(cs.players.legal_action_mask[lp])}")
     # Yaku judgment (current tile/next tile)
     print("-"*90)
     for p in range(4):
-        hy = list(map(bool, cs._has_yaku[p]))
-        fan = list(map(int, cs._fan[p]))
-        fu  = list(map(int, cs._fu[p]))
+        hy = list(map(bool, cs.players.has_yaku[p]))
+        fan = list(map(int, cs.players.fan[p]))
+        fu  = list(map(int, cs.players.fu[p]))
         print(f"YAKU P{p}: has={hy}  fan={fan}  fu={fu}")
     print("="*90 + "\n")
 
@@ -217,7 +217,7 @@ MELD_ACTIONS = jnp.array([
 def _tile_from_action(ls, action):
     """Return the tile that actually decreases from the discard action (TSUMOGIRI support)"""
     if int(action) == Action.TSUMOGIRI:
-        return int(ls._last_draw)
+        return int(ls.round_state.last_draw)
     return int(action)
 
 def _hand_sum(hand_row):
@@ -260,26 +260,26 @@ def test_step(ls, action, cs):
 
 def _expect_tile_mask_after_draw(cs, cp):
     """Expected discard mask after draw (False for direct draw tile, True for other tiles)"""
-    last_draw = int(cs._last_draw)
-    hand = cs._hand[cp]
+    last_draw = int(cs.round_state.last_draw)
+    hand = cs.players.hand[cp]
     mask = (hand > 0).astype(jnp.bool_).at[last_draw].set(hand[last_draw] >= 2)
-    player_mask = jnp.zeros(cs._legal_action_mask_4p.shape[1], dtype=jnp.bool_)
+    player_mask = jnp.zeros(cs.players.legal_action_mask.shape[1], dtype=jnp.bool_)
     player_mask = player_mask.at[:Tile.NUM_TILE_TYPE].set(mask)
     player_mask = player_mask.at[Action.TSUMOGIRI].set(True)
     return player_mask
 
 def _meld_head(ls, cs, p):
     """Estimate and return the location where meld (addition or replacement) was performed in this step"""
-    nm0 = int(ls._n_meld[p])
-    nm1 = int(cs._n_meld[p])
+    nm0 = int(ls.players.meld_counts[p])
+    nm1 = int(cs.players.meld_counts[p])
     # Added case (closed kan/open kan/pon/chi)
     if nm1 == nm0 + 1:
         idx = nm1 - 1
-        return idx, int(cs._melds[p, idx])
+        return idx, int(cs.players.melds[p, idx])
     # Replacement (added kan)
     for i in range(4):
-        if int(ls._melds[p, i]) != int(cs._melds[p, i]):
-            return i, int(cs._melds[p, i])
+        if int(ls.players.melds[p, i]) != int(cs.players.melds[p, i]):
+            return i, int(cs.players.melds[p, i])
     return -1, -1
 
 def _meld_decode(m):
@@ -287,7 +287,7 @@ def _meld_decode(m):
     return int(Meld.action(m)), int(Meld.target(m)), int(Meld.src(m))
 
 def _hand_delta(ls, cs, p):
-    return (cs._hand[p] - ls._hand[p]).astype(jnp.int32)
+    return (cs.players.hand[p] - ls.players.hand[p]).astype(jnp.int32)
 
 # ========== Detailed test_* ==========
 
@@ -295,86 +295,86 @@ def test_discard(ls, action, cs):
     l_p = int(ls.current_player)
     tile = _tile_from_action(ls, action)
     # Hand sum and number of tiles
-    assert _hand_sum(ls._hand[l_p]) + ls._n_meld[l_p] * 3 == 14, "before discard: 14 tiles"
-    assert int(ls._hand[l_p, tile]) >= 1, "must have the tile to discard"
-    assert _hand_sum(cs._hand[l_p]) + cs._n_meld[l_p] * 3 == 13, "after discard: 13 tiles"
-    assert int(cs._hand[l_p, tile]) == int(ls._hand[l_p, tile]) - 1, "tile count must decrease by 1"
-    assert int(cs._last_player) == l_p, "_last_player should be discarder"
+    assert _hand_sum(ls.players.hand[l_p]) + ls.players.meld_counts[l_p] * 3 == 14, "before discard: 14 tiles"
+    assert int(ls.players.hand[l_p, tile]) >= 1, "must have the tile to discard"
+    assert _hand_sum(cs.players.hand[l_p]) + cs.players.meld_counts[l_p] * 3 == 13, "after discard: 13 tiles"
+    assert int(cs.players.hand[l_p, tile]) == int(ls.players.hand[l_p, tile]) - 1, "tile count must decrease by 1"
+    assert int(cs.round_state.last_player) == l_p, "_last_player should be discarder"
 
     # River update (1 tile added)
-    r_idx = int(cs._n_river[l_p]) - 1
-    dec = River.decode_river(cs._river)  # [tile, riichi, gray, tsumogiri, src, meld_type]
+    r_idx = int(cs.players.discard_counts[l_p]) - 1
+    dec = River.decode_river(cs.players.river)  # [tile, riichi, gray, tsumogiri, src, meld_type]
     assert r_idx >= 0, "river index must be >= 0"
     assert int(dec[0, l_p, r_idx]) == tile, "river must record discarded tile"
     assert bool(dec[3, l_p, r_idx]) == (int(action) == Action.TSUMOGIRI), "tsumogiri flag mismatch"
-    assert bool(dec[1, l_p, r_idx]) == bool(ls._riichi_declared), "riichi flag mismatch"
+    assert bool(dec[1, l_p, r_idx]) == bool(ls.players.riichi_declared[l_p]), "riichi flag mismatch"
     assert int(dec[5, l_p, r_idx]) == 0, "meld_type must be 0 on pure discard"
 
     # Meld window
-    is_ended = _bool(cs._terminated_round)
-    has_meld_window = (int(cs._target) == tile) and _any(cs._legal_action_mask_4p[:, Action.PASS])
+    is_ended = _bool(cs.round_state.terminated_round)
+    has_meld_window = (int(cs.round_state.target) == tile) and _any(cs.players.legal_action_mask[:, Action.PASS])
 
     if is_ended:
-        assert _all(cs._legal_action_mask_4p[:, Action.DUMMY]), "after ryukyoku, only DUMMY"
+        assert _all(cs.players.legal_action_mask[:, Action.DUMMY]), "after ryukyoku, only DUMMY"
         return
 
     if not has_meld_window:
         cp = int(cs.current_player)
         assert cp == (l_p + 1) % 4, "next player must be (l_p+1)%4"
         lm = cs.legal_action_mask
-        last_draw = int(cs._last_draw)
-        if not _bool(cs._riichi[cp]):
+        last_draw = int(cs.round_state.last_draw)
+        if not _bool(cs.players.riichi[cp]):
             expected = _expect_tile_mask_after_draw(cs, cp)
             # Compare tile area and TSUMOGIRI (other options are given by the environment)
             assert _all(lm[:Tile.NUM_TILE_TYPE] == expected[:Tile.NUM_TILE_TYPE]), "tile mask mismatch after draw"
             assert _bool(lm[Action.TSUMOGIRI]), "tsumogiri must be legal after draw"
-            assert cs._hand[cp,int(cs._last_draw)]>0, "_last_draw should be in the hand of the current player"
-            can_tsumo = _bool(cs._can_win[cp, last_draw]) and (_bool(cs._is_hand_concealed[cp]) or _bool(cs._can_after_kan) or _bool(cs._is_haitei) or _bool(cs._has_yaku[cp, 1]))
+            assert cs.players.hand[cp,int(cs.round_state.last_draw)]>0, "_last_draw should be in the hand of the current player"
+            can_tsumo = _bool(cs.players.can_win[cp, last_draw]) and (_bool(cs.players.is_hand_concealed[cp]) or _bool(cs.round_state.can_after_kan) or _bool(cs.round_state.is_haitei) or _bool(cs.players.has_yaku[cp, 1]))
             # last_draw cannot be discarded
             assert _bool(lm[Action.TSUMO]) == can_tsumo, "tsumo legality mismatch"
         else:
             assert _bool(lm[Action.TSUMOGIRI]), "tsumogiri must be allowed under riichi"
-            last_draw = int(cs._last_draw)
-            if cs._hand[cp, last_draw] < 2:
+            last_draw = int(cs.round_state.last_draw)
+            if cs.players.hand[cp, last_draw] < 2:
                 assert not _bool(lm[last_draw]), "tile action for last_draw must be False in riichi mask"
             else:
                 if _bool(lm[last_draw]):
-                    assert _bool(Hand.is_tenpai(Hand.sub(cs._hand[cp], last_draw))), "tile action for last_draw must keep tenpai"
+                    assert _bool(Hand.is_tenpai(Hand.sub(cs.players.hand[cp], last_draw))), "tile action for last_draw must keep tenpai"
 
             # Each discard that is True must keep tenpai
-            hand14 = cs._hand[cp]
+            hand14 = cs.players.hand[cp]
             for i in range(Tile.NUM_TILE_TYPE):
                 if _bool(lm[i]):
                     assert _bool(Hand.is_tenpai(Hand.sub(hand14, i))), f"discard {i} must keep tenpai"
 
             # tsumogiri can only be discarded if it keeps tenpai
             if _bool(lm[Action.TSUMOGIRI]):
-                assert _bool(Hand.is_tenpai(Hand.sub(cs._hand[cp], last_draw))), "tsumogiri must keep tenpai"
+                assert _bool(Hand.is_tenpai(Hand.sub(cs.players.hand[cp], last_draw))), "tsumogiri must keep tenpai"
 
             # Hand must be tenpai after draw
-            assert _bool(Hand.is_tenpai(Hand.sub(cs._hand[cp], last_draw))), "hand must be tenpai after draw"
+            assert _bool(Hand.is_tenpai(Hand.sub(cs.players.hand[cp], last_draw))), "hand must be tenpai after draw"
     else:
-        t = int(cs._target)
+        t = int(cs.round_state.target)
         assert t == tile, "target must equal discarded tile"
         mp = int(cs.current_player)
-        assert _bool(cs._legal_action_mask_4p[mp, Action.PASS]), "PASS must be allowed for taker"
+        assert _bool(cs.players.legal_action_mask[mp, Action.PASS]), "PASS must be allowed for taker"
         meld_any = (
-            _any(cs._legal_action_mask_4p[:, Action.CHI_L:Action.CHI_R+1])
-            or _bool(cs._legal_action_mask_4p[:, Action.PON].any())
-            or _bool(cs._legal_action_mask_4p[:, Action.OPEN_KAN].any())
-            or _bool(cs._legal_action_mask_4p[:, Action.RON].any())
+            _any(cs.players.legal_action_mask[:, Action.CHI_L:Action.CHI_R+1])
+            or _bool(cs.players.legal_action_mask[:, Action.PON].any())
+            or _bool(cs.players.legal_action_mask[:, Action.OPEN_KAN].any())
+            or _bool(cs.players.legal_action_mask[:, Action.RON].any())
         )
         assert meld_any, "some meld/ron must be available in window"
-        assert int(cs._last_draw) == -1, "_last_draw should be cleared after discard without draw"
+        assert int(cs.round_state.last_draw) == -1, "_last_draw should be cleared after discard without draw"
 
 def test_selfkan(ls, action, cs):
     cp = int(ls.current_player)   # Kan executor = ls.current_player
     tile = int(action) - Tile.NUM_TILE_TYPE
-    was_pon = int(ls._pon[(cp, tile)]) != 0
+    was_pon = int(ls.players.pon[(cp, tile)]) != 0
     d = _hand_delta(ls, cs, cp)
 
     # Common: kan flow
-    assert _bool(cs._kan_declared) or _bool(cs._can_after_kan), "kan flow must be in effect (declared or rinshan)"
+    assert _bool(cs.round_state.kan_declared) or _bool(cs.round_state.can_after_kan), "kan flow must be in effect (declared or rinshan)"
 
     if not was_pon:
         # Closed kan
@@ -390,9 +390,9 @@ def test_selfkan(ls, action, cs):
         # Added kan
         assert int(d[tile]) == -1, "added_kan consumes 1 tile"
         # _n_meld does not increase (replacement)
-        assert int(cs._n_meld[cp]) == int(ls._n_meld[cp]), "added_kan should not change n_meld"
+        assert int(cs.players.meld_counts[cp]) == int(ls.players.meld_counts[cp]), "added_kan should not change n_meld"
         # pon information is cleared to 0
-        assert int(cs._pon[(cp, tile)]) == 0, "_pon must be cleared on added_kan"
+        assert int(cs.players.pon[(cp, tile)]) == 0, "_pon must be cleared on added_kan"
         # Replaced meld contents
         idx, m = _meld_head(ls, cs, cp)
         assert idx >= 0, "added_kan must replace an existing peng meld"
@@ -401,31 +401,31 @@ def test_selfkan(ls, action, cs):
         assert tgt == tile, "added_kan target mismatch"
 
     # Is there a chan kan reception?
-    robbing_kan_open = _any(cs._legal_action_mask_4p[:, Action.RON])
+    robbing_kan_open = _any(cs.players.legal_action_mask[:, Action.RON])
     if robbing_kan_open:
         mp = int(cs.current_player)
-        assert _bool(cs._legal_action_mask_4p[mp, Action.PASS]), "robbing_kan window must include PASS"
-        assert int(cs._target) == tile, "robbing_kan target must be added_kan tile"
-        assert not _bool(cs._can_after_kan), "rinshan draw should not have happened yet"
+        assert _bool(cs.players.legal_action_mask[mp, Action.PASS]), "robbing_kan window must include PASS"
+        assert int(cs.round_state.target) == tile, "robbing_kan target must be added_kan tile"
+        assert not _bool(cs.round_state.can_after_kan), "rinshan draw should not have happened yet"
     else:
         # Already processed rinshan
-        assert _bool(cs._can_after_kan), "rinshan must be active when no robbing_kan"
-        assert not _bool(cs._kan_declared), "kan_declared should be cleared after draw_after_kan"
+        assert _bool(cs.round_state.can_after_kan), "rinshan must be active when no robbing_kan"
+        assert not _bool(cs.round_state.kan_declared), "kan_declared should be cleared after draw_after_kan"
         # Self kan is allowed
-        assert _bool(cs._legal_action_mask_4p[int(cs.current_player), Action.TSUMOGIRI]), "tsumogiri should be legal after rinshan"
+        assert _bool(cs.players.legal_action_mask[int(cs.current_player), Action.TSUMOGIRI]), "tsumogiri should be legal after rinshan"
 
 def test_open_kan(ls, action, cs):
     cp = int(cs.current_player)   # The player who鸣いた is ls.current_player
-    lp = int(cs._last_player)
-    tile = int(ls._target)
+    lp = int(cs.round_state.last_player)
+    tile = int(ls.round_state.target)
     d = _hand_delta(ls, cs, cp)
 
-    assert not _bool(cs._is_hand_concealed[cp]), "open_kan breaks menzen"
+    assert not _bool(cs.players.is_hand_concealed[cp]), "open_kan breaks menzen"
     assert int(d[tile]) == -3, "open_kan consumes 3 tiles"
 
     # Graying of the river + meld_type=2
-    r_idx = int(cs._n_river[lp]) - 1
-    dec = River.decode_river(cs._river)
+    r_idx = int(cs.players.discard_counts[lp]) - 1
+    dec = River.decode_river(cs.players.river)
     assert r_idx >= 0, "river index must be valid"
     assert _bool(dec[2, lp, r_idx]), "river tile must be grayed after open_kan"
     assert int(dec[5, lp, r_idx]) == 2, "meld_type must be 2 for open_kan"
@@ -440,17 +440,17 @@ def test_open_kan(ls, action, cs):
 
 def test_pon(ls, action, cs):
     cp = int(cs.current_player)
-    lp = int(cs._last_player)
-    tile = int(ls._target)
+    lp = int(cs.round_state.last_player)
+    tile = int(ls.round_state.target)
     d = _hand_delta(ls, cs, cp)
 
-    assert not _bool(cs._is_hand_concealed[cp]), "pon breaks menzen"
+    assert not _bool(cs.players.is_hand_concealed[cp]), "pon breaks menzen"
     assert int(d[tile]) == -2, "pon consumes 2 tiles"
-    assert _hand_sum(cs._hand[cp]) == _hand_sum(ls._hand[cp]) - 2, "hand sum must decrease by 2"
+    assert _hand_sum(cs.players.hand[cp]) == _hand_sum(ls.players.hand[cp]) - 2, "hand sum must decrease by 2"
 
     # River update
-    r_idx = int(cs._n_river[lp]) - 1
-    dec = River.decode_river(cs._river)
+    r_idx = int(cs.players.discard_counts[lp]) - 1
+    dec = River.decode_river(cs.players.river)
     assert r_idx >= 0, "river index must be valid"
     assert _bool(dec[2, lp, r_idx]), "river tile must be grayed after pon"
     assert int(dec[5, lp, r_idx]) == 1, "meld_type=1 for PON"
@@ -464,28 +464,28 @@ def test_pon(ls, action, cs):
     assert src == (lp - cp) % 4, "src must be relative"
 
     # _pon bookkeeping
-    expect_idx = int(cs._n_meld[cp]) - 1
+    expect_idx = int(cs.players.meld_counts[cp]) - 1
     expect = (src << 2) | expect_idx
-    assert int(cs._pon[(cp, tile)]) == expect, "_pon bookkeeping mismatch"
+    assert int(cs.players.pon[(cp, tile)]) == expect, "_pon bookkeeping mismatch"
 
     # Legal discard is hand>0 (14→12, so immediate discard is allowed)
-    lm = cs._legal_action_mask_4p[cp, :Tile.NUM_TILE_TYPE]
-    hand_mask = (cs._hand[cp] > 0).astype(jnp.bool_)
+    lm = cs.players.legal_action_mask[cp, :Tile.NUM_TILE_TYPE]
+    hand_mask = (cs.players.hand[cp] > 0).astype(jnp.bool_)
     hand_mask = hand_mask.at[tgt].set(False)  # Prohibitive tile exchange
     assert _all(lm == hand_mask), "discard mask must match hand (>0)"
 
 def test_chi(ls, action, cs):
     cp = int(ls.current_player)
-    tar_p = int(ls._last_player)
-    tile = int(ls._target)
+    tar_p = int(ls.round_state.last_player)
+    tile = int(ls.round_state.target)
 
     # Face-up collapse
-    assert not _bool(cs._is_hand_concealed[cp]), "chi breaks menzen"
+    assert not _bool(cs.players.is_hand_concealed[cp]), "chi breaks menzen"
 
     # River update (gray, mt=3/4/5, src=upper seat=3)
-    r_idx = int(cs._n_river[tar_p]) - 1
+    r_idx = int(cs.players.discard_counts[tar_p]) - 1
     src = (tar_p - cp) % 4
-    dec = River.decode_river(cs._river)
+    dec = River.decode_river(cs.players.river)
     print("src", src)
     assert r_idx >= 0, "river index must be valid"
     assert _bool(dec[2, tar_p, r_idx]), "river tile must be grayed after chi"
@@ -503,7 +503,7 @@ def test_chi(ls, action, cs):
     for t in need:
         assert int(d[t]) == -1, "chi must consume the two non-target tiles"
     assert int(d[tile]) == 0, "target is taken from discard, not from hand"
-    assert _hand_sum(cs._hand[cp]) == _hand_sum(ls._hand[cp]) - 2, "hand sum must decrease by 2"
+    assert _hand_sum(cs.players.hand[cp]) == _hand_sum(ls.players.hand[cp]) - 2, "hand sum must decrease by 2"
 
     # Additional meld
     idx, m = _meld_head(ls, cs, cp)
@@ -515,14 +515,14 @@ def test_chi(ls, action, cs):
     # Prohibitive tile exchange
     prohib = int(Meld.prohibitive_tile_type_after_chi(int(action), tile))
     if prohib >= 0:
-        assert not _bool(cs._legal_action_mask_4p[cp, prohib]), "prohibitive tile must not be legal right after chi"
+        assert not _bool(cs.players.legal_action_mask[cp, prohib]), "prohibitive tile must not be legal right after chi"
 
 
 def test_dummy(ls, action, cs):
     """
     After DUMMY (= immediately after _next_round call) comprehensive check (shared phase version).
     """
-    dc = int(cs._dummy_count)
+    dc = int(cs.round_state.dummy_count)
 
     # ----------------------------
     # During shared phase (state-only)
@@ -534,16 +534,16 @@ def test_dummy(ls, action, cs):
             f"during DUMMY sharing, cp must rotate by +1 (expected {expected_cp}, got {int(cs.current_player)})"
 
         # 2) During sharing, (dealer, round, honba, kyotaku) must not change
-        assert int(cs._dealer)     == int(ls._dealer),     "dealer must not change during sharing"
-        assert int(cs._round)   == int(ls._round),   "round must not change during sharing"
-        assert int(cs._honba)   == int(ls._honba),   "honba must not change during sharing"
-        assert int(cs._kyotaku) == int(ls._kyotaku), "kyotaku must carry over unchanged during sharing"
+        assert int(cs.round_state.dealer)     == int(ls.round_state.dealer),     "dealer must not change during sharing"
+        assert int(cs.round_state.round)   == int(ls.round_state.round),   "round must not change during sharing"
+        assert int(cs.round_state.honba)   == int(ls.round_state.honba),   "honba must not change during sharing"
+        assert int(cs.round_state.kyotaku) == int(ls.round_state.kyotaku), "kyotaku must carry over unchanged during sharing"
 
         # 3) Scores:
         #   - During the first shared phase (dc==1), the previous round settlement may be reflected at this point
         #   - During the second and third shared phases (dc in {2,3}), the previous state must be unchanged
         if dc in (1,2, 3) and not _bool(ls.terminated):
-            assert _all(cs._score == ls._score), \
+            assert _all(cs.round_state.score == ls.round_state.score), \
                 "scores must carry over unchanged during sharing steps dc=2/3"
         # dc==1 is also acceptable (allow one-time settlement fluctuation)
 
@@ -554,7 +554,7 @@ def test_dummy(ls, action, cs):
     # Endgame branch
     # ----------------------------
     if _bool(cs.terminated):
-        assert cs._score.dtype == jnp.int32 and _all(jnp.isfinite(cs._score)), \
+        assert cs.round_state.score.dtype == jnp.int32 and _all(jnp.isfinite(cs.round_state.score)), \
             "final scores must be finite float32"
         return
 
@@ -562,7 +562,7 @@ def test_dummy(ls, action, cs):
     # Endgame branch (game ended when determined)
     # ----------------------------
     if _bool(cs.terminated):
-        assert cs._score.dtype == jnp.int32 and _all(jnp.isfinite(cs._score)), \
+        assert cs.round_state.score.dtype == jnp.int32 and _all(jnp.isfinite(cs.round_state.score)), \
             "final scores must be finite float32"
         return
 
@@ -572,38 +572,38 @@ def test_dummy(ls, action, cs):
     # ----------------------------
 
     # Initialization of round termination flag, etc. (as before)
-    # assert not _bool(cs._terminated_round), "after DUMMY, round should be reset (not _terminated_round)"
-    assert int(cs._target) == -1, "target should be reset to -1 on new round"
-    assert not _bool(cs._kan_declared), "kan_declared should be False at new round start"
-    assert not _bool(cs._can_after_kan),   "can_after_kan should be False at new round start"
-    assert not _bool(cs._is_haitei),    "is_haitei should be False at new round start"
+    # assert not _bool(cs.round_state.terminated_round), "after DUMMY, round should be reset (not _terminated_round)"
+    assert int(cs.round_state.target) == -1, "target should be reset to -1 on new round"
+    assert not _bool(cs.round_state.kan_declared), "kan_declared should be False at new round start"
+    assert not _bool(cs.round_state.can_after_kan),   "can_after_kan should be False at new round start"
+    assert not _bool(cs.round_state.is_haitei),    "is_haitei should be False at new round start"
 
     # --- Parent, round, honba update rules (_next_round and equivalent; refer to ls as previous round state) ---
-    dealer_before   = int(ls._dealer)
-    ls_tenpai    = jnp.any(ls._can_win, axis=-1)  # (4,)
-    ls_has_won      = ls._has_won                        # (4,)
+    dealer_before   = int(ls.round_state.dealer)
+    ls_tenpai    = jnp.any(ls.players.can_win, axis=-1)  # (4,)
+    ls_has_won      = ls.players.has_won                        # (4,)
     will_dealer_continue = _bool(ls_tenpai[dealer_before]) or _bool(ls_has_won[dealer_before])
 
-    expected_round   = int(ls._round if will_dealer_continue else (ls._round + 1))
+    expected_round   = int(ls.round_state.round if will_dealer_continue else (ls.round_state.round + 1))
     expected_dealer     = int(dealer_before if will_dealer_continue else (dealer_before + 1) % 4)
-    expected_honba   = int(0 if _any(ls_has_won) else (ls._honba + 1))
-    expected_kyotaku = int(ls._kyotaku)
+    expected_honba   = int(0 if _any(ls_has_won) else (ls.round_state.honba + 1))
+    expected_kyotaku = int(ls.round_state.kyotaku)
 
-    assert int(cs._round)   == expected_round, f"round must update correctly (expected {expected_round}, got {int(cs._round)})"
-    assert int(cs._dealer)     == expected_dealer,   f"dealer must update correctly (expected {expected_dealer}, got {int(cs._dealer)})"
-    assert int(cs._honba)   == expected_honba, f"honba must update correctly (expected {expected_honba}, got {int(cs._honba)})"
-    assert int(cs._kyotaku) == expected_kyotaku, "kyotaku should be carried over on next round"
+    assert int(cs.round_state.round)   == expected_round, f"round must update correctly (expected {expected_round}, got {int(cs.round_state.round)})"
+    assert int(cs.round_state.dealer)     == expected_dealer,   f"dealer must update correctly (expected {expected_dealer}, got {int(cs.round_state.dealer)})"
+    assert int(cs.round_state.honba)   == expected_honba, f"honba must update correctly (expected {expected_honba}, got {int(cs.round_state.honba)})"
+    assert int(cs.round_state.kyotaku) == expected_kyotaku, "kyotaku should be carried over on next round"
 
     # Wind array is updated to the new parent standard
-    assert _all(cs._seat_wind == jnp.array(
+    assert _all(cs.round_state.seat_wind == jnp.array(
         [expected_dealer, (expected_dealer+1)%4, (expected_dealer+2)%4, (expected_dealer+3)%4], dtype=jnp.int8)), \
         "_seat_wind should match new dealer order"
 
-    # Scores carry over unchanged from ls._score at the determined time (assuming the yaku calculation is done on the ls side)
-    assert _all(cs._score == ls._score), "scores should carry over unchanged into new round"
+    # Scores carry over unchanged from ls.round_state.score at the determined time (assuming the yaku calculation is done on the ls side)
+    assert _all(cs.round_state.score == ls.round_state.score), "scores should carry over unchanged into new round"
 
     # --- Basic properties after the first draw ---
-    hand_sums = jnp.sum(cs._hand, axis=1).astype(jnp.int32)
+    hand_sums = jnp.sum(cs.players.hand, axis=1).astype(jnp.int32)
     idx_14 = int(jnp.argmax(hand_sums))
     n_14   = int((hand_sums == 14).astype(jnp.int32).sum())
     assert n_14 == 1, f"exactly one player must have 14 tiles at new round start, got counts={list(map(int, hand_sums))}"
@@ -614,26 +614,26 @@ def test_dummy(ls, action, cs):
             continue
         assert int(hand_sums[p]) == 13, f"non-current players must have 13 tiles, but P{p} has {int(hand_sums[p])}"
 
-    active_rows = jnp.any(cs._legal_action_mask_4p, axis=1).astype(jnp.int32)
+    active_rows = jnp.any(cs.players.legal_action_mask, axis=1).astype(jnp.int32)
     assert int(active_rows.sum()) >= 1, "at least one player should have actions at new round start"
-    assert _bool(jnp.any(cs._legal_action_mask_4p[idx_14])), "current player must have legal actions at new round start"
+    assert _bool(jnp.any(cs.players.legal_action_mask[idx_14])), "current player must have legal actions at new round start"
 
-    if _bool(cs._legal_action_mask_4p[idx_14, Action.TSUMOGIRI]):
-        last_draw = int(cs._last_draw)
-        if cs._hand[idx_14, last_draw] <= 1:
-            assert not _bool(cs._legal_action_mask_4p[idx_14, last_draw]), "cannot discard just-drawn tile as a tile action"
+    if _bool(cs.players.legal_action_mask[idx_14, Action.TSUMOGIRI]):
+        last_draw = int(cs.round_state.last_draw)
+        if cs.players.hand[idx_14, last_draw] <= 1:
+            assert not _bool(cs.players.legal_action_mask[idx_14, last_draw]), "cannot discard just-drawn tile as a tile action"
 
-        lm = cs._legal_action_mask_4p[idx_14, :Tile.NUM_TILE_TYPE]
+        lm = cs.players.legal_action_mask[idx_14, :Tile.NUM_TILE_TYPE]
         if 0 <= last_draw < Tile.NUM_TILE_TYPE:
-            expect_mask = (cs._hand[idx_14] > 0).astype(jnp.bool_)
-            expect_mask = expect_mask.at[last_draw].set(cs._hand[idx_14, last_draw] > 1)
+            expect_mask = (cs.players.hand[idx_14] > 0).astype(jnp.bool_)
+            expect_mask = expect_mask.at[last_draw].set(cs.players.hand[idx_14, last_draw] > 1)
         assert _all(lm == expect_mask), "discard mask should equal (hand>0) except for just-drawn tile"
 
     # Initial state of the river
-    assert _all(cs._n_river == jnp.zeros(4, dtype=jnp.int8)), "_n_river should be zeroed at new round"
-    dec_new = River.decode_river(cs._river)
+    assert _all(cs.players.discard_counts == jnp.zeros(4, dtype=jnp.int8)), "_n_river should be zeroed at new round"
+    dec_new = River.decode_river(cs.players.river)
     for p in range(4):
-        n = int(cs._n_river[p])
+        n = int(cs.players.discard_counts[p])
         if n == 0:
             continue
         tiles = dec_new[0, p]
@@ -643,82 +643,82 @@ def test_dummy(ls, action, cs):
 def test_riichi(ls, action, cs):
     cp = int(ls.current_player)
     assert int(cs.current_player) == cp, "riichi does not pass turn immediately"
-    assert not _bool(cs._riichi[cp]), "riichi is accepted on draw, not immediately"
+    assert not _bool(cs.players.riichi[cp]), "riichi is accepted on draw, not immediately"
 
 
 def test_ron(ls, action, cs):
     cp = int(cs.current_player)
-    assert _bool(cs._terminated_round), "round must be terminated after RON"
-    assert _all(cs._legal_action_mask_4p[:, Action.DUMMY]), "only DUMMY should be legal after RON"
-    assert int(cs._kyotaku) == 0, "kyotaku should be cleared to 0 after RON"
-    assert _bool(cs._has_won[cp]), "winner's _has_won must be True"
+    assert _bool(cs.round_state.terminated_round), "round must be terminated after RON"
+    assert _all(cs.players.legal_action_mask[:, Action.DUMMY]), "only DUMMY should be legal after RON"
+    assert int(cs.round_state.kyotaku) == 0, "kyotaku should be cleared to 0 after RON"
+    assert _bool(cs.players.has_won[cp]), "winner's _has_won must be True"
     # Yaku and score calculation
-    prevalent_wind = ls._round % 4
-    seat_wind = ls._seat_wind[ls.current_player]
+    prevalent_wind = ls.round_state.round % 4
+    seat_wind = ls.round_state.seat_wind[ls.current_player]
     yaku, fan, fu = jitted_yaku_judge(
-        ls._hand[cp],
-        ls._melds[cp],
-        ls._n_meld[cp],
-        ls._target,
-        ls._riichi[cp],
+        ls.players.hand[cp],
+        ls.players.melds[cp],
+        ls.players.meld_counts[cp],
+        ls.round_state.target,
+        ls.players.riichi[cp],
         True,
         prevalent_wind,
         seat_wind,
         _dora_array(ls),
     )
     # Check fan, fu
-    assert int(ls._can_win[ls.current_player, ls._target]), "ron should be allowed"
-    assert int(ls._fan[ls.current_player, 0]) == fan
-    assert int(ls._fu[ls.current_player, 0]) == fu
+    assert int(ls.players.can_win[ls.current_player, ls.round_state.target]), "ron should be allowed"
+    assert int(ls.players.fan[ls.current_player, 0]) == fan
+    assert int(ls.players.fu[ls.current_player, 0]) == fu
 
 
 def test_tsumo(ls, action, cs):
     cp = int(cs.current_player)
-    assert _bool(cs._terminated_round), "round must be terminated after TSUMO"
-    assert _all(cs._legal_action_mask_4p[:, Action.DUMMY]), "only DUMMY should be legal after TSUMO"
-    assert int(cs._kyotaku) == 0, "kyotaku should be cleared to 0 after TSUMO"
-    assert _bool(cs._has_won[cp]), "winner's _has_won must be True"
+    assert _bool(cs.round_state.terminated_round), "round must be terminated after TSUMO"
+    assert _all(cs.players.legal_action_mask[:, Action.DUMMY]), "only DUMMY should be legal after TSUMO"
+    assert int(cs.round_state.kyotaku) == 0, "kyotaku should be cleared to 0 after TSUMO"
+    assert _bool(cs.players.has_won[cp]), "winner's _has_won must be True"
     # Yaku and score calculation
-    prevalent_wind = ls._round % 4
-    seat_wind = ls._seat_wind[ls.current_player]
+    prevalent_wind = ls.round_state.round % 4
+    seat_wind = ls.round_state.seat_wind[ls.current_player]
     yaku, fan, fu = jitted_yaku_judge(
-        ls._hand[cp].at[ls._last_draw].set(ls._hand[cp][ls._last_draw] -1),
-        ls._melds[cp],
-        ls._n_meld[cp],
-        ls._last_draw,
-        ls._riichi[cp],
+        ls.players.hand[cp].at[ls.round_state.last_draw].set(ls.players.hand[cp][ls.round_state.last_draw] -1),
+        ls.players.melds[cp],
+        ls.players.meld_counts[cp],
+        ls.round_state.last_draw,
+        ls.players.riichi[cp],
         False,
         prevalent_wind,
         seat_wind,
         _dora_array(ls),
     )
     # Check fan, fu
-    assert int(ls._can_win[ls.current_player, ls._last_draw]), "tsumo should be allowed"
-    assert int(ls._fan[ls.current_player, 0]) == fan
-    assert int(ls._fu[ls.current_player, 0]) == fu
+    assert int(ls.players.can_win[ls.current_player, ls.round_state.last_draw]), "tsumo should be allowed"
+    assert int(ls.players.fan[ls.current_player, 0]) == fan
+    assert int(ls.players.fu[ls.current_player, 0]) == fu
 
 
 def test_pass(ls, action, cs):
     cp = int(cs.current_player)
-    was_robbing_kan = _bool(ls._kan_declared)
-    could_ron = _bool(ls._legal_action_mask_4p[cp, Action.RON])
+    was_robbing_kan = _bool(ls.round_state.kan_declared)
+    could_ron = _bool(ls.players.legal_action_mask[cp, Action.RON])
 
     if not was_robbing_kan and could_ron:
-        assert _bool(cs._furiten_by_pass[cp]), "passing RON (non-robbing_kan) should set furiten"
+        assert _bool(cs.players.furiten_by_pass[cp]), "passing RON (non-robbing_kan) should set furiten"
 
-    someone_has_pass = _any(ls._legal_action_mask_4p[:, Action.PASS])
-    still_window = _any(cs._legal_action_mask_4p[:, Action.PASS])
+    someone_has_pass = _any(ls.players.legal_action_mask[:, Action.PASS])
+    still_window = _any(cs.players.legal_action_mask[:, Action.PASS])
     if someone_has_pass and not still_window:
         if not was_robbing_kan:
             # Self-draw progression
-            assert cp == int(ls._last_player + 1) % 4, "current player should be the next player"
+            assert cp == int(ls.round_state.last_player + 1) % 4, "current player should be the next player"
             np_c = int(cs.current_player)
-            h = _hand_sum(cs._hand[np_c])
-            assert h + cs._n_meld[np_c] * 3 == 14, f"post-pass draw path: hand sum sanity, got {h}"
+            h = _hand_sum(cs.players.hand[np_c])
+            assert h + cs.players.meld_counts[np_c] * 3 == 14, f"post-pass draw path: hand sum sanity, got {h}"
         else:
             # Chan kan path: move to rinshan tsumo, so check the consistency of _can_after_kan/kan_declared
-            assert cs._n_kan == ls._n_kan + 1, "n_kan should be incremented by 1"
-            assert cp == int(ls._last_player), "last_player should be the current player"
+            assert cs.players.n_kan == ls.players.n_kan + 1, "n_kan should be incremented by 1"
+            assert cp == int(ls.round_state.last_player), "last_player should be the current player"
 
 
 def act_randomly(rng, legal_action_mask) -> int:
@@ -823,8 +823,8 @@ class TestPlay(unittest.TestCase):
                 action = act_randomly(rng, state.legal_action_mask)
                 rng, rng_sub = jax.random.split(rng)
                 state_next = jitted_step(state, action)
-                assert state_next._step_count <= len(state_next._action_history[0]), "step_count should be less than the length of action_history"
-                print("seed", i, "step", steps, "current_player", int(ls.current_player), "action", action, "next_deck_ix", int(ls._next_deck_ix), "remaining_deck_ix", int(ls._next_deck_ix - ls._last_deck_ix + 1))
+                assert state_next.step_count <= len(state_next.round_state.action_history[0]), "step_count should be less than the length of action_history"
+                print("seed", i, "step", steps, "current_player", int(ls.current_player), "action", action, "next_deck_ix", int(ls.round_state.next_deck_ix), "remaining_deck_ix", int(ls.round_state.next_deck_ix - ls.round_state.last_deck_ix + 1))
                 try:
                     test_step(ls, action, state_next)
                 except AssertionError as e:
@@ -852,14 +852,14 @@ class TestPlay(unittest.TestCase):
                 ls = state
                 action = play_according_to_shanten(
                     rng,
-                    ls._hand[ls.current_player],
-                    ls._melds[ls.current_player],
-                    ls._n_meld[ls.current_player],
+                    ls.players.hand[ls.current_player],
+                    ls.players.melds[ls.current_player],
+                    ls.players.meld_counts[ls.current_player],
                     state.legal_action_mask
                 )
                 rng, rng_sub = jax.random.split(rng)
                 state_next = jitted_step(state, action)
-                assert state_next._step_count <= len(state_next._action_history[0]), "step_count should be less than the length of action_history"
+                assert state_next.step_count <= len(state_next.round_state.action_history[0]), "step_count should be less than the length of action_history"
                 print("seed", i, "step", steps, "current_player", int(ls.current_player), "action", action)
                 try:
                     test_step(ls, action, state_next)
@@ -886,10 +886,10 @@ class TestPlay(unittest.TestCase):
 
             while not bool(state.terminated):
                 ls = state
-                action = play_kan_orientedly(rng, ls._hand[ls.current_player], state.legal_action_mask)
+                action = play_kan_orientedly(rng, ls.players.hand[ls.current_player], state.legal_action_mask)
                 rng, rng_sub = jax.random.split(rng, 2)
                 state_next = jitted_step(state, action)
-                assert state_next._step_count <= len(state_next._action_history[0]), "step_count should be less than the length of action_history"
+                assert state_next.step_count <= len(state_next.round_state.action_history[0]), "step_count should be less than the length of action_history"
                 print(
                     "seed", i,
                     "step", steps,
@@ -926,7 +926,7 @@ class TestPlay(unittest.TestCase):
                 action = jitted_rule_based_player(state, rng)
                 rng, rng_sub = jax.random.split(rng, 2)
                 state_next = jitted_step(state, action)
-                assert state_next._step_count <= len(state_next._action_history[0]), "step_count should be less than the length of action_history"
+                assert state_next.step_count <= len(state_next.round_state.action_history[0]), "step_count should be less than the length of action_history"
                 print(
                     "seed", i,
                     "step", steps,

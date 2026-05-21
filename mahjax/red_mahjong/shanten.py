@@ -13,22 +13,22 @@
 # limitations under the License.
 
 
-import os
+from pathlib import Path
 from typing import Tuple
+import importlib.resources as resources
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 
-from mahjax._src.types import Array
-from mahjax.red_mahjong.hand import THIRTEEN_ORPHAN_IDX
-
-DIR = os.path.join(os.path.dirname(__file__), "../_src/cache")
+from .types import Array
+from .hand import THIRTEEN_ORPHAN_IDX
 
 
 def load_shanten_cache():
-    with np.load(os.path.join(DIR, "shanten_cache.npz"), allow_pickle=False) as data:
-        return jnp.asarray(data["data"], dtype=jnp.uint32)
+    with resources.as_file(resources.files("mahjax._src.cache").joinpath("shanten_cache.npz")) as path:
+        with np.load(path, allow_pickle=False) as data:
+            return jnp.asarray(data["data"], dtype=jnp.uint32)
 
 
 class Shanten:

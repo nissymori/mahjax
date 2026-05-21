@@ -16,14 +16,14 @@
 import jax
 import jax.numpy as jnp
 
-from mahjax._src.types import Array, PRNGKey
-from mahjax.red_mahjong.action import Action
-from mahjax.red_mahjong.hand import Hand
-from mahjax.red_mahjong.meld import Meld
-from mahjax.red_mahjong.shanten import Shanten
-from mahjax.red_mahjong.state import State
-from mahjax.red_mahjong.tile import River, Tile
-from mahjax.red_mahjong.yaku import Yaku
+from .types import Array, PRNGKey
+from .action import Action
+from .hand import Hand
+from .meld import Meld
+from .shanten import Shanten
+from .state import State
+from .tile import River, Tile
+from .yaku import Yaku
 
 PRIORITY_MASK = jnp.array(
     [
@@ -128,11 +128,19 @@ RIICHI_PROB = 0.9
 
 
 def has_river_tile(hand: Array, tile: Array) -> Array:
+    tile_type = Tile.to_tile_type(tile)
     return jnp.where(
         tile == -1,
         jnp.zeros(34, dtype=jnp.int32),
-        jnp.zeros(34, dtype=jnp.int32).at[tile].set(hand[tile]),
+        jnp.zeros(34, dtype=jnp.int32).at[tile_type].set(hand[tile_type]),
     )
+
+
+def _discard_action_from_tile_type(unflatten_hand: Array, tile_type: Array) -> Array:
+    tile_type = jnp.int32(tile_type)
+    has_black = unflatten_hand[tile_type] > 0
+    has_red = Tile.is_tile_type_five(tile_type) & (unflatten_hand[Tile.to_red(tile_type)] > 0)
+    return jnp.where(has_black, tile_type, jnp.where(has_red, Tile.to_red(tile_type), tile_type))
 
 
 def _discard_logic(state: State, unflatten_hand: Array, flatten_hand: Array) -> Array:
@@ -144,7 +152,7 @@ def _discard_logic(state: State, unflatten_hand: Array, flatten_hand: Array) -> 
     - If other players are riichi, and the player has a shanten less than 2, discard the tile that the other players are waiting for.
     """
     c_p = state.current_player
-    n_meld = state._n_meld[c_p]
+    n_meld = state.players.meld_counts[c_p]
     # Shanten
     detailed_shantens = Shanten.detailed_discard(flatten_hand)
     best_shanten_normal = jnp.min(detailed_shantens[:, 0])
@@ -174,8 +182,10 @@ def _discard_logic(state: State, unflatten_hand: Array, flatten_hand: Array) -> 
     best_shanten = jnp.where(n_meld > 0, best_shanten_normal, best_shanten)
     shantens = jnp.where(n_meld > 0, detailed_shantens[:, 0], shantens)
     best_shanten_mask = shantens == best_shanten
+    # Use flattened (34-type) counts for priority scoring.
+    # unflatten_hand includes red fives (37-type), so using it here causes shape mismatch.
     priority_mask = (
-        best_shanten_mask * PRIORITY_MASK * (unflatten_hand > 0)
+        best_shanten_mask * PRIORITY_MASK * (flatten_hand > 0)
     )  # Select the tile from the tiles the player has.
     best_shanten_action = jnp.argmax(priority_mask)
     # Waiting
@@ -198,13 +208,13 @@ def _discard_logic(state: State, unflatten_hand: Array, flatten_hand: Array) -> 
     best_waiting_action = jnp.argmax(can_rons)  # (,)
     action = jnp.where(is_tempai, best_waiting_action, best_shanten_action)
     # Defense
-    other_riichi = jnp.asarray(state._riichi)
+    other_riichi = jnp.asarray(state.players.riichi)
     other_riichi = other_riichi.at[c_p].set(False)
     is_other_riichi = other_riichi.any()  # (4,)
     riichi_player = jnp.argmax(
         other_riichi
     )  # The player who is riichi, considering only one riichi.
-    riich_player_river = River.decode_tile(state._river[riichi_player])
+    riich_player_river = River.decode_tile(state.players.river[riichi_player])
     hand_within_river = jax.vmap(has_river_tile, in_axes=(None, 0))(
         flatten_hand, riich_player_river
     ).sum(
@@ -218,7 +228,7 @@ def _discard_logic(state: State, unflatten_hand: Array, flatten_hand: Array) -> 
     action = jnp.where(
         is_other_riichi & best_shanten >= 2, defense_action, action
     )  # If the player has a shanten less than 2 and other players are riichi, discard the tile that the other players are waiting for.
-    return action
+    return _discard_action_from_tile_type(unflatten_hand, action)
 
 
 def _is_equal(a: Array, arr: Array) -> Array:
@@ -235,20 +245,20 @@ def _pon_logic(
     - If the tile is a pung, pon with 5% probability
     """
     # Whether the target is a yaku tile
-    target_tile = state._target
+    target_tile = Tile.to_tile_type(state.round_state.target)
     is_global_yaku = (target_tile == YAKU_TILES).any()
-    is_wind_yaku = target_tile == 27 + state._seat_wind[state.current_player]
+    is_wind_yaku = target_tile == 27 + state.round_state.seat_wind[state.current_player]
     is_yaku = is_global_yaku | is_wind_yaku
 
     # Whether the yaku tile is melded
-    meld = state._melds[state.current_player]
+    meld = state.players.melds[state.current_player]
     meld_tile = Meld.target(meld)
     is_yaku_meld = (jax.vmap(_is_equal, in_axes=(0, None))(meld_tile, YAKU_TILES)).any()
-    is_wind_meld = (meld_tile == 27 + state._seat_wind[state.current_player]).any()
+    is_wind_meld = (meld_tile == 27 + state.round_state.seat_wind[state.current_player]).any()
     is_yaku_meld = is_yaku_meld | is_wind_meld
 
     # Whether the tile is a pung
-    has_pung = unflatten_hand[target_tile] >= 3
+    has_pung = flatten_hand[target_tile] >= 3
 
     # Probability of pon
     basic_prob = (flatten_hand * ~OUTSIDE_MASK).sum() * BASIC_PON_PROB  # 最大52%
@@ -268,16 +278,16 @@ def _chi_logic(
     - If the tile is a pung, chi with 5% probability
     """
     # Whether the yaku tile is melded
-    target_tile = state._target
+    target_tile = Tile.to_tile_type(state.round_state.target)
 
-    meld = state._melds[state.current_player]
+    meld = state.players.melds[state.current_player]
     meld_tile = Meld.target(meld)
     is_yaku_meld = (jax.vmap(_is_equal, in_axes=(0, None))(meld_tile, YAKU_TILES)).any()
-    is_wind_meld = (meld_tile == 27 + state._seat_wind[state.current_player]).any()
+    is_wind_meld = (meld_tile == 27 + state.round_state.seat_wind[state.current_player]).any()
     is_yaku_meld = is_yaku_meld | is_wind_meld
 
     # Whether the tile is a pung
-    has_pung = unflatten_hand[target_tile] >= 3
+    has_pung = flatten_hand[target_tile] >= 3
 
     # Probability of chi
     basic_prob = (flatten_hand * ~OUTSIDE_MASK).sum() * BASIC_CHI_PROB  # 最大26%
@@ -286,7 +296,7 @@ def _chi_logic(
     do_chi = jax.random.bernoulli(rng, prob)
     chi_mask = state.legal_action_mask * jnp.zeros(
         Action.NUM_ACTION, dtype=jnp.int32
-    ).at[Action.CHI_L : Action.CHI_R + 1].set(1)
+    ).at[Action.CHI_L : Action.CHI_R_RED + 1].set(1)
     chi_logits = jnp.log(chi_mask.astype(jnp.float32))
     chi_action = jax.random.categorical(rng, logits=chi_logits)
     return jnp.where(do_chi, chi_action, Action.PASS)
@@ -312,15 +322,15 @@ def _riichi_logic(state: State, current_action: Array, rng: PRNGKey) -> Array:
 
 
 def rule_based_player(state: State, rng: PRNGKey) -> Array:
-    unflatten_hand = state._hand[state.current_player]
-    melds = state._melds[state.current_player]
-    n_meld = state._n_meld[state.current_player]
+    unflatten_hand = state.players.hand_with_red[state.current_player]
+    melds = state.players.melds[state.current_player]
+    n_meld = state.players.meld_counts[state.current_player]
     legal_action_mask = state.legal_action_mask
     flatten_hand = Yaku.flatten(unflatten_hand, melds, n_meld)
     # discard logic
     discard_action = _discard_logic(state, unflatten_hand, flatten_hand)
     discard_action = jnp.where(
-        discard_action == state._last_draw, Action.TSUMOGIRI, discard_action
+        discard_action == state.round_state.last_draw, Action.TSUMOGIRI, discard_action
     )
 
     is_legal = legal_action_mask[discard_action]
@@ -329,8 +339,8 @@ def rule_based_player(state: State, rng: PRNGKey) -> Array:
     action = jnp.where(is_legal, discard_action, random_action)
 
     # Melded tiles
-    is_chi = legal_action_mask[Action.CHI_L : Action.CHI_R + 1].any()
-    is_pon = legal_action_mask[Action.PON]
+    is_chi = legal_action_mask[Action.CHI_L : Action.CHI_R_RED + 1].any()
+    is_pon = legal_action_mask[Action.PON] | legal_action_mask[Action.PON_RED]
     is_open_kan = legal_action_mask[Action.OPEN_KAN]
     rng, chi_rng, pon_rng, open_kan_rng = jax.random.split(rng, 4)
     action = jnp.where(

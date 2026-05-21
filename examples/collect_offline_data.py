@@ -19,23 +19,21 @@ from tqdm import tqdm
 
 import mahjax
 from mahjax.wrappers.auto_reset_wrapper import auto_reset
-from mahjax.no_red_mahjong.players import rule_based_player
+
+from common import attach_dataset_metadata, default_dataset_path, get_rule_based_player
 
 # --- Config ---
 class CollectConfig(BaseModel):
+    env_name: str = "no_red_mahjong"
     seed: int = 0
     num_envs: int = 4
     num_steps: int = 32
     num_samples: int = 200_000
-    dataset_path: str = "mahjong_offline_data.pkl"
+    dataset_path: str | None = None
     gamma: float = 0.99       # Discount factor
     max_reward: float = 320.0 # Normalization used
 
-# --- Environment ---
-env = mahjax.make("no_red_mahjong", one_round=True, observe_type="dict")
-step_env = auto_reset(env.step, env.init)
-
-def _one_step(state, key):
+def _one_step(state, key, env, step_env, rule_based_player):
     obs = env.observe(state)
     mask = state.legal_action_mask
     curr_player = state.current_player # Who's turn is it?
@@ -51,8 +49,11 @@ def _one_step(state, key):
 
     return next_state, (obs, action, mask, reward, done, curr_player)
 
-def _rollout_chunk(state, keys, num_steps):
-    vmap_step = jax.vmap(_one_step, in_axes=(0, 0))
+def _rollout_chunk(state, keys, num_steps, env, step_env, rule_based_player):
+    vmap_step = jax.vmap(
+        lambda st, key: _one_step(st, key, env, step_env, rule_based_player),
+        in_axes=(0, 0),
+    )
     def body(carry, key):
         st = carry
         new_st, out = vmap_step(st, key)
@@ -99,7 +100,13 @@ def main():
     print("=== Starting Data Collection (With Returns) ===", flush=True)
     conf = OmegaConf.from_cli()
     cfg = CollectConfig(**conf)
+    if cfg.dataset_path is None:
+        cfg.dataset_path = default_dataset_path(cfg.env_name)
     print(f"Config: {cfg}", flush=True)
+
+    env = mahjax.make(cfg.env_name, round_mode="single", observe_type="dict")
+    step_env = auto_reset(env.step, env.init)
+    rule_based_player = get_rule_based_player(cfg.env_name)
 
     rng = jax.random.PRNGKey(cfg.seed)
     rng, k_init = jax.random.split(rng)
@@ -108,7 +115,11 @@ def main():
     state = jax.vmap(env.init)(init_keys)
 
     print("Compiling JIT function...", flush=True)
-    jit_rollout = jax.jit(lambda s, k: _rollout_chunk(s, k, cfg.num_steps))
+    jit_rollout = jax.jit(
+        lambda s, k: _rollout_chunk(
+            s, k, cfg.num_steps, env, step_env, rule_based_player
+        )
+    )
 
     # Buffers
     data_obs = []
@@ -174,12 +185,12 @@ def main():
     full_mask = np.concatenate(data_mask, axis=0)
     full_ret = np.concatenate(data_ret, axis=0)
     N = cfg.num_samples
-    dataset = {
+    dataset = attach_dataset_metadata({
         "observation": {k: v[:N] for k, v in full_obs.items()},
         "action": full_act[:N],
         "legal_action_mask": full_mask[:N],
         "return": full_ret[:N] # New: Returns
-    }
+    }, cfg.env_name)
 
     if cfg.dataset_path:
         os.makedirs(os.path.dirname(cfg.dataset_path) or ".", exist_ok=True)

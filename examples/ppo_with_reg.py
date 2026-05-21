@@ -5,6 +5,7 @@ PPO with Regularization trainer for MahJax.
 
 import sys
 import time
+import os
 from typing import Dict, Literal, NamedTuple, Any, Optional
 import pickle
 
@@ -21,9 +22,13 @@ import wandb
 
 import mahjax
 from mahjax.wrappers.auto_reset_wrapper import auto_reset
-from network import ACNet
-
 from bc import visualize_game
+from common import (
+    default_bc_params_path,
+    default_rl_params_path,
+    get_network_cls,
+)
+from utils import make_eval_fn
 
 # Constants
 MAX_REWARD = 320.0  # Normalization factor for reward
@@ -35,7 +40,7 @@ class PPOWithRegArgs(BaseModel):
     algo: str = "ppo_with_reg"
     # Environment
     env_name: str = "no_red_mahjong"
-    one_round: bool = True
+    round_mode: Literal["single", "east", "half"] = "single"
     seed: int = 0
     # Training setup
     num_envs: int = 1024
@@ -52,6 +57,9 @@ class PPOWithRegArgs(BaseModel):
     vf_coef: float = 0.5
     # Magnet hyperparameters
     mag_coef: float = 0.2
+    update_magnet: bool = False
+    magnet_update_interval: int = 1
+    init_magnet_from_pretrained: bool = True
     mag_divergence_type: Literal["kl", "l2"] = "kl"
     pretrained_model_path: Optional[str] = "bc_params.pkl"
     # For logging and saving
@@ -60,15 +68,21 @@ class PPOWithRegArgs(BaseModel):
     do_eval: bool = True
     eval_interval: int = 10
     eval_num_envs: int = 1000
+    eval_vs_rand: bool = True
+    eval_vs_baseline: bool = True
+    eval_vs_magnet: bool = False
     viz_max_steps: int = 1000
     viz_out_dir: str = "fig"
     viz_filename: str = "ppo_with_reg_agent_game.svg"
     class args: extra = "forbid"
 
 args = PPOWithRegArgs(**OmegaConf.to_object(OmegaConf.from_cli()))
+NETWORK_CLS = get_network_cls(args.env_name)
+if args.pretrained_model_path == "bc_params.pkl":
+    args.pretrained_model_path = default_bc_params_path(args.env_name)
 print(args, file=sys.stderr)
 
-BASE_ENV = mahjax.make("no_red_mahjong", one_round=args.one_round, observe_type="dict")
+BASE_ENV = mahjax.make(args.env_name, round_mode=args.round_mode, observe_type="dict")
 step_fn = auto_reset(BASE_ENV.step, BASE_ENV.init)
 NUM_PLAYERS, NUM_UPDATES = BASE_ENV.num_players, int(args.total_timesteps // (args.num_envs * args.num_steps))
 BATCH_SIZE = args.num_envs * args.num_steps
@@ -189,8 +203,8 @@ def process_trajectory(transitions: Transition):
 
 
 # --- 3. PARAMETER UPDATE ---
-def make_update_fn(network: nn.Module, magnet_params: Optional[Dict[str, Any]] = None):
-    def update_parameters(train_state, key, batch_data):
+def make_update_fn(network: nn.Module, use_magnet: bool = False):
+    def update_parameters(train_state, magnet_params, key, batch_data):
         flat_transitions, advantages, targets, valid_mask = batch_data
 
         def train_epoch(epoch_carry, _):
@@ -220,7 +234,7 @@ def make_update_fn(network: nn.Module, magnet_params: Optional[Dict[str, Any]] =
 
                     # REGULARIZATION LOSS
                     mag_kl = 0.0
-                    if magnet_params is not None:
+                    if use_magnet:
                         mag_logits, _ = network.apply(magnet_params, transition_mb.observation)
                         mag_dists = distrax.Categorical(logits=jnp.where(transition_mb.action_mask, mag_logits, NEG))
                         if args.mag_divergence_type == "kl":
@@ -259,54 +273,31 @@ def make_update_fn(network: nn.Module, magnet_params: Optional[Dict[str, Any]] =
 
 
 def make_evaluator(network: nn.Module, num_eval_envs, baseline_params):
-    def evaluate(params, key):
-        def play_episode(state, seat_policy_ids, player_params, opponent_type, key_episode):
-            def body_fn(carry, _):
-                current_state, rng = carry
-                rng, agent_key, opp_key, step_key = jax.random.split(rng, 4)
-                # AGENT ACTION (Policy)
-                logits, _ = network.apply(player_params, BASE_ENV.observe(current_state))
-                agent_action = jnp.argmax(jnp.where(current_state.legal_action_mask, logits, NEG))
-                # OPPOENT ACTION (Baseline)
-                baseline_logits, _ = network.apply(baseline_params, BASE_ENV.observe(current_state))
-                baseline_action = jnp.argmax(jnp.where(current_state.legal_action_mask, baseline_logits, NEG))
-                rand_logits = jnp.where(current_state.legal_action_mask, 0.0, NEG)
-                random_action = jax.random.categorical(opp_key, rand_logits)
+    one_vs_three = make_eval_fn(BASE_ENV, num_eval_envs)
 
-                final_action = jnp.where(seat_policy_ids[current_state.current_player] == 0, agent_action, jnp.where(opponent_type == 0, random_action, baseline_action))
-                next_state = lax.cond(current_state.terminated | current_state.truncated, lambda x: x, lambda x: BASE_ENV.step(x, final_action, step_key), current_state)
-                return (next_state, rng), None
-            (final_state, _), _ = lax.scan(body_fn, (state, key_episode), None, length=200)
-            return final_state
+    def make_net_actor(params):
+        def actor(state, key):
+            del key
+            logits, _ = network.apply(params, BASE_ENV.observe(state))
+            return jnp.argmax(jnp.where(state.legal_action_mask, logits, NEG))
+        return actor
 
-        def evaluate_vs_opponent(key_run, opponent_type):
-            key_run, key_init, key_assign, key_play = jax.random.split(key_run, 4)
-            seats = jnp.arange(NUM_PLAYERS)[None, :]
-            solo_seat_idx = jax.random.randint(key_assign, (num_eval_envs,), 0, NUM_PLAYERS)
-            seat_policy_ids = jnp.where(seats == solo_seat_idx[:, None], 0, 1) # 0=Agent
-            
-            final_states = jax.vmap(play_episode, (0, 0, None, None, 0))(
-                jax.vmap(BASE_ENV.init)(jax.random.split(key_init, num_eval_envs)), seat_policy_ids, params, opponent_type, jax.random.split(key_play, num_eval_envs)
-            )
-            
-            is_agent = (seat_policy_ids == 0)
-            scores = final_states._score
-            agent_scores = (scores * is_agent).sum(axis=1)
-            opponent_scores_avg = (scores * (~is_agent)).sum(axis=1) / 3.0
-            return {
-                "win_rate": (agent_scores > (scores * (~is_agent)).max(axis=1)).mean(),
-                "avg_margin": (agent_scores - opponent_scores_avg).mean(),
-                "agent_score": agent_scores.mean(),
-                "opponent_score": opponent_scores_avg.mean(),
-                "avg_rank": (1 + (scores > agent_scores[:, None]).sum(axis=1) + 0.5 * ((scores == agent_scores[:, None]).sum(axis=1) - 1)).mean(),
-                "hora_rate": ((final_states._has_won & is_agent).any(axis=1)).mean(),
-                "riichi_rate": ((final_states._riichi & is_agent).any(axis=1)).mean(),
-                "meld_rate": ((final_states._n_meld > 0) & is_agent).any(axis=1).mean()
-            }
+    def random_actor(state, key):
+        return jax.random.categorical(key, jnp.where(state.legal_action_mask, 0.0, NEG))
 
-        key_ret, key_rand, key_base = jax.random.split(key, 3)
-        log = {f"vs_rand/{k}": v for k, v in evaluate_vs_opponent(key_rand, 0).items()}
-        log.update({f"vs_baseline/{k}": v for k, v in evaluate_vs_opponent(key_base, 1).items()})
+    baseline_actor = make_net_actor(baseline_params)
+
+    def evaluate(params, magnet_params, key):
+        agent_actor = make_net_actor(params)
+        key_ret, k_rand, k_base, k_mag = jax.random.split(key, 4)
+        log = {}
+        if args.eval_vs_rand:
+            log.update({f"vs_rand/{k}": v for k, v in one_vs_three(agent_actor, random_actor)(k_rand).items()})
+        if args.eval_vs_baseline:
+            log.update({f"vs_baseline/{k}": v for k, v in one_vs_three(agent_actor, baseline_actor)(k_base).items()})
+        if args.eval_vs_magnet:
+            magnet_actor = make_net_actor(magnet_params)
+            log.update({f"vs_magnet/{k}": v for k, v in one_vs_three(agent_actor, magnet_actor)(k_mag).items()})
         return key_ret, log
     return evaluate
 
@@ -314,7 +305,7 @@ def make_evaluator(network: nn.Module, num_eval_envs, baseline_params):
 def train(rng_key):
     rng, key_net, key_reset = jax.random.split(rng_key, 3)
     # Network Initialization
-    network = ACNet()
+    network = NETWORK_CLS()
     dummy_obs = BASE_ENV.observe(BASE_ENV.init(jax.random.PRNGKey(0)))
     params = network.init(key_net, dummy_obs)
     # Initialize train state
@@ -323,8 +314,17 @@ def train(rng_key):
         params=params,
         tx=optax.adamw(args.lr, eps=1e-5)
     )
-    # Load baseline parameters
+    # Load baseline parameters (used for evaluation comparison)
     if args.pretrained_model_path:
+        print(f"Loading baseline: {args.pretrained_model_path}", flush=True)
+        with open(args.pretrained_model_path, "rb") as f: baseline_params = pickle.load(f)
+        if not isinstance(baseline_params, dict): baseline_params = {"params": baseline_params}
+    else:
+        print("Using random baseline.", flush=True); baseline_params = params
+
+    # Initialize magnet parameters (used for regularization)
+    use_magnet = args.mag_coef > 0.0
+    if use_magnet and args.init_magnet_from_pretrained and args.pretrained_model_path:
         print(f"Loading anchor: {args.pretrained_model_path}", flush=True)
         with open(args.pretrained_model_path, "rb") as f: magnet_params = pickle.load(f)
         if not isinstance(magnet_params, dict): magnet_params = {"params": magnet_params}
@@ -332,23 +332,23 @@ def train(rng_key):
         print("Using random anchor.", flush=True); magnet_params = params
     # Initialize environment states
     env_state = jax.vmap(BASE_ENV.init)(jax.random.split(key_reset, args.num_envs))
-    
+
     # --- JIT FUNCTIONS ---
     collect_rollout_fn = jax.jit(make_collect_rollout_fn(network))
     process_traj_fn = jax.jit(process_trajectory)
-    update_step_fn = jax.jit(make_update_fn(network, magnet_params))
-    
-    evaluator_fn = jax.jit(make_evaluator(network, args.eval_num_envs, magnet_params))
+    update_step_fn = jax.jit(make_update_fn(network, use_magnet=use_magnet))
+
+    evaluator_fn = jax.jit(make_evaluator(network, args.eval_num_envs, baseline_params))
     steps, start_time = 0, time.time()
 
-    def eval_and_log(rng, steps, update_idx, params):
-        rng, eval_logs = evaluator_fn(params, rng)
+    def eval_and_log(rng, steps, update_idx, params, magnet_params):
+        rng, eval_logs = evaluator_fn(params, magnet_params, rng)
         eval_logs = {k: float(v) for k, v in eval_logs.items()}
         wandb.log({"steps": steps, "update": update_idx, **eval_logs}); print({"steps": steps, **eval_logs}, flush=True)
         return rng
 
     if args.do_eval:
-        rng = eval_and_log(rng, steps, 0, train_state.params)
+        rng = eval_and_log(rng, steps, 0, train_state.params, magnet_params)
 
     for i in range(NUM_UPDATES):
         # 1. Collect Data
@@ -358,7 +358,10 @@ def train(rng_key):
         batch_data = process_traj_fn(transitions)
         # 3. Update Parameters
         rng, key_update = jax.random.split(rng)
-        train_state, loss_metrics = update_step_fn(train_state, key_update, batch_data)
+        train_state, loss_metrics = update_step_fn(train_state, magnet_params, key_update, batch_data)
+        # 4. Optionally refresh magnet to track the current policy
+        if args.update_magnet and use_magnet and (i + 1) % args.magnet_update_interval == 0:
+            magnet_params = train_state.params
         
         steps += BATCH_SIZE
         inv_len = jnp.mean(transitions.is_new_episode.astype(jnp.float32))
@@ -380,7 +383,7 @@ def train(rng_key):
         })
 
         if args.do_eval and ((i + 1) % args.eval_interval == 0 or i + 1 == NUM_UPDATES):
-            rng = eval_and_log(rng, steps, i + 1, train_state.params)
+            rng = eval_and_log(rng, steps, i + 1, train_state.params, magnet_params)
     print(f"Training time: {time.time() - start_time} seconds", flush=True)
     wandb.log({"train_time": time.time() - start_time, "steps": steps})
     return train_state
@@ -389,5 +392,8 @@ if __name__ == "__main__":
     wandb.init(project=args.wandb_project, config=args.dict())
     final_state = train(jax.random.PRNGKey(args.seed))
     if args.save_model:
-        with open(f"{args.env_name}-seed={args.seed}.ckpt", "wb") as f: pickle.dump(final_state.params, f)
+        save_path = default_rl_params_path(args.env_name, args.seed)
+        os.makedirs(os.path.dirname(save_path) or ".", exist_ok=True)
+        with open(save_path, "wb") as f:
+            pickle.dump(final_state.params, f)
     visualize_game(args, final_state)

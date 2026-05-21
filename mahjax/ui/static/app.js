@@ -1,3 +1,4 @@
+const envSelect = document.getElementById('envSelect');
 const agentSelect = document.getElementById('agentSelect');
 const modeSelect = document.getElementById('modeSelect');
 const seatSelect = document.getElementById('seatSelect');
@@ -30,6 +31,7 @@ const scoreTitleEl = document.getElementById('scoreTitle');
 const eventsTitleEl = document.getElementById('eventsTitle');
 const scoreHeaderRow = document.getElementById('scoreHeaderRow');
 const controlTextRefs = {
+  env: document.querySelector('[data-i18n="controls.env"]'),
   agent: document.querySelector('[data-i18n="controls.agent"]'),
   mode: document.querySelector('[data-i18n="controls.mode"]'),
   humanSeat: document.querySelector('[data-i18n="controls.humanSeat"]'),
@@ -42,9 +44,14 @@ const controlTextRefs = {
   start: document.querySelector('[data-i18n="controls.start"]'),
   end: document.querySelector('[data-i18n="controls.end"]'),
 };
+const envOptionRefs = {
+  no_red_mahjong: document.querySelector('[data-i18n-env="no_red_mahjong"]'),
+  red_mahjong: document.querySelector('[data-i18n-env="red_mahjong"]'),
+};
 const modeOptionRefs = {
-  hanchan: document.querySelector('[data-i18n-mode="hanchan"]'),
-  one_round: document.querySelector('[data-i18n-mode="one_round"]'),
+  half: document.querySelector('[data-i18n-mode="half"]'),
+  east: document.querySelector('[data-i18n-mode="east"]'),
+  single: document.querySelector('[data-i18n-mode="single"]'),
 };
 const seatOptionRefs = {
   auto: document.querySelector('[data-i18n-seat="auto"]'),
@@ -78,6 +85,7 @@ const I18N = {
       events: 'ログ',
     },
     controls: {
+      env: 'ルール',
       agent: 'Agent',
       mode: 'Mode',
       humanSeat: 'Human Seat',
@@ -90,8 +98,9 @@ const I18N = {
       start: 'Start Game',
       end: 'End Game',
       modes: {
-        hanchan: '半荘戦',
-        one_round: '一局戦',
+        half: '半荘戦',
+        east: '東風戦',
+        single: '一局戦',
       },
       seats: {
         auto: 'ランダム',
@@ -99,6 +108,10 @@ const I18N = {
         south: '南',
         west: '西',
         north: '北',
+      },
+      envs: {
+        no_red_mahjong: '赤なし',
+        red_mahjong: '赤あり',
       },
     },
     scoreboardHeaders: ['席', '名前', '点数', '直近'],
@@ -194,6 +207,7 @@ const I18N = {
       events: 'Log',
     },
     controls: {
+      env: 'Rules',
       agent: 'Agent',
       mode: 'Mode',
       humanSeat: 'Seat',
@@ -206,8 +220,9 @@ const I18N = {
       start: 'Start Game',
       end: 'End Game',
       modes: {
-        hanchan: 'Hanchan match',
-        one_round: 'Single round',
+        half: 'Hanchan match',
+        east: 'East-only match',
+        single: 'Single round',
       },
       seats: {
         auto: 'Random',
@@ -215,6 +230,10 @@ const I18N = {
         south: 'South',
         west: 'West',
         north: 'North',
+      },
+      envs: {
+        no_red_mahjong: 'No red fives',
+        red_mahjong: 'With red fives',
       },
     },
     scoreboardHeaders: ['Seat', 'Name', 'Points', 'Delta'],
@@ -388,6 +407,9 @@ function applyLocaleToStaticElements() {
   Object.entries(modeOptionRefs).forEach(([key, el]) => {
     setTextContent(el, locale.controls?.modes?.[key]);
   });
+  Object.entries(envOptionRefs).forEach(([key, el]) => {
+    setTextContent(el, locale.controls?.envs?.[key]);
+  });
   Object.entries(seatOptionRefs).forEach(([key, el]) => {
     setTextContent(el, locale.controls?.seats?.[key]);
   });
@@ -544,6 +566,7 @@ function collectGameRequest() {
   const mode = modeSelect.value;
   const seatValue = seatSelect.value;
   const body = {
+    env_id: envSelect?.value || 'no_red_mahjong',
     agent_id: agentId,
     mode,
     random_seat: seatValue === 'auto',
@@ -1245,6 +1268,9 @@ function updateStatus(state) {
 function tileLabel(tile, lang = currentLanguage) {
   const locale = getLocale(lang);
   if (tile < 0) return '';
+  if (tile === 34) return '5mr';
+  if (tile === 35) return '5pr';
+  if (tile === 36) return '5sr';
   if (tile < 9) return `${tile + 1}m`;
   if (tile < 18) return `${tile - 8}p`;
   if (tile < 27) return `${tile - 17}s`;

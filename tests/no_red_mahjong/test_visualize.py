@@ -5,7 +5,7 @@ import jax.numpy as jnp
 from mahjax.no_red_mahjong.tile import Tile
 from mahjax.no_red_mahjong.action import Action
 from mahjax.no_red_mahjong.state import FIRST_DRAW_IDX
-from mahjax.no_red_mahjong.env import _step, _init
+from mahjax.no_red_mahjong.env import _step, _init, _replace_state
 from mahjax._src.visualizer import save_svg, save_svg_animation
 from mahjax.no_red_mahjong.players import rule_based_player
 from mahjax.no_red_mahjong.yaku import Yaku
@@ -28,7 +28,7 @@ class TestVisualize(unittest.TestCase):
 
     def set_state(self, state, **kwargs):
         for k, v in kwargs.items():
-            state = state.replace(  # type:ignore
+            state = _replace_state(state,   # type:ignore
                 **{k: v}
             )
         return state
@@ -49,7 +49,7 @@ class TestVisualize(unittest.TestCase):
             print('step', i, 'current_player', state.current_player, 'action', a)
             state = jitted_step(state, a)
             i += 1
-            #print("target", state._target, "action", a, "current_player", state.current_player, "melds", state._melds)
+            #print("target", state.round_state.target, "action", a, "current_player", state.current_player, "melds", state.players.melds)
             #save_svg(state, f"fig/test_animation_{i}.svg")
             states.append(state)
         os.makedirs("fig", exist_ok=True)
@@ -60,12 +60,12 @@ class TestVisualize(unittest.TestCase):
         i = 0
         states = []
         rng = jax.random.PRNGKey(1)
-        while not state._terminated_round and i <= 100:
+        while not state.round_state.terminated_round and i <= 100:
             a = jnp.where(state.legal_action_mask[Action.DUMMY], Action.DUMMY, Action.TSUMOGIRI)
             print('step', i, 'current_player', state.current_player, 'action', a)
             state = jitted_step(state, a)
             i += 1
-            #print("target", state._target, "action", a, "current_player", state.current_player, "melds", state._melds)
+            #print("target", state.round_state.target, "action", a, "current_player", state.current_player, "melds", state.players.melds)
             #save_svg(state, f"fig/test_animation_{i}.svg")
             states.append(state)
         os.makedirs("fig", exist_ok=True)
@@ -78,48 +78,48 @@ class TestVisualize(unittest.TestCase):
         i = 0
         states = []
         rng = jax.random.PRNGKey(1)
-        while not state._terminated_round and i <= 100:
+        while not state.round_state.terminated_round and i <= 100:
             a = jax.jit(rule_based_player)(state, rng)
             if state.legal_action_mask[Action.RIICHI]:
                 print("立直できるよ！")
-            round_wind = state._round % 4
+            round_wind = state.round_state.round % 4
             if a == Action.TSUMO:
                 yaku, fan, fu = jax.jit(Yaku.judge)(
-                    state._hand[state.current_player],
-                    state._melds[state.current_player],
-                    state._n_meld[state.current_player],
-                    state._last_draw,
-                    state._riichi[state.current_player],
+                    state.players.hand[state.current_player],
+                    state.players.melds[state.current_player],
+                    state.players.meld_counts[state.current_player],
+                    state.round_state.last_draw,
+                    state.players.riichi[state.current_player],
                     False,
                     round_wind,
-                    state._seat_wind[state.current_player],
+                    state.round_state.seat_wind[state.current_player],
                     _dora_array(state)
                 )
-                print("立直", state._riichi[state.current_player])
+                print("立直", state.players.riichi[state.current_player])
                 print("ドラ", _dora_array(state))
-                print("手牌", state._hand[state.current_player])
+                print("手牌", state.players.hand[state.current_player])
                 print(yaku, fan, fu)
             if a == Action.RON:
                 yaku, fan, fu = Yaku.judge(
-                    state._hand[state.current_player],
-                    state._melds[state.current_player],
-                    state._n_meld[state.current_player],
-                    state._target,
-                    state._riichi[state.current_player],
+                    state.players.hand[state.current_player],
+                    state.players.melds[state.current_player],
+                    state.players.meld_counts[state.current_player],
+                    state.round_state.target,
+                    state.players.riichi[state.current_player],
                     True,
                     round_wind,
-                    state._seat_wind[state.current_player],
+                    state.round_state.seat_wind[state.current_player],
                     _dora_array(state)
                 )
-                print("立直", state._riichi[state.current_player])
+                print("立直", state.players.riichi[state.current_player])
                 print("ドラ", _dora_array(state))
-                print("手牌", state._hand[state.current_player])
+                print("手牌", state.players.hand[state.current_player])
                 print(yaku, fan, fu)
 
             print('step', i, 'current_player', state.current_player, 'action', a)
             state = jitted_step(state, a)
             i += 1
             states.append(state)
-        print(state._score)
+        print(state.round_state.score)
         os.makedirs("fig", exist_ok=True)
         save_svg_animation(states, "fig/test_animation_rule_based_player.svg", frame_duration_seconds=1)
