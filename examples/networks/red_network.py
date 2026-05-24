@@ -64,7 +64,7 @@ class FeatureExtractor(nn.Module):
         ).astype(jnp.int32)
 
         hand_emb = nn.Embed(
-            Tile.NUM_TILE_TYPE + 1,
+            Tile.NUM_TILE_TYPE_WITH_RED + 1,
             HAND_EMB_SIZE,
             embedding_init=orthogonal_init(),
         )(hand + 1)

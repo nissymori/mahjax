@@ -9,17 +9,17 @@ import jax
 def hand_counts_to_idx(counts: Array, fill: int = -1, hand_size: int = 14) -> Array:
     # Check the input in the JIT outer loop, but keep the minimum guard
     counts = counts.astype(jnp.int32)
-    # Each column of (34,4) is 0,1,2,3, and if (col_index < count) is True, then the tile is selected
+    # Each column of (37,4) is 0,1,2,3, and if (col_index < count) is True, then the tile is selected
     col = jnp.arange(4)[None, :]  # (1,4)
-    mask = col < counts[:, None]  # (34,4) bool
+    mask = col < counts[:, None]  # (37,4) bool
 
     # Value table: if selected, the tile index, if not selected, fill
-    tile_ids = jnp.tile(jnp.arange(34, dtype=jnp.int32)[:, None], (1, 4))  # (34,4)
-    vals = jnp.where(mask, tile_ids, fill)  # (34,4) The contents are i or -1
-    vals = vals.reshape(-1)  # (136,)
+    tile_ids = jnp.tile(jnp.arange(37, dtype=jnp.int32)[:, None], (1, 4))  # (37,4)
+    vals = jnp.where(mask, tile_ids, fill)  # (37,4) The contents are i or -1
+    vals = vals.reshape(-1)  # (148,)
 
     # Sort the mask by True(=1) to the front to move the True to the front
-    key = mask.reshape(-1).astype(jnp.int32)  # (136,)
+    key = mask.reshape(-1).astype(jnp.int32)  # (148,)
     # argsort is ascending, so -key moves True to the front
     order = jnp.argsort(-key, stable=True)
     sorted_vals = vals[order]
@@ -31,7 +31,7 @@ def hand_counts_to_idx(counts: Array, fill: int = -1, hand_size: int = 14) -> Ar
 
 def _observe_dict(state: State) -> Dict:
     """
-    - hand: (14,) player's hand [0-33], -1 means empty
+    - hand: (14,) player's hand [0-36], -1 means empty
     - last_draw: (1,) The last drawn tile [0-36], -1 means no draw
     - action history: (3, 200) action history [player, action(tile), tsumogiri], player index is relative to the current player in [0, 3], discards store the actual tile in [0, 36], non-discard actions store the raw action id in [0, 86], and tsumogiri is 0/1 for discards and -1 otherwise
     - shanten count: (1,) The number of shanten (0-6)
@@ -47,8 +47,8 @@ def _observe_dict(state: State) -> Dict:
     c_p = state.current_player
     c_p_based_order = (jnp.arange(4) + c_p) % 4
     # hand features
-    hand_c_p_34 = state.players.hand[c_p]
-    hand_c_p_14 = hand_counts_to_idx(hand_c_p_34)
+    hand_c_p_37 = state.players.hand_with_red[c_p]
+    hand_c_p_14 = hand_counts_to_idx(hand_c_p_37)
     # action histories
     player_history = state.round_state.action_history[0, :].astype(jnp.int32)  # (200,)
     valid_history = player_history >= 0  # default value is -1, so we need to mask it
