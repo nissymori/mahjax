@@ -1,12 +1,12 @@
 <div align="center">
-<img src="https://github.com/nissymori/mahjax/blob/main/docs/assets/logo.svg" width="35%">
+<img src="https://raw.githubusercontent.com/nissymori/mahjax/main/docs/assets/logo.svg" width="35%">
 </div>
 
 <br>
 
 <div align="center">
-  <img src="https://github.com/nissymori/mahjax/blob/main/docs/assets/red_mahjong_random_ja.gif" width="46%">
-  <img src="https://github.com/nissymori/mahjax/blob/main/docs/assets/red_mahjong_random_en.gif" width="46%">
+  <img src="https://raw.githubusercontent.com/nissymori/mahjax/main/docs/assets/red_mahjong_random_ja.gif" width="46%">
+  <img src="https://raw.githubusercontent.com/nissymori/mahjax/main/docs/assets/red_mahjong_random_en.gif" width="46%">
 </div>
 
 # MahJax
