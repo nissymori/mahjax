@@ -59,7 +59,6 @@ def _observe_dict(state: State) -> Dict:
         valid_history, relative_player_history, state.round_state.action_history[0, :]
     )
     action_history = state.round_state.action_history.at[0, :].set(relative_player_history)
-
     # game features
     shanten_c_p = state.round_state.shanten_current_player
     furiten = state.players.furiten_by_discard[c_p] | state.players.furiten_by_pass[c_p]
