@@ -133,7 +133,7 @@ class FeatureExtractor(nn.Module):
 
         dora_mask = (dora_indicators >= 0).astype(jnp.float32)
         dora_emb = nn.Embed(
-            Tile.NUM_TILE_TYPE + 1,
+            Tile.NUM_TILE_TYPE_WITH_RED + 1,
             HAND_EMB_SIZE,
             embedding_init=orthogonal_init(),
         )(dora_indicators + 1)

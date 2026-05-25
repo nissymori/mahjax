@@ -121,7 +121,7 @@ def test_observe_dict_returns_relative_view() -> None:
     )
     np.testing.assert_array_equal(
         np.array(obs["dora_indicators"]),
-        np.array([0, 13, -1, -1], dtype=np.int8),
+        np.array([0, Tile.RED_FIVE["p"], -1, -1], dtype=np.int8),
     )
     assert obs["shanten_count"].item() == 1
     assert obs["furiten"].item() == 0

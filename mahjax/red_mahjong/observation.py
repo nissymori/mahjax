@@ -1,6 +1,6 @@
 from typing import Dict
 import jax.numpy as jnp
-from mahjax.red_mahjong.env import State, Tile
+from mahjax.red_mahjong.env import State
 from mahjax.red_mahjong.env import Array
 import jax
 
@@ -42,7 +42,7 @@ def _observe_dict(state: State) -> Dict:
     - kyotaku: (1,) The kyotaku number
     - round wind: (1,) The round wind [0-3]
     - seat wind: (1,) The seat wind [0-3]
-    - dora indicators: (4,) The dora indicators [0-33], -1 means no dora
+    - dora indicators: (4,) The dora indicators [0-36] (red-aware), -1 means no dora
     """
     c_p = state.current_player
     c_p_based_order = (jnp.arange(4) + c_p) % 4
@@ -69,7 +69,10 @@ def _observe_dict(state: State) -> Dict:
     kyotaku = state.round_state.kyotaku
     prevalent_wind = jnp.int8(state.round_state.round // 4)
     seat_wind = state.round_state.seat_wind[c_p]
-    dora_indicators = jnp.where(state.round_state.dora_indicators[:4] >= 0, Tile.to_tile_type(state.round_state.dora_indicators[:4]), state.round_state.dora_indicators[:4])
+    # Keep red-aware [0-36]: a red five revealed as an indicator is dead, which is
+    # information-bearing for remaining-aka availability and opponent value inference,
+    # even though red/black does not change which tile is dora.
+    dora_indicators = state.round_state.dora_indicators[:4]  # (4,)
     return {
         "hand": hand_c_p_14,
         "last_draw": state.round_state.last_draw,
