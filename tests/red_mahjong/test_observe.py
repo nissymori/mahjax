@@ -26,6 +26,9 @@ def _make_state():
     hand = hand.at[2, 18].set(1)
     hand = hand.at[3, 27].set(1)
 
+    # No red fives in this fixture, so the 37-type hand mirrors the 34-type one.
+    hand_with_red = state.players.hand_with_red.at[:, : Tile.NUM_TILE_TYPE].set(hand)
+
     can_win = state.players.can_win
     can_win = can_win.at[0, jnp.array([1, 3], dtype=jnp.int32)].set(True)
     can_win = can_win.at[1, 9].set(True)
@@ -60,6 +63,7 @@ def _make_state():
         legal_action_mask=legal_action_mask[0],
         players=state.players.replace(
             hand=hand,
+            hand_with_red=hand_with_red,
             can_win=can_win,
             legal_action_mask=legal_action_mask,
             melds=melds,
