@@ -181,7 +181,7 @@ JAX-based environments
 - [Navix](https://github.com/epignatelli/navix): A JAX version of MiniGrid.
 
 ## Cite us
-```
+```bibtex
 @article{nishimori2026mahjax,
   title         = {Mahjax: A GPU-Accelerated Mahjong Simulator for Reinforcement Learning in JAX},
   author        = {Nishimori, Soichiro and Okano, Shinri and Habara, Keigo and Koyamada, Sotetsu and Yu, Eason and Sugiyama, Masashi},
