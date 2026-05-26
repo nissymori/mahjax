@@ -49,7 +49,7 @@ app = create_app()
 app.state.manager.registry.load_callable_from_path(
     file_path=Path("path/to/my_agent_impl.py"),
     attribute="act",  # Function name in your file
-    description="My Custom Agent"
+    description="My Custom Agent",
 )
 ```
 

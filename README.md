@@ -68,7 +68,7 @@ env = mahjax.make(
     "red_mahjong",
     round_mode="single", # "single", "east" (tonpuusen), or "half" (hanchan)
     observe_type="dict", # "dict" for Transformer, "2D" for CNN
-    order_points=[30, 10, -10, -30] # Final score bonuses (uma)
+    order_points=[30, 10, -10, -30], # Final score bonuses (uma)
 )
 
 init_fn = jax.jit(jax.vmap(env.init))
