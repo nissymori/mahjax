@@ -30,6 +30,7 @@ const actionTitleEl = document.getElementById('actionTitle');
 const scoreTitleEl = document.getElementById('scoreTitle');
 const eventsTitleEl = document.getElementById('eventsTitle');
 const scoreHeaderRow = document.getElementById('scoreHeaderRow');
+const pageTitleEl = document.querySelector('[data-i18n="index.title"]');
 const controlTextRefs = {
   env: document.querySelector('[data-i18n="controls.env"]'),
   agent: document.querySelector('[data-i18n="controls.agent"]'),
@@ -62,10 +63,11 @@ const seatOptionRefs = {
 };
 const LANGUAGE_BUTTON_SELECTOR = '#languageToggle .language-btn[data-lang]';
 
-const Languages = { JA: 'ja', EN: 'en' };
+const Languages = { JA: 'ja', EN: 'en', ZH_CN: 'zh-CN' };
 const I18N = {
   ja: {
     code: 'ja',
+    title: 'MahJax Human vs AI',
     you: 'あなた',
     relativeSeats: ['あなた', '下家', '対面', '上家'],
     honors: ['東', '南', '西', '北', '白', '發', '中'],
@@ -188,6 +190,7 @@ const I18N = {
   },
   en: {
     code: 'en',
+    title: 'MahJax Human vs AI',
     you: 'You',
     relativeSeats: ['You', 'Right Player', 'Across', 'Left Player'],
     honors: ['East', 'South', 'West', 'North', 'White', 'Green', 'Red'],
@@ -305,6 +308,126 @@ const I18N = {
       暗槓: 'Concealed Kan',
     },
   },
+  'zh-CN': {
+    code: 'zh-CN',
+    title: 'MahJax 人机对局',
+    you: '你',
+    relativeSeats: ['自家', '下家', '对家', '上家'],
+    honors: ['東', '南', '西', '北', '白', '發', '中'],
+    winds: {
+      東: '東',
+      南: '南',
+      西: '西',
+      北: '北',
+      白: '白',
+      發: '發',
+      中: '中',
+    },
+    sections: {
+      hand: '手牌',
+      actions: '行动',
+      score: '分数',
+      events: '日志',
+    },
+    controls: {
+      env: '规则',
+      agent: 'AI/代理',
+      mode: '模式',
+      humanSeat: '玩家位置',
+      seed: '随机种子',
+      humanName: '真人名称',
+      aiName: 'AI 名称前缀',
+      aiDelay: 'AI 思考延迟（毫秒）',
+      hideOpponents: '隐藏他家手牌',
+      noCalls: '自动跳过鸣牌',
+      start: '开始对局',
+      end: '结束对局',
+      modes: {
+        half: '半庄战',
+        east: '东风战',
+        single: '单局战',
+      },
+      seats: {
+        auto: '随机',
+        east: '东家',
+        south: '南家',
+        west: '西家',
+        north: '北家',
+      },
+      envs: {
+        no_red_mahjong: '无赤牌',
+        red_mahjong: '有赤牌',
+      },
+    },
+    scoreboardHeaders: ['座位', '名称', '点数', '增减'],
+    actions: {
+      tsumogiri: '摸切',
+      riichi: '立直',
+      tsumo: '自摸',
+      ron: '荣和',
+      pass: '跳过',
+      pon: '碰',
+      chi: '吃',
+      openKan: '明杠',
+      closedKan: '暗杠',
+      addedKan: '加杠',
+      advanceFinal: '终局',
+      advanceNext: '下一局',
+    },
+    statuses: {
+      idle: '请选择设置并开始游戏',
+      sending: '发送中…',
+      gameStarted: '对局已开始。',
+      noGame: '当前无对局',
+      gameEnded: '对局已结束',
+      awaitingHuman: '你的回合',
+      awaitingAI: 'AI 正在思考…',
+      roundSummaryPending: '请先查看结果并点击“下一局”',
+      roundSummaryPrompt: (label) => `请点击“${label}”查看结果`,
+      finished: '对局结束',
+    },
+    summaryReasons: {
+      tsumo: '自摸',
+      ron: '荣和',
+      abortive_draw_normal: '流局',
+    },
+    summary: {
+      defaultTitle: (reason) => `本局结果（${reason}）`,
+      finalTitle: '游戏结束',
+      winnersHeader: '和了详情',
+      yakuLabel: '役',
+      yakuman: (count) => `${count}倍役满`,
+      fanFu: (fan, fu) => `${fan}番 ${fu}符`,
+      dora: (dora, uraDora, includeUra = true) => {
+        if (includeUra && typeof uraDora === 'number') {
+          if (dora > 0 && uraDora > 0) {
+            return `宝牌：${dora}，里宝牌：${uraDora}`;
+          }
+          if (uraDora > 0) {
+            return `里宝牌：${uraDora}`;
+          }
+          return `宝牌：${dora}，里宝牌：0`;
+        }
+        return `宝牌：${dora}`;
+      },
+      doraTiles: (labels) => `宝牌指示牌：${labels.join(', ')}`,
+      uraDoraTiles: (labels) => `里宝牌指示牌：${labels.join(', ')}`,
+      winningTile: '和了牌',
+      winningTileFrom: (tile, rel, name) => `和了牌：${tile} ← ${rel}（${name}）`,
+      meta: (honba, kyotaku) => `本场：${honba} 立直棒：${kyotaku}`,
+      tableHeaders: ['位次', '座位', '名称', '点数', '增减'],
+      continue: '下一局',
+      endCta: '结束游戏',
+    },
+    advance: {
+      next: '下一局',
+      final: '结束游戏',
+    },
+    kanKinds: {
+      加槓: '加杠',
+      暗槓: '暗杠',
+    },
+  },
 };
 
 let currentLanguage = Languages.JA;
@@ -320,6 +443,8 @@ let pendingDiscardVisual = null;
 let pendingSummaryData = null;
 let summaryRevealRequested = false;
 let agentCache = [];
+let currentStatusKey = null;
+let currentStatusParams = {};
 
 humanNameInput.dataset.autoFilled = 'false';
 aiNameInput.dataset.autoFilled = 'false';
@@ -365,6 +490,10 @@ function getLocale(lang = currentLanguage) {
   return I18N[lang] || I18N.ja;
 }
 
+function getTileFaceLanguage(lang = currentLanguage) {
+  return lang === Languages.EN ? Languages.EN : Languages.JA;
+}
+
 function updateLanguageButtons() {
   const buttons = document.querySelectorAll(LANGUAGE_BUTTON_SELECTOR);
   buttons.forEach((btn) => {
@@ -397,6 +526,8 @@ function syncNoCallsControl(state) {
 
 function applyLocaleToStaticElements() {
   const locale = getLocale();
+  if (pageTitleEl) pageTitleEl.textContent = locale.title;
+  document.title = locale.title;
   if (handTitleEl) handTitleEl.textContent = locale.sections.hand;
   if (actionTitleEl) actionTitleEl.textContent = locale.sections.actions;
   if (scoreTitleEl) scoreTitleEl.textContent = locale.sections.score;
@@ -424,7 +555,9 @@ function applyLocaleToStaticElements() {
   if (summaryContinueBtn) {
     summaryContinueBtn.textContent = locale.summary.continue;
   }
-  if (!statusBarEl.textContent) {
+  if (currentStatusKey) {
+    setStatus(currentStatusKey, currentStatusParams);
+  } else if (!statusBarEl.textContent) {
     setStatus('idle');
   }
   document.documentElement.lang = locale.code;
@@ -461,6 +594,8 @@ function setStatus(key, params = {}) {
     statusBarEl.textContent = params.message || params.fallback || '';
     return;
   }
+  currentStatusKey = key;
+  currentStatusParams = params;
   const locale = getLocale();
   const template = locale.statuses[key];
   if (typeof template === 'function') {
@@ -819,7 +954,7 @@ function renderState(state, options = {}) {
 
 function getBoardSvg(state) {
   if (!state) return '';
-  if (currentLanguage === Languages.EN) {
+  if (getTileFaceLanguage() === Languages.EN) {
     return state.svgEnglish || state.svg || '';
   }
   return state.svgJapanese || state.svg || '';
@@ -1266,7 +1401,7 @@ function updateStatus(state) {
 }
 
 function tileLabel(tile, lang = currentLanguage) {
-  const locale = getLocale(lang);
+  const locale = getLocale(getTileFaceLanguage(lang));
   if (tile < 0) return '';
   if (tile === 34) return '5mr';
   if (tile === 35) return '5pr';
@@ -1279,7 +1414,7 @@ function tileLabel(tile, lang = currentLanguage) {
 
 function formatTileSequence(tiles) {
   if (!Array.isArray(tiles) || !tiles.length) return '';
-  const joiner = currentLanguage === Languages.JA ? '' : ' ';
+  const joiner = getTileFaceLanguage() === Languages.JA ? '' : ' ';
   return tiles.map((tile) => tileLabel(tile)).join(joiner);
 }
 
@@ -1296,6 +1431,25 @@ function translateWindName(wind) {
 function translateEventDescription(description) {
   if (currentLanguage === Languages.JA) return description;
   if (!description) return '';
+  if (currentLanguage === Languages.ZH_CN) {
+    if (description.startsWith('打 ')) {
+      return `打 ${description.slice(2)}`;
+    }
+    if (description.startsWith('カン ')) {
+      return `杠 ${description.slice(3)}`;
+    }
+    if (description === 'ツモ切り') return '摸切';
+    if (description === '立直宣言') return '立直宣言';
+    if (description === '自摸') return '自摸';
+    if (description.startsWith('ロン')) return description.replace('ロン', '荣和');
+    if (description.startsWith('ポン')) return description.replace('ポン', '碰');
+    if (description.startsWith('明槓')) return description.replace('明槓', '明杠');
+    if (description.startsWith('チー')) return description.replace('チー', '吃');
+    if (description === 'パス') return '跳过';
+    if (description === '進行') return '进行';
+    if (description.startsWith('アクション')) return description.replace('アクション', '行动');
+    return description;
+  }
   if (description.startsWith('打 ')) {
     return `Discard ${description.slice(2)}`;
   }
