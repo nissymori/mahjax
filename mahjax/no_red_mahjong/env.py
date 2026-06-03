@@ -1162,22 +1162,20 @@ def _kan(state: State, action):
         legal_action_mask=legal_action_mask_4p,
     )
     next_ron_player, can_any_ron = _next_ron_player(legal_action_mask_4p, c_p)
+    chankan_mask = ZERO_MASK_2D.at[:, Action.RON].set(legal_action_mask_4p[:, Action.RON])
     return jax.lax.cond(
         is_added_kan & can_any_ron,
         lambda: _replace_state(state,   # type:ignore
             target=jnp.int8(tile),
             last_player=c_p,
             current_player=jnp.int8(next_ron_player),
-            legal_action_mask=state.players.legal_action_mask.at[
-                next_ron_player, Action.PASS
-            ].set(
-                TRUE
-            ),  # Robbing KAN player can PASS
+            legal_action_mask=chankan_mask.at[next_ron_player, Action.PASS].set(TRUE),
             kan_declared=TRUE,  # KAN is declared
             draw_next=FALSE,
         ),
         lambda: _replace_state(state,   # type:ignore
             target=jnp.int8(-1),
+            legal_action_mask=ZERO_MASK_2D,
             kan_declared=TRUE,  # KAN is declared
             draw_next=FALSE,
         ),

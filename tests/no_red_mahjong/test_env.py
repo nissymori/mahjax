@@ -555,23 +555,32 @@ class TestEnv(unittest.TestCase):
             )
         )  # (player 1 added kan 1s)
         pon = jnp.zeros((4, 34), dtype=jnp.int32).at[1, 18].set(1) # player 1 pon 1s
+        action = 18 + Tile.NUM_TILE_TYPE  # play added kan 1s
+        stale_mask = jnp.zeros((4, Action.NUM_ACTION), dtype=jnp.bool_)
+        stale_mask = stale_mask.at[0, 0].set(True).at[0, Action.TSUMOGIRI].set(True)
+        stale_mask = stale_mask.at[2, 0].set(True).at[2, Action.TSUMOGIRI].set(True)
+        stale_mask = stale_mask.at[1, action].set(True)
         base_state = self.set_state(
             self.state,
             hand=hand,
             pon=pon,
             current_player=jnp.int8(1),
             can_win=jnp.zeros((4, Tile.NUM_TILE_TYPE), dtype=jnp.bool_).at[0, 18].set(True),
+            legal_action_mask=stale_mask,
         )
-        action = 18 + Tile.NUM_TILE_TYPE  # play added kan 1s
         kan_state = jitted_kan(base_state, action)
+        ron_pass_mask = (
+            jnp.zeros((Action.NUM_ACTION,), dtype=jnp.bool_)
+            .at[Action.RON].set(True)
+            .at[Action.PASS].set(True)
+        )
         self.assertEqual(kan_state.round_state.kan_declared, True) # kan is declared
         self.assertEqual(kan_state.players.hand[1, 18], 0) # 1s is consumed
         self.assertEqual(kan_state.players.pon[1, 18], 0) # pon is removed
         self.assertEqual(kan_state.players.n_kan[1], 0) # n_kan is not increased
         self.assertEqual(kan_state.current_player, 0) # next player is player 0
         self.assertEqual(kan_state.round_state.last_player, 1) # last player is player 1
-        self.assertEqual(kan_state.players.legal_action_mask[0, Action.RON], True) # player 0 can ron
-        self.assertEqual(kan_state.players.legal_action_mask[0, Action.PASS], True) # player 0 can pass
+        self.assertEqual(jnp.all(kan_state.players.legal_action_mask[0] == ron_pass_mask), True) # player 0 can ron/pass only
         # left first for robbing kan
         hand = hand.at[2].set(
             jnp.array(
@@ -590,14 +599,15 @@ class TestEnv(unittest.TestCase):
             can_win=base_state.players.can_win.at[2, 18].set(True),
         )
         kan_state = jitted_kan(robbing_kan_two_player_state, action)
+        ron_only_mask = jnp.zeros((Action.NUM_ACTION,), dtype=jnp.bool_).at[Action.RON].set(True)
         self.assertEqual(kan_state.round_state.kan_declared, True) # kan is declared
         self.assertEqual(kan_state.players.hand[2, 18], 0) # 1s is consumed
         self.assertEqual(kan_state.players.pon[2, 18], 0) # pon is removed
         self.assertEqual(kan_state.players.n_kan[2], 0) # n_kan is not increased
         self.assertEqual(kan_state.current_player, 2) # next player is player 2
         self.assertEqual(kan_state.round_state.last_player, 1) # last player is player 1
-        self.assertEqual(kan_state.players.legal_action_mask[[0, 2], Action.RON].all(), True) # player 0 and player 2 can ron
-        self.assertEqual(kan_state.players.legal_action_mask[[2], Action.PASS].all(), True) # player 2 can pass
+        self.assertEqual(jnp.all(kan_state.players.legal_action_mask[0] == ron_only_mask), True) # player 0 can ron only
+        self.assertEqual(jnp.all(kan_state.players.legal_action_mask[2] == ron_pass_mask), True) # player 2 can ron/pass only
 
     def test_pon(self):
         # Ensure pon consumes tiles, opens the hand, updates legal discards, and retains the turn.
