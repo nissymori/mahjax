@@ -771,6 +771,11 @@ def _finalize_step_state(
         lambda: _abortive_draw_normal(state),
         lambda: state,
     )
+    state = jax.lax.cond(
+        state.round_state.terminated_round & ~state.terminated,
+        lambda: _replace_state(state, legal_action_mask=ZERO_MASK_2D.at[:, Action.DUMMY].set(TRUE)),
+        lambda: state,
+    )
     state = _replace_state(
         state,
         legal_action_mask=state.players.legal_action_mask[state.current_player],
