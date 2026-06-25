@@ -206,6 +206,65 @@ def test_robbing_kan_ron_finalizes_to_dummy_share_mask() -> None:
     assert bool(ron_state.round_state.terminated_round)
     assert bool(jnp.all(ron_state.legal_action_mask == expected))
     assert bool(jnp.all(ron_state.players.legal_action_mask[:, Action.DUMMY]))
+    assert not bool(ron_state.round_state.kan_declared)
+    assert int(ron_state.players.n_kan[1]) == 0
+    assert int(ron_state.players.hand_with_red[1].sum()) == 13
+    assert int(ron_state.round_state.n_kan_doras) == 0
+
+
+def test_robbing_kan_second_candidate_pass_after_ron_does_not_draw_after_kan() -> None:
+    tile_ids = {
+        **{f"{n}m": n - 1 for n in range(1, 10)},
+        **{f"{n}p": 9 + n - 1 for n in range(1, 10)},
+        **{f"{n}s": 18 + n - 1 for n in range(1, 10)},
+    }
+
+    def counts37(tiles: list[str]):
+        counts = jnp.zeros((Tile.NUM_TILE_TYPE_WITH_RED,), dtype=jnp.int8)
+        for tile in tiles:
+            counts = counts.at[tile_ids[tile]].add(1)
+        return counts
+
+    winner_tiles = "3m 4m 5p 5p 6p 7p 8p 6s 6s 6s 7s 8s 9s".split()
+    hand_with_red = jnp.zeros((4, Tile.NUM_TILE_TYPE_WITH_RED), dtype=jnp.int8)
+    hand_with_red = hand_with_red.at[1].set(counts37(winner_tiles))
+    hand_with_red = hand_with_red.at[2].set(counts37(["2m"]))
+    hand_with_red = hand_with_red.at[3].set(counts37(winner_tiles))
+    hand = jnp.stack([Hand.to_34(hand_with_red[player]) for player in range(4)])
+    action = Tile.NUM_TILE_TYPE_WITH_RED + tile_ids["2m"]
+
+    state = _replace_state(
+        default_state(),
+        current_player=jnp.int8(2),
+        legal_action_mask=jnp.zeros((4, Action.NUM_ACTION), dtype=jnp.bool_).at[2, action].set(True),
+        hand=hand,
+        hand_with_red=hand_with_red,
+        pon=jnp.zeros((4, Tile.NUM_TILE_TYPE), dtype=jnp.int32).at[2, tile_ids["2m"]].set(1),
+        melds=default_state().players.melds.at[2, 1].set(Meld.init(Action.PON, tile_ids["2m"], 1)),
+        can_win=(
+            jnp.zeros((4, Tile.NUM_TILE_TYPE), dtype=jnp.bool_)
+            .at[1, tile_ids["2m"]].set(True)
+            .at[3, tile_ids["2m"]].set(True)
+        ),
+        last_draw=jnp.int8(tile_ids["2m"]),
+        last_player=jnp.int8(2),
+        deck=jnp.zeros((136,), dtype=jnp.int8).at[10].set(30),
+        dora_indicators=jnp.array([tile_ids["5s"], -1, -1, -1, -1], dtype=jnp.int8),
+    )
+
+    env = RedMahjong(round_mode="half", next_round_style="dummy_share")
+    kan_state = _kan(state, jnp.int32(action))
+    first_ron_state = env.step(kan_state, jnp.int32(Action.RON))
+    pass_state = env.step(first_ron_state, jnp.int32(Action.PASS))
+
+    expected = jnp.zeros((Action.NUM_ACTION,), dtype=jnp.bool_).at[Action.DUMMY].set(True)
+    assert bool(pass_state.round_state.terminated_round)
+    assert bool(jnp.all(pass_state.legal_action_mask == expected))
+    assert bool(jnp.all(pass_state.players.legal_action_mask[:, Action.DUMMY]))
+    assert not bool(pass_state.round_state.kan_declared)
+    assert int(pass_state.players.n_kan[2]) == 0
+    assert int(pass_state.players.hand_with_red[3].sum()) == 13
+    assert int(pass_state.round_state.n_kan_doras) == 0
 
 
 # ----------------- next_round_style tests -----------------

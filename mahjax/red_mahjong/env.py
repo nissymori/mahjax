@@ -771,11 +771,6 @@ def _finalize_step_state(
         lambda: _abortive_draw_normal(state),
         lambda: state,
     )
-    state = jax.lax.cond(
-        state.round_state.terminated_round & ~state.terminated,
-        lambda: _replace_state(state, legal_action_mask=ZERO_MASK_2D.at[:, Action.DUMMY].set(TRUE)),
-        lambda: state,
-    )
     state = _replace_state(
         state,
         legal_action_mask=state.players.legal_action_mask[state.current_player],
@@ -1615,7 +1610,7 @@ def _pass(state: State, game_config: Optional[GameConfig] = None):
     next_ron_player, can_any_ron = _next_ron_player(
         post_ron_mask, state.round_state.last_player
     )
-    is_post_ron = state.players.has_won.any() & ~can_robbing_kan
+    is_post_ron = state.players.has_won.any()
     # Set the next player from the legal action
     next_meld_player, can_any = _next_meld_player(
         legal_action_mask_4p, state.round_state.last_player
@@ -1629,15 +1624,20 @@ def _pass(state: State, game_config: Optional[GameConfig] = None):
             state,
             current_player=jnp.int8(next_ron_player),
             legal_action_mask=post_ron_mask.at[next_ron_player, Action.PASS].set(TRUE),
-            furiten_by_pass=state.players.furiten_by_pass.at[c_p].set(is_ron_player),
+            furiten_by_pass=state.players.furiten_by_pass.at[c_p].set(
+                is_ron_player & ~can_robbing_kan
+            ),
             draw_next=FALSE,
         ),
         lambda: _replace_state(
             state,
             target=jnp.int8(-1),
-            furiten_by_pass=state.players.furiten_by_pass.at[c_p].set(is_ron_player),
+            furiten_by_pass=state.players.furiten_by_pass.at[c_p].set(
+                is_ron_player & ~can_robbing_kan
+            ),
             legal_action_mask=ZERO_MASK_2D.at[:, Action.DUMMY].set(TRUE),
             terminated_round=TRUE,
+            kan_declared=FALSE,
             draw_next=FALSE,
         ),
     )
@@ -1786,6 +1786,7 @@ def _ron(state: State, game_config: Optional[GameConfig] = None) -> State:
         kyotaku=jnp.int8(0),
         has_won=state.players.has_won.at[c_p].set(TRUE),
         legal_action_mask=ZERO_MASK_2D.at[:, Action.DUMMY].set(TRUE),
+        kan_declared=FALSE,
         draw_next=FALSE,
     )
     return jax.lax.cond(

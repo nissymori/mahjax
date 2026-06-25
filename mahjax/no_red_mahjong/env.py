@@ -558,11 +558,6 @@ def _finalize_step_state(state: State) -> State:
         lambda: _abortive_draw_normal(state),
         lambda: state,
     )
-    state = jax.lax.cond(
-        state.round_state.terminated_round & ~state.terminated,
-        lambda: _replace_state(state, legal_action_mask=ZERO_MASK_2D.at[:, Action.DUMMY].set(TRUE)),
-        lambda: state,
-    )
     state = _replace_state(state,  # type:ignore
         legal_action_mask=state.players.legal_action_mask[state.current_player]
     )
@@ -1498,6 +1493,7 @@ def _ron(state: State) -> State:
         legal_action_mask=ZERO_MASK_2D.at[:, Action.DUMMY].set(
             TRUE
         ),  # Set the dummy action
+        kan_declared=FALSE,
         draw_next=FALSE,
     )
 

@@ -609,6 +609,53 @@ class TestEnv(unittest.TestCase):
         self.assertEqual(jnp.all(kan_state.players.legal_action_mask[0] == ron_only_mask), True) # player 0 can ron only
         self.assertEqual(jnp.all(kan_state.players.legal_action_mask[2] == ron_pass_mask), True) # player 2 can ron/pass only
 
+    def test_robbing_kan_ron_does_not_draw_after_kan(self):
+        hand = jnp.zeros((4, Tile.NUM_TILE_TYPE), dtype=jnp.int8)
+        hand = hand.at[0].set(
+            jnp.array(
+                [
+                    1, 1, 1, 1, 1, 1, 1, 1, 1,
+                    2, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 1, 1, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0
+                ],
+                dtype=jnp.int8,
+            )
+        )
+        hand = hand.at[1].set(
+            jnp.array(
+                [
+                    0, 1, 1, 1, 1, 1, 1, 1, 1,
+                    2, 2, 0, 0, 0, 0, 0, 0, 0,
+                    1, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0
+                ],
+                dtype=jnp.int8,
+            )
+        )
+        action = 18 + Tile.NUM_TILE_TYPE
+        state = self.set_state(
+            self.state,
+            hand=hand,
+            pon=jnp.zeros((4, 34), dtype=jnp.int32).at[1, 18].set(1),
+            current_player=jnp.int8(1),
+            can_win=jnp.zeros((4, Tile.NUM_TILE_TYPE), dtype=jnp.bool_).at[0, 18].set(True),
+            legal_action_mask=jnp.zeros((4, Action.NUM_ACTION), dtype=jnp.bool_).at[1, action].set(True),
+            deck=jnp.zeros((136,), dtype=jnp.int8).at[10].set(30),
+        )
+
+        env_share = NoRedMahjong(round_mode="half", next_round_style="dummy_share")
+        kan_state = jitted_kan(state, action)
+        ron_state = env_share.step(kan_state, jnp.int32(Action.RON))
+
+        expected = jnp.zeros((Action.NUM_ACTION,), dtype=jnp.bool_).at[Action.DUMMY].set(True)
+        self.assertTrue(bool(ron_state.round_state.terminated_round))
+        self.assertTrue(bool(jnp.all(ron_state.legal_action_mask == expected)))
+        self.assertFalse(bool(ron_state.round_state.kan_declared))
+        self.assertEqual(int(ron_state.players.n_kan[0]), 0)
+        self.assertEqual(int(ron_state.players.hand[0].sum()), 13)
+        self.assertEqual(int(ron_state.round_state.n_kan_doras), 0)
+
     def test_pon(self):
         # Ensure pon consumes tiles, opens the hand, updates legal discards, and retains the turn.
         state = self.state
