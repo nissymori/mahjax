@@ -4,8 +4,9 @@ from mahjax._src.visualizer import (
     save_svg_animation,
     set_visualization_config,
 )
-from mahjax.red_mahjong.action import Action
 from mahjax.core import Env, EnvId, available_envs, make
+from mahjax.hong_kong_mahjong.rules import HKOS_V1, Rules
+from mahjax.red_mahjong.action import Action
 from mahjax.red_mahjong.hand import Hand
 from mahjax.red_mahjong.meld import Meld
 from mahjax.red_mahjong.players import rule_based_player
@@ -25,6 +26,8 @@ __all__ = [
     "Array",
     "PRNGKey",
     "Action",
+    "HKOS_V1",
+    "Rules",
     "GameConfig",
     "default_game_config",
     "default_state",

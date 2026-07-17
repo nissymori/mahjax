@@ -14,6 +14,7 @@ nav:
       - Visualization: visualization.md
       - UI Guide: ui.md
   - Available Games:
+      - Hong Kong Old Style: hong_kong_mahjong.md
       - No-Red Mahjong: no_red_mahjong.md
       - Red Mahjong: red_mahjong.md
   - API:
