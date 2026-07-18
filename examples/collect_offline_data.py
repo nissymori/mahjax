@@ -145,7 +145,7 @@ def main():
         state, (obs_seq, act_seq, mask_seq, rew_seq, done_seq, cp_seq) = jit_rollout(state, keys)
 
         # CPU Transfer
-        obs_cpu = jax.tree_map(np.array, obs_seq)
+        obs_cpu = jax.tree.map(np.array, obs_seq)
         act_cpu = np.array(act_seq)
         mask_cpu = np.array(mask_seq)
         rew_cpu = np.array(rew_seq)
@@ -165,7 +165,7 @@ def main():
         returns_chunk = returns_chunk / cfg.max_reward
 
         # Flatten & Store
-        flat_obs = jax.tree_map(lambda x: x.reshape(-1, *x.shape[2:]), obs_cpu)
+        flat_obs = jax.tree.map(lambda x: x.reshape(-1, *x.shape[2:]), obs_cpu)
         data_obs.append(flat_obs)
         data_act.append(act_cpu.flatten())
         data_mask.append(mask_cpu.reshape(-1, mask_cpu.shape[-1]))

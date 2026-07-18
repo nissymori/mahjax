@@ -117,7 +117,7 @@ def visualize_game(cfg, train_state):
         if state.current_player == agent_seat:
             obs = env.observe(state)
             # Add batch dim
-            obs_batched = jax.tree_map(lambda x: x[None, ...], obs)
+            obs_batched = jax.tree.map(lambda x: x[None, ...], obs)
             mask_batched = state.legal_action_mask[None, ...]
             action = policy_fn(obs_batched, mask_batched, k_act)[0]
         else:
@@ -173,7 +173,7 @@ def main():
     rng, init_rng = jax.random.split(rng)
     
     # Dummy obs for init
-    dummy_obs = jax.tree_map(lambda x: x[0:1], obs_data)
+    dummy_obs = jax.tree.map(lambda x: x[0:1], obs_data)
     train_state = create_train_state(init_rng, model, dummy_obs, cfg.lr)
     
     # 4. Training Loop
@@ -189,7 +189,7 @@ def main():
         for i in pbar:
             batch_idx = train_indices[i*cfg.batch_size : (i+1)*cfg.batch_size]
             batch = {
-                'obs': jax.tree_map(lambda x: x[batch_idx], obs_data),
+                'obs': jax.tree.map(lambda x: x[batch_idx], obs_data),
                 'act': act_data[batch_idx],
                 'mask': mask_data[batch_idx]
             }
@@ -205,7 +205,7 @@ def main():
             idx_end = min((i + 1) * cfg.batch_size, len(val_indices))
             batch_idx = val_indices[idx_start:idx_end]
             batch = {
-                'obs': jax.tree_map(lambda x: x[batch_idx], obs_data),
+                'obs': jax.tree.map(lambda x: x[batch_idx], obs_data),
                 'act': act_data[batch_idx],
                 'mask': mask_data[batch_idx]
             }
