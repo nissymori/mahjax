@@ -35,30 +35,27 @@ class Shanten:
     # See the link below for the algorithm details.
     # https://github.com/sotetsuk/pgx/pull/123
     CACHE = load_shanten_cache()
+    # Flatten once at load time: reshaping inside traced code makes XLA
+    # materialize a fresh ~70MiB copy of the table per scan/vmap instance.
+    CACHE_FLAT = CACHE.reshape(-1)
 
     @staticmethod
     def discard(hand: Array) -> Array:
-        # i to int32, align the dtype of both branches of cond
-        def f(i):
-            i = jnp.int32(i)
-            return jax.lax.cond(
-                hand[i] == 0,
-                lambda: jnp.int32(6),
-                lambda: Shanten.number(hand.at[i].set(hand[i] - 1)),
-            )
-
-        return jax.vmap(f)(jnp.arange(34, dtype=jnp.int32))
+        # Cond-free formulation: wrapping Shanten.number in lax.cond under the
+        # 34-way vmap makes XLA materialize a copy of the ~70MiB CACHE per lane
+        # (74GiB temp at batch 32); computing all candidates and masking with
+        # where compiles to plain gathers with ~0 temp memory.
+        eye = jnp.eye(34, dtype=hand.dtype)
+        cand = jnp.maximum(hand[None, :] - eye, 0)  # (34, 34)
+        res = jax.vmap(Shanten.number)(cand)  # (34,)
+        return jnp.where(hand > 0, res, jnp.int32(6))
 
     def detailed_discard(hand: Array) -> Array:
-        def f(i):
-            i = jnp.int32(i)
-            return jax.lax.cond(
-                hand[i] == 0,
-                lambda: jnp.array([6, 6, 6]),
-                lambda: Shanten.detailed_number(hand.at[i].set(hand[i] - 1)),
-            )
-
-        return jax.vmap(f)(jnp.arange(34, dtype=jnp.int32))  # (34, 3)
+        # See discard() for why this avoids lax.cond.
+        eye = jnp.eye(34, dtype=hand.dtype)
+        cand = jnp.maximum(hand[None, :] - eye, 0)  # (34, 34)
+        res = jax.vmap(Shanten.detailed_number)(cand)  # (34, 3)
+        return jnp.where((hand > 0)[:, None], res, jnp.int32(6))
 
     @staticmethod
     def number(hand: Array) -> Array:
@@ -124,7 +121,7 @@ class Shanten:
 
         def gather_elem(c, idx):
             lin = c * J + idx
-            return jnp.take(CACHE.reshape(-1), lin)
+            return jnp.take(Shanten.CACHE_FLAT, lin)
 
         # 4 variants simultaneously calculate
         base_costs = gather_elem(code, jnp.full((4,), 4, dtype=jnp.int32))  # (4,)
