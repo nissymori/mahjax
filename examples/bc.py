@@ -46,7 +46,16 @@ class TrainConfig:
 
 # cli
 conf_dict = OmegaConf.from_cli()
-cfg = TrainConfig(**conf_dict)
+if __name__ == "__main__":
+    cfg = TrainConfig(**conf_dict)
+else:
+    # Imported (e.g. `from bc import visualize_game` in ppo_with_reg.py): the
+    # CLI belongs to the importing script, whose flags (num_envs, num_steps,
+    # ...) are not TrainConfig fields and would raise TypeError here. Keep
+    # only the keys BC recognizes so env_name still selects the right
+    # network for the importer.
+    _bc_keys = {k: v for k, v in conf_dict.items() if k in TrainConfig.__dataclass_fields__}
+    cfg = TrainConfig(**_bc_keys)
 NETWORK_CLS = get_network_cls(cfg.env_name)
 
 # --- Train State ---
