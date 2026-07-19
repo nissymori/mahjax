@@ -10,6 +10,7 @@ from mahjax.red_mahjong.env import (
     _init,
     _kan,
     _make_legal_action_mask_after_draw,
+    _mask_for_chi,
     _next_meld_player,
     _next_ron_player,
     _replace_state,
@@ -56,6 +57,27 @@ def test_tsumogiri_action_history_records_actual_tile_and_flag() -> None:
     assert int(next_state.round_state.action_history[0, 0]) == int(state.current_player)
     assert int(next_state.round_state.action_history[1, 0]) == last_draw
     assert int(next_state.round_state.action_history[2, 0]) == 1
+
+
+def test_mask_for_chi_forbids_forced_kuikae() -> None:
+    # Regression test for issue #61: a CHI that leaves no legal discard after
+    # kuikae (swap-calling) restrictions must not be offered as a legal action,
+    # otherwise executing it produces an active state with an all-false mask.
+    # Hand 1123444m (with two open melds held elsewhere). Calling 1m or 4m
+    # consumes 2m3m and leaves only 1m/4m, all forbidden as discards by kuikae.
+    hand = jnp.zeros(Tile.NUM_TILE_TYPE_WITH_RED, dtype=jnp.int8)
+    hand = hand.at[0].set(2).at[1].set(1).at[2].set(1).at[3].set(3)  # 1123444m
+    chi_slice = slice(Action.CHI_L, Action.CHI_R_RED + 1)
+    # Chi 1m: only CHI_L (1m+23m) is possible; every remaining discard is kuikae.
+    mask_1m = _mask_for_chi(hand, jnp.int8(0))
+    assert not bool(jnp.any(mask_1m[chi_slice]))
+    # Chi 4m: only CHI_R (234m) is possible; every remaining discard is kuikae.
+    mask_4m = _mask_for_chi(hand, jnp.int8(3))
+    assert not bool(jnp.any(mask_4m[chi_slice]))
+    # Sanity: with a spare 9m in hand, chi 1m leaves a legal discard and is allowed.
+    hand_ok = hand.at[3].set(2).at[8].set(1)  # 1123449m
+    mask_ok = _mask_for_chi(hand_ok, jnp.int8(0))
+    assert bool(mask_ok[Action.CHI_L])
 
 
 def test_next_meld_player_prioritizes_ron_then_distance() -> None:
