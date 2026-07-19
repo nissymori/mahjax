@@ -1087,11 +1087,41 @@ def _make_legal_action_mask_after_discard(
     return mask
 
 
+def _discard_tile_mask_after_chi(hand_after_chi: Array, target: Array, action: Array) -> Array:
+    """
+    Tile-type discard mask after CHI with kuikae (swap-calling) prohibited.
+    - ``hand_after_chi`` is the caller's hand (with red) after the CHI meld is removed.
+    - Prohibit the swap-calling tile type (if any) and the called tile type.
+    """
+    prohibitive_tile_type = Meld.prohibitive_tile_type_after_chi(action, target)
+    tile_mask = hand_after_chi > 0
+    tile_mask = jax.lax.cond(
+        prohibitive_tile_type >= 0,
+        lambda: _set_tile_type_action(tile_mask, prohibitive_tile_type, FALSE),
+        lambda: tile_mask,
+    )
+    tile_mask = _set_tile_type_action(tile_mask, Tile.to_tile_type(target), FALSE)
+    return tile_mask
+
+
 def _mask_for_chi(hand: Array, tile: Array) -> Array:
     """
     - Check if the player can play CHI with the target tile
+    - A CHI is legal only when at least one discard remains after the kuikae
+      restrictions; otherwise it would produce an active state with an all-false
+      legal action mask (see issue #61).
     """
-    chi_results = jax.vmap(Hand.can_chi, in_axes=(None, None, 0))(hand, tile, CHI_ACTIONS)
+
+    def _can_chi_and_discard(action: Array) -> Array:
+        can_chi = Hand.can_chi(hand, tile, action)
+        has_discard = jax.lax.cond(
+            can_chi,
+            lambda: _discard_tile_mask_after_chi(Hand.chi(hand, tile, action), tile, action).any(),
+            lambda: FALSE,
+        )
+        return can_chi & has_discard
+
+    chi_results = jax.vmap(_can_chi_and_discard)(CHI_ACTIONS)
     legal_action_mask = ZERO_MASK_1D.at[CHI_ACTIONS].set(chi_results)
     return legal_action_mask
 
@@ -1579,14 +1609,7 @@ def _make_legal_action_mask_after_chi(
     - Prohibit eating changes (喰いかえ)
     - If the prohibited tile is 5, also prohibit red tiles
     """
-    prohibitive_tile_type = Meld.prohibitive_tile_type_after_chi(action, target)
-    tile_mask = hand[c_p] > 0
-    tile_mask = jax.lax.cond(
-        prohibitive_tile_type >= 0,
-        lambda: _set_tile_type_action(tile_mask, prohibitive_tile_type, FALSE),
-        lambda: tile_mask,
-    )
-    tile_mask = _set_tile_type_action(tile_mask, Tile.to_tile_type(target), FALSE)
+    tile_mask = _discard_tile_mask_after_chi(hand[c_p], target, action)
     player_mask = ZERO_MASK_1D.at[: Tile.NUM_TILE_TYPE_WITH_RED].set(tile_mask)
     # Build the legal action mask for the player
     legal_action_mask_4p = ZERO_MASK_2D.at[c_p].set(player_mask)

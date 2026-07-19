@@ -30,6 +30,7 @@ from mahjax.no_red_mahjong.env import (
     _draw_after_kan,
     _pass,
     _make_legal_action_mask_after_chi,
+    _mask_for_chi,
     _abortive_draw_normal,
     _next_round,
     _kan,
@@ -59,6 +60,7 @@ jitted_open_kan = jax.jit(_open_kan)
 jitted_pon = jax.jit(_pon)
 jitted_chi = jax.jit(_chi)
 jitted_make_legal_action_mask_after_chi = jax.jit(_make_legal_action_mask_after_chi)
+jitted_mask_for_chi = jax.jit(_mask_for_chi)
 jitted_pass = jax.jit(_pass)
 jitted_riichi = jax.jit(_riichi)
 jitted_ron = jax.jit(_ron)
@@ -734,6 +736,25 @@ class TestEnv(unittest.TestCase):
         legal_action_mask = jitted_make_legal_action_mask_after_chi(self.state, hand, 0, 2, Action.CHI_R)
         expected_legal_action_mask = base_legal_action_mask.at[2].set(False) # target tile is prohibited
         self.assertEqual(jnp.all(legal_action_mask[0] == expected_legal_action_mask), True)
+
+    def test_mask_for_chi_forbids_forced_kuikae(self):
+        # Regression test for issue #61: a CHI that leaves no legal discard after
+        # kuikae (swap-calling) restrictions must not be offered as a legal action,
+        # otherwise executing it produces an active state with an all-false mask.
+        # Hand 1123444m (with two open melds held elsewhere). Calling 1m or 4m
+        # consumes 2m3m and leaves only 1m/4m, all forbidden as discards by kuikae.
+        hand = jnp.zeros(Tile.NUM_TILE_TYPE, dtype=jnp.int8)
+        hand = hand.at[0].set(2).at[1].set(1).at[2].set(1).at[3].set(3)  # 1123444m
+        # Chi 1m: only CHI_L (1m+23m) is possible; every remaining discard is kuikae.
+        mask_1m = jitted_mask_for_chi(hand, jnp.int8(0))
+        self.assertEqual(bool(jnp.any(mask_1m[Action.CHI_L : Action.CHI_R + 1])), False)
+        # Chi 4m: only CHI_R (234m) is possible; every remaining discard is kuikae.
+        mask_4m = jitted_mask_for_chi(hand, jnp.int8(3))
+        self.assertEqual(bool(jnp.any(mask_4m[Action.CHI_L : Action.CHI_R + 1])), False)
+        # Sanity: with a spare 9m in hand, chi 1m leaves a legal discard and is allowed.
+        hand_ok = hand.at[3].set(2).at[8].set(1)  # 1123449m
+        mask_ok = jitted_mask_for_chi(hand_ok, jnp.int8(0))
+        self.assertEqual(bool(mask_ok[Action.CHI_L]), True)
 
     def test_pass(self):
         # Check pass handling for queued callers, furiten-by-pass, and target clearing.
