@@ -858,6 +858,8 @@ def _make_legal_action_mask_after_draw(
     c_p: Array,
     new_tile: Array,
     game_config: Optional[GameConfig] = None,
+    *,
+    live_draws_left: Optional[Array] = None,
 ) -> Array:
     """
     Legal action mask for the player who drew a tile
@@ -865,6 +867,14 @@ def _make_legal_action_mask_after_draw(
     - Set if the player can play CLOSED_KAN or ADDED_KAN
     - Set if the player can declare RIICHI
     - Set if the player can win by TSUMO
+
+    ``live_draws_left`` is the number of live-wall draws still available
+    AFTER the tile being decided on. Default None derives it for the normal
+    ``_draw`` call site, which builds this mask with the PRE-decrement
+    ``next_deck_ix`` (the drawn tile is already in hand), so the count is
+    ``next_deck_ix - live_wall_end``. The rinshan call site draws from the
+    dead wall with ``last_deck_ix`` already advanced, so it passes its own
+    count explicitly.
     """
     config = _resolve_game_config(game_config)
     new_tile_type = Tile.to_tile_type(new_tile)
@@ -886,12 +896,22 @@ def _make_legal_action_mask_after_draw(
         & ~cannot_kan
     )(tile_types)
     mask = mask.at[Tile.NUM_TILE_TYPE_WITH_RED : Action.TSUMOGIRI].set(can_kan)
-    live_wall_end = _live_wall_end_ix(state)
-    # 残りツモが 4 回**未満**のときは立直不可。``visualization.remaining_tiles`` と同じ
-    # ``next - last + 1`` を使うと、禁止は ``next < last + 3``（従来の ``+ 4`` は残り4でも禁止になる）。
-    no_next_draw = state.round_state.next_deck_ix < live_wall_end + 3
+    # 残りツモが 4 回**未満**のときは立直不可。この判定は宣言者の摸打**後**に
+    # 山へ残る枚数で数える。normal draw ではこのマスクが next_deck_ix 減算前に
+    # 作られる（摸った牌はもう手牌にある）ので残りは ``next - live_wall_end``
+    # ちょうど——``visualization.remaining_tiles`` の ``next - last + 1``（局間
+    # 用の式）をここに使うと摸った牌を二重に数えて残り 3 枚でも立直が通り、
+    # mjai 互換エンジン（libriichi / riichienv）は全てそれをチョンボにする。
+    if live_draws_left is None:
+        live_draws_left = state.round_state.next_deck_ix - _live_wall_end_ix(state)
+    no_next_draw = live_draws_left < 4
+    # 供託を払えない持ち点 1000 点未満も立直不可（score は 100 点単位）。
+    cannot_afford_stick = state.round_state.score[c_p] < 10
     can_riichi = jnp.where(
-        state.players.riichi[c_p] | ~state.players.is_hand_concealed[c_p] | no_next_draw,
+        state.players.riichi[c_p]
+        | ~state.players.is_hand_concealed[c_p]
+        | no_next_draw
+        | cannot_afford_stick,
         FALSE,
         Hand.can_riichi(hand[c_p]),
     )
@@ -1331,7 +1351,13 @@ def _draw_after_kan(state: State, game_config: Optional[GameConfig] = None):
     legal_action_mask_c_p = jax.lax.cond(
         is_riichi,
         lambda: _make_legal_action_mask_after_draw_w_riichi(draw_eval_state, hand_with_red, c_p, rinshan_tile),
-        lambda: _make_legal_action_mask_after_draw(draw_eval_state, hand_with_red, c_p, rinshan_tile, game_config),
+        # Rinshan comes off the dead wall: next_deck_ix is untouched and
+        # last_deck_ix has already advanced (王牌繰り above), so the live
+        # draws remaining after this draw is the between-turns count.
+        lambda: _make_legal_action_mask_after_draw(
+            draw_eval_state, hand_with_red, c_p, rinshan_tile, game_config,
+            live_draws_left=state.round_state.next_deck_ix
+            - _live_wall_end_ix(state) + 1),
     )
     legal_action_mask_4p = state.players.legal_action_mask.at[c_p, :].set(
         legal_action_mask_c_p
