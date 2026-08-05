@@ -73,8 +73,14 @@ def _observe_dict(state: State) -> Dict:
     _round = state.round_state.round
     honba = state.round_state.honba
     kyotaku = state.round_state.kyotaku
-    prevalent_wind = state.round_state.seat_wind[c_p]
-    seat_wind = state.round_state.init_wind[c_p]
+    # Same semantics as red_mahjong/observation.py: prevalent_wind is the round
+    # wind derived from the kyoku counter (rounds 0-3 East, 4-7 South, ...),
+    # matching what yaku scoring uses; seat_wind is the current player's seat
+    # wind, which rotates with the dealer. Previously prevalent_wind returned
+    # the seat wind and seat_wind returned the initial (chicha) wind, so the
+    # observation carried no round-wind signal at all.
+    prevalent_wind = jnp.int8(state.round_state.round // 4)
+    seat_wind = state.round_state.seat_wind[c_p]
     dora_indicators = state.round_state.dora_indicators[:5]  # (5,) Maximum 5 dora indicators
     return {
         "hand": hand_c_p_14,
