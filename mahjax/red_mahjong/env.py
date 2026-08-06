@@ -423,6 +423,12 @@ def _init(rng: PRNGKey, game_config: Optional[GameConfig] = None) -> State:
         ura_dora_indicators=ura_dora_indicators,
         hand=init_hand,
         hand_with_red=init_hand_with_red,
+        # Seed the reshuffle chain from the init key. Without this, rng_key
+        # keeps the State-default PRNGKey(0): step() ignores its key argument,
+        # every later wall derives from round_state.rng_key alone, so all
+        # walls after the first are one global sequence shared across seeds,
+        # envs, and runs (their decks, deals and dora are constants).
+        rng_key=subkey,
     )
     can_ron = v_can_win(state.players.hand, TILE_RANGE)
     c_p = state.current_player
