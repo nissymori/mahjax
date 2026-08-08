@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import jax
 import jax.numpy as jnp
 
 from .constants import (
@@ -25,7 +24,6 @@ from .constants import (
 from .meld import EMPTY_MELD
 from .struct import dataclass
 from .tile import EMPTY_RIVER
-from .types import PRNGKey
 
 
 FALSE = jnp.bool_(False)
@@ -87,7 +85,6 @@ class PlayerStateArrays:
 
 @dataclass
 class RoundState:
-    rng_key: PRNGKey = jax.random.PRNGKey(0)
     action_history: jnp.ndarray = jnp.full((3, 200), -1, dtype=jnp.int8)
     shanten_current_player: jnp.int8 = jnp.int8(0)
     round: jnp.int8 = jnp.int8(0)

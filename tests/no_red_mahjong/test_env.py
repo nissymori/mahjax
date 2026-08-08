@@ -37,6 +37,8 @@ from mahjax.no_red_mahjong.env import (
     NoRedMahjong,
     _replace_state,
 )
+
+STEP_KEY = jax.random.PRNGKey(0)  # wall key for round transitions
 env = NoRedMahjong(round_mode="single")
 
 jitted_init = jax.jit(_init)
@@ -78,7 +80,7 @@ def _advance_after_dummy(state, steps: int = 4):
     """Advance the state after the dummy sharing is complete."""
     # If the dummy count is 0, the dummy sharing is complete, so the next round is called.
     for _ in range(steps):
-        state = jitted_next_round(state)
+        state = jitted_next_round(state, STEP_KEY)
         if int(state.round_state.dummy_count) == 0:
             # The dummy sharing is complete, so the next round is called.
             break
@@ -648,7 +650,7 @@ class TestEnv(unittest.TestCase):
 
         env_share = NoRedMahjong(round_mode="half", next_round_style="dummy_share")
         kan_state = jitted_kan(state, action)
-        ron_state = env_share.step(kan_state, jnp.int32(Action.RON))
+        ron_state = env_share.step(kan_state, jnp.int32(Action.RON), STEP_KEY)
 
         expected = jnp.zeros((Action.NUM_ACTION,), dtype=jnp.bool_).at[Action.DUMMY].set(True)
         self.assertTrue(bool(ron_state.round_state.terminated_round))
@@ -1173,7 +1175,7 @@ class TestEnv(unittest.TestCase):
 
         cps = [2]
         for _ in range(3):
-            state = jitted_next_round(state)
+            state = jitted_next_round(state, STEP_KEY)
             cps.append(int(state.current_player))
 
         # 2 -> 3 -> 0 -> 1 rotation
@@ -1218,7 +1220,7 @@ class TestEnv(unittest.TestCase):
             action_history.append(recorded_action)
             tsumogiri_history.append(1 if is_tsumogiri else (0 if is_discard else -1))
             current_player_history.append(int(state.current_player))
-            state = jitted_env_step(state, action)
+            state = jitted_env_step(state, action, STEP_KEY)
             rng, rng_sub = jax.random.split(rng)
 
         final_step_count = state.step_count
@@ -1268,7 +1270,7 @@ class TestNextRoundStyle(unittest.TestCase):
             legal_action_mask=self._ron_legal_mask(0),
             current_player=jnp.int8(0),
         )
-        next_state = env_auto.step(state, jnp.int32(Action.RON))
+        next_state = env_auto.step(state, jnp.int32(Action.RON), STEP_KEY)
         self.assertFalse(bool(next_state.terminated))
         self.assertFalse(bool(next_state.round_state.terminated_round))
         self.assertEqual(int(next_state.round_state.dummy_count), 0)
@@ -1293,7 +1295,7 @@ class TestNextRoundStyle(unittest.TestCase):
             legal_action_mask=self._ron_legal_mask(0),
             current_player=jnp.int8(0),
         )
-        next_state = env_share.step(state, jnp.int32(Action.RON))
+        next_state = env_share.step(state, jnp.int32(Action.RON), STEP_KEY)
         self.assertFalse(bool(next_state.terminated))
         self.assertTrue(bool(next_state.round_state.terminated_round))
         self.assertEqual(int(next_state.round_state.dummy_count), 0)
@@ -1309,7 +1311,7 @@ class TestNextRoundStyle(unittest.TestCase):
             legal_action_mask=self._ron_legal_mask(0),
             current_player=jnp.int8(0),
         )
-        next_state = env_auto.step(state, jnp.int32(Action.RON))
+        next_state = env_auto.step(state, jnp.int32(Action.RON), STEP_KEY)
         self.assertTrue(bool(next_state.terminated))
 
     def test_auto_game_end_sets_terminated_with_final_score(self):
@@ -1333,7 +1335,7 @@ class TestNextRoundStyle(unittest.TestCase):
             kyotaku=jnp.int8(3),
             has_won=jnp.array([False, False, False, False], dtype=jnp.bool_),
         )
-        next_state = env_auto.step(state, jnp.int32(Action.RON))
+        next_state = env_auto.step(state, jnp.int32(Action.RON), STEP_KEY)
         self.assertTrue(bool(next_state.terminated))
         # Score reflects rank_points + kyotaku on top, matching the legacy
         # round_end_share final-score computation.
@@ -1358,7 +1360,7 @@ class TestNextRoundStyle(unittest.TestCase):
             current_player=jnp.int8(0),
             last_player=jnp.int8(2),
         )
-        next_state = env_auto.step(state, jnp.int32(Action.RON))
+        next_state = env_auto.step(state, jnp.int32(Action.RON), STEP_KEY)
         # Reward shape preserved
         self.assertEqual(next_state.rewards.shape, (4,))
         # Game continues (not the final round)
@@ -1397,13 +1399,13 @@ class TestAutoDummyShareParity(unittest.TestCase):
 
         state_auto = env_auto.step(
             self._force_ron_state(env_auto, key), jnp.int32(Action.RON)
-        )
+        , STEP_KEY)
         state_share = env_share.step(
             self._force_ron_state(env_share, key), jnp.int32(Action.RON)
-        )
+        , STEP_KEY)
         rewards_at_ron = state_share.rewards  # delivered at RON step in dummy_share
         for _ in range(4):
-            state_share = env_share.step(state_share, jnp.int32(Action.DUMMY))
+            state_share = env_share.step(state_share, jnp.int32(Action.DUMMY), STEP_KEY)
 
         # Mid-game: both at next-round init.
         self.assertFalse(bool(state_auto.terminated))
@@ -1458,9 +1460,9 @@ class TestAutoDummyShareParity(unittest.TestCase):
         state_auto = _replace_state(self._force_ron_state(env_auto, key), **forced)
         state_share = _replace_state(self._force_ron_state(env_share, key), **forced)
 
-        state_auto = env_auto.step(state_auto, jnp.int32(Action.RON))
-        state_share = env_share.step(state_share, jnp.int32(Action.RON))
-        state_share = env_share.step(state_share, jnp.int32(Action.DUMMY))
+        state_auto = env_auto.step(state_auto, jnp.int32(Action.RON), STEP_KEY)
+        state_share = env_share.step(state_share, jnp.int32(Action.RON), STEP_KEY)
+        state_share = env_share.step(state_share, jnp.int32(Action.DUMMY), STEP_KEY)
 
         self.assertTrue(bool(state_auto.terminated))
         self.assertTrue(bool(state_share.terminated))

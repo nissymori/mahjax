@@ -87,7 +87,6 @@ _PLAYER_FIELDS = {
 }
 
 _ROUND_FIELDS = {
-    "rng_key",
     "action_history",
     "shanten_current_player",
     "round",
@@ -306,8 +305,16 @@ class RedMahjong(Env):
         action: Array,
         key: Optional[Array] = None,
     ) -> State:
-        del key
-        """Step function."""
+        """Step function.
+
+        ``key`` deals the wall whenever this step ends a round, so it is
+        required: the state carries no rng of its own.
+        """
+        if key is None:
+            raise ValueError(
+                "step() requires a PRNG key: a step that ends a round deals the "
+                "next wall from it, and the state carries no rng of its own."
+            )
         is_illegal = ~state.legal_action_mask[action]
         current_player = state.current_player
         state = _replace_state(
@@ -317,7 +324,7 @@ class RedMahjong(Env):
 
 
         stepped_state = _replace_state(
-            self._step_fn(state, action, self.game_config),
+            self._step_fn(state, action, key, self.game_config),
             step_count=state.step_count + 1,
         )
         state = jax.lax.cond(
@@ -334,7 +341,7 @@ class RedMahjong(Env):
         if self.next_round_style == "auto":
             state = jax.lax.cond(
                 state.round_state.terminated_round & ~state.terminated & ~jnp.bool_(self.one_round),
-                lambda: _advance_to_next_round_auto(state, self.game_config),
+                lambda: _advance_to_next_round_auto(state, key, self.game_config),
                 lambda: state,
             )
         state = jax.lax.cond(
@@ -355,8 +362,9 @@ class RedMahjong(Env):
         action: Array,
         key: Optional[Array] = None,
     ) -> tuple[State, Array]:
-        del key
-        return verify_step(state, action, self.game_config)
+        if key is None:
+            raise ValueError("verify_step() requires a PRNG key; see step().")
+        return verify_step(state, action, key, self.game_config)
 
     def observe(self, state: State) -> Array:
         assert isinstance(state, State)
@@ -402,11 +410,15 @@ class RedMahjong(Env):
 def _init(rng: PRNGKey, game_config: Optional[GameConfig] = None) -> State:
     """
     Initialize the state.
+
+    The state carries no rng: later rounds are dealt from the key passed to
+    ``step``. Dealer and wall draw from independent subkeys, so the dealer is
+    not a deterministic function of the wall.
     """
-    rng, subkey = jax.random.split(rng)
-    current_player = jnp.int8(jax.random.randint(rng, (), 0, 4))
+    dealer_key, wall_key = jax.random.split(rng)
+    current_player = jnp.int8(jax.random.randint(dealer_key, (), 0, 4))
     last_player = jnp.int8(-1)
-    deck = Tile.from_tile_id_to_tile(jax.random.permutation(rng, jnp.arange(136))).astype(jnp.int8)
+    deck = Tile.from_tile_id_to_tile(jax.random.permutation(wall_key, jnp.arange(136))).astype(jnp.int8)
     deck = _apply_red_five_config(deck, game_config)
     init_hand_with_red = Hand.make_init_hand(deck)
     init_hand = jax.vmap(Hand.to_34)(init_hand_with_red)
@@ -473,8 +485,8 @@ def _init_for_next_round(
 def _prepare_next_round_assets(
     rng: PRNGKey,
     game_config: Optional[GameConfig] = None,
-) -> Tuple[PRNGKey, Array, Array, Array, Array, Array, Array]:
-    rng, subkey = jax.random.split(rng)
+) -> Tuple[Array, Array, Array, Array, Array, Array]:
+    """Deal the next round's wall from ``rng`` (the key given to ``step``)."""
     deck = Tile.from_tile_id_to_tile(jax.random.permutation(rng, jnp.arange(136))).astype(jnp.int8)
     deck = _apply_red_five_config(deck, game_config)
     init_hand_with_red = Hand.make_init_hand(deck)
@@ -482,16 +494,16 @@ def _prepare_next_round_assets(
     dora_indicators = jnp.array([deck[9], -1, -1, -1, -1], dtype=jnp.int8)
     ura_dora_indicators = jnp.array([deck[8], -1, -1, -1, -1], dtype=jnp.int8)
     can_ron = v_can_win(init_hand, TILE_RANGE)
-    return subkey, deck, dora_indicators, ura_dora_indicators, init_hand, init_hand_with_red, can_ron
+    return deck, dora_indicators, ura_dora_indicators, init_hand, init_hand_with_red, can_ron
 
 
 def _init_for_next_round_from_prepared(
     state: State,
-    prepared: Tuple[PRNGKey, Array, Array, Array, Array, Array, Array],
+    prepared: Tuple[Array, Array, Array, Array, Array, Array],
     game_config: Optional[GameConfig] = None,
 ) -> State:
     last_player = jnp.int8(-1)
-    subkey, deck, dora_indicators, ura_dora_indicators, init_hand, init_hand_with_red, can_ron = prepared
+    deck, dora_indicators, ura_dora_indicators, init_hand, init_hand_with_red, can_ron = prepared
     state = _replace_state(
         state,
         last_player=last_player,
@@ -500,7 +512,6 @@ def _init_for_next_round_from_prepared(
         ura_dora_indicators=ura_dora_indicators,
         hand=init_hand,
         hand_with_red=init_hand_with_red,
-        rng_key=subkey,
     )
     c_p = state.current_player
     new_tile = state.round_state.deck[state.round_state.next_deck_ix]
@@ -565,7 +576,7 @@ def _append_action_history(state: State, action: Array) -> Array:
 
 
 def _step_dummy_share(
-    state: State, action: Array, game_config: Optional[GameConfig] = None
+    state: State, action: Array, key: PRNGKey, game_config: Optional[GameConfig] = None
 ) -> State:
     """Step used by ``next_round_style='dummy_share'``.
 
@@ -576,12 +587,12 @@ def _step_dummy_share(
     """
     action_history = _append_action_history(state, action)
     state = _replace_state(state, action_history=action_history)  # type:ignore
-    state = _dispatch_action_dummy_share(state, action, game_config)
+    state = _dispatch_action_dummy_share(state, action, key, game_config)
     return _finalize_step_state(state, game_config, update_shanten=TRUE)
 
 
 def _step_auto(
-    state: State, action: Array, game_config: Optional[GameConfig] = None
+    state: State, action: Array, key: PRNGKey, game_config: Optional[GameConfig] = None
 ) -> State:
     """Step used by ``next_round_style='auto'`` (RL default).
 
@@ -592,7 +603,7 @@ def _step_auto(
     """
     action_history = _append_action_history(state, action)
     state = _replace_state(state, action_history=action_history)  # type:ignore
-    state = _dispatch_action_auto(state, action, game_config)
+    state = _dispatch_action_auto(state, action, key, game_config)
     return _finalize_step_state(state, game_config, update_shanten=TRUE)
 
 
@@ -602,7 +613,7 @@ _step = _step_dummy_share
 
 
 def _dispatch_action_dummy_share(
-    state: State, action: Array, game_config: Optional[GameConfig] = None
+    state: State, action: Array, key: PRNGKey, game_config: Optional[GameConfig] = None
 ) -> State:
     discard_state = _discard(state, action, game_config)
     kan_state = _kan(state, action, game_config)
@@ -612,18 +623,17 @@ def _dispatch_action_dummy_share(
     pon_state = _pon(state, action)
     chi_state = _chi(state, action)
     pass_state = _pass(state, game_config)
-    _, next_round_rng = jax.random.split(state.round_state.rng_key)
-    prepared_next_round = _prepare_next_round_assets(next_round_rng)
+    prepared_next_round = _prepare_next_round_assets(key, game_config)
     special_next_round_state = _special_next_round(
         state,
+        key,
         game_config,
-        next_round_rng=next_round_rng,
         prepared_next_round=prepared_next_round,
     )
     next_round_state = _next_round(
         state,
+        key,
         game_config,
-        next_round_rng=next_round_rng,
         prepared_next_round=prepared_next_round,
     )
     fn_idx = ACTION_FUN_MAP[action]
@@ -645,7 +655,7 @@ def _dispatch_action_dummy_share(
 
 
 def _dispatch_action_auto(
-    state: State, action: Array, game_config: Optional[GameConfig] = None
+    state: State, action: Array, key: PRNGKey, game_config: Optional[GameConfig] = None
 ) -> State:
     """Dispatch table for ``auto`` next_round_style. Drops the ``_next_round``
     (dummy rotation) computation — its slot is a no-op since ``DUMMY`` is
@@ -660,14 +670,7 @@ def _dispatch_action_auto(
     pon_state = _pon(state, action)
     chi_state = _chi(state, action)
     pass_state = _pass(state, game_config)
-    _, next_round_rng = jax.random.split(state.round_state.rng_key)
-    prepared_next_round = _prepare_next_round_assets(next_round_rng)
-    special_next_round_state = _special_next_round(
-        state,
-        game_config,
-        next_round_rng=next_round_rng,
-        prepared_next_round=prepared_next_round,
-    )
+    special_next_round_state = _special_next_round(state, key, game_config)
     fn_idx = ACTION_FUN_MAP[action]
     return jax.lax.switch(
         fn_idx,
@@ -687,7 +690,7 @@ def _dispatch_action_auto(
 
 
 def _dispatch_action_lazy(
-    state: State, action: Array, game_config: Optional[GameConfig] = None
+    state: State, action: Array, key: PRNGKey, game_config: Optional[GameConfig] = None
 ) -> State:
     """Lazy dispatcher used by :func:`verify_step` only. Avoids the eager
     pre-computation of every branch — branches are built as ``lambda s: ...``
@@ -706,25 +709,26 @@ def _dispatch_action_lazy(
             lambda s: _pon(s, action),
             lambda s: _chi(s, action),
             lambda s: _pass(s, game_config),
-            lambda s: _special_next_round(s, game_config),
-            lambda s: _next_round(s, game_config),
+            lambda s: _special_next_round(s, key, game_config),
+            lambda s: _next_round(s, key, game_config),
         ],
         state,
     )
 
 
 def _step_verify_lazy(
-    state: State, action: Array, game_config: Optional[GameConfig] = None
+    state: State, action: Array, key: PRNGKey, game_config: Optional[GameConfig] = None
 ) -> State:
     action_history = _append_action_history(state, action)
     state = _replace_state(state, action_history=action_history)
-    state = _dispatch_action_lazy(state, action, game_config)
+    state = _dispatch_action_lazy(state, action, key, game_config)
     return _finalize_step_state(state, game_config, update_shanten=FALSE)
 
 
 def verify_step(
     state: State,
     action: Array,
+    key: PRNGKey,
     game_config: Optional[GameConfig] = None,
 ) -> tuple[State, Array]:
     """Step variant for replay verification.
@@ -734,10 +738,14 @@ def verify_step(
     is illegal, the input state is returned unchanged together with
     ``is_illegal=True``. Used by ``mahjax_tenhou_test`` to compare env behavior
     against tenhou mjlogs without triggering the env's penalty path.
+
+    ``key`` deals the next round's wall on a round-ending action; replays
+    overwrite it with the logged wall, but it is still required so this shares
+    ``step``'s contract.
     """
     is_illegal = ~state.legal_action_mask[action]
     stepped_state = _replace_state(
-        _step_verify_lazy(state, action, game_config),
+        _step_verify_lazy(state, action, key, game_config),
         step_count=state.step_count + 1,
     )
     state = jax.lax.cond(
@@ -1990,18 +1998,15 @@ def _abortive_draw_normal(state: State) -> State:
 
 def _special_next_round(
     state: State,
+    key: PRNGKey,
     game_config: Optional[GameConfig] = None,
     *,
-    next_round_rng: Optional[PRNGKey] = None,
-    prepared_next_round: Optional[Tuple[PRNGKey, Array, Array, Array, Array, Array, Array]] = None,
+    prepared_next_round: Optional[Tuple[Array, Array, Array, Array, Array, Array]] = None,
 ) -> State:
-    if next_round_rng is None:
-        _, next_round_rng = jax.random.split(state.round_state.rng_key)
     if prepared_next_round is None:
-        prepared_next_round = _prepare_next_round_assets(next_round_rng)
+        prepared_next_round = _prepare_next_round_assets(key, game_config)
     dealer = state.round_state.dealer
     base_next = _make_state(
-        rng_key=next_round_rng,
         current_player=dealer,
         dealer=dealer,
         init_wind=state.round_state.init_wind,
@@ -2060,13 +2065,13 @@ def _mangan_tsumo(winner: Array, dealer: Array, honba: Array) -> Array:
 
 def _next_round(
     state: State,
+    key: PRNGKey,
     game_config: Optional[GameConfig] = None,
     *,
-    next_round_rng: Optional[PRNGKey] = None,
-    prepared_next_round: Optional[Tuple[PRNGKey, Array, Array, Array, Array, Array, Array]] = None,
+    prepared_next_round: Optional[Tuple[Array, Array, Array, Array, Array, Array]] = None,
 ) -> State:
     """
-    Move to the next round
+    Move to the next round (``key`` deals the new wall)
     - Process the next round
     - Move the dealer
     - Process the round
@@ -2074,10 +2079,8 @@ def _next_round(
     - DUMMY sharing: 3 times of rotation (cp to +1 mod 4) after the 4th time, the result is determined
     """
     dc = state.round_state.dummy_count  # int8
-    if next_round_rng is None:
-        _, next_round_rng = jax.random.split(state.round_state.rng_key)
     if prepared_next_round is None:
-        prepared_next_round = _prepare_next_round_assets(next_round_rng)
+        prepared_next_round = _prepare_next_round_assets(key, game_config)
 
     # ---- During the DUMMY sharing phase, only rotate ----
     def _rotate_once(s: State):
@@ -2144,7 +2147,6 @@ def _next_round(
 
         # ★ Initialize only at this timing
         base_next = _make_state(  # type: ignore
-            rng_key=next_round_rng,
             current_player=next_dealer,  # Start from the dealer
             dealer=next_dealer,
             seat_wind=_calc_wind(next_dealer),
@@ -2207,6 +2209,7 @@ def _next_round(
 
 def _advance_to_next_round_auto(
     state: State,
+    key: PRNGKey,
     game_config: Optional[GameConfig] = None,
 ) -> State:
     """``auto`` next_round_style round transition (no DUMMY sharing) for red_mahjong.
@@ -2252,10 +2255,8 @@ def _advance_to_next_round_auto(
     )
     next_dealer = jnp.where(will_dealer_continue, dealer, (dealer + 1) % 4)
 
-    _, next_round_rng = jax.random.split(state.round_state.rng_key)
-    prepared = _prepare_next_round_assets(next_round_rng, game_config)
+    prepared = _prepare_next_round_assets(key, game_config)
     base_next = _make_state(
-        rng_key=next_round_rng,
         current_player=next_dealer,
         dealer=next_dealer,
         seat_wind=_calc_wind(next_dealer),

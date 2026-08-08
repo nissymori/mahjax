@@ -607,7 +607,8 @@ def generate_play_history_states(
             if int(jnp.sum(state.legal_action_mask)) == 0:
                 break
             action = jnp.argmax(state.legal_action_mask).astype(jnp.int32)
-        state = env.step(state, action)
+        rng, step_key = jax.random.split(rng)
+        state = env.step(state, action, step_key)
         history.append(state)
         if bool(state.terminated | state.truncated):
             break

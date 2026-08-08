@@ -149,7 +149,7 @@ class Env(abc.ABC):
         env: Env = mahjax.make("no_red_mahjong")
         state = env.init(jax.random.PRNGKey(0))
         action = jax.random.int32(4)
-        state = env.step(state, action)
+        state = env.step(state, action, jax.random.PRNGKey(1))
         ```
 
     """
@@ -179,7 +179,9 @@ class Env(abc.ABC):
         Args:
             state: State: Current state of the game
             action: Array: Action to be performed
-            key: PRNGKey: Pseudo-random generator key in JAX
+            key: PRNGKey: Pseudo-random generator key in JAX. Required — a step
+                that ends a round deals the next wall from it, and the state
+                carries no rng of its own.
 
         Returns:
             State: State after processing the action
