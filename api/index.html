@@ -1,0 +1,1593 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="GPU-accelerated Riichi Mahjong simulators for reinforcement learning">
+      
+      
+        <meta name="author" content="Soichiro Nishimori">
+      
+      
+        <link rel="canonical" href="https://nissymori.github.io/mahjax/api/">
+      
+      
+        <link rel="prev" href="../red_mahjong/">
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/logo.svg">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Reference - MahJax Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Noto+Sans:300,300i,400,400i,700,700i%7CInconsolata:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Noto Sans";--md-code-font:"Inconsolata"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="light-blue" data-md-color-accent="cyan">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#api" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="MahJax Documentation" class="md-header__button md-logo" aria-label="MahJax Documentation" data-md-component="logo">
+      
+  <img src="../assets/logo.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            MahJax Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Reference
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/nissymori/mahjax" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    nissymori/mahjax
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="MahJax Documentation" class="md-nav__button md-logo" aria-label="MahJax Documentation" data-md-component="logo">
+      
+  <img src="../assets/logo.svg" alt="logo">
+
+    </a>
+    MahJax Documentation
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/nissymori/mahjax" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    nissymori/mahjax
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Overview
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mahjong-basics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mahjong Basics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../rule/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Supported Rules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../visualization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Visualization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    UI Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Available Games
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Available Games
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../no_red_mahjong/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    No-Red Mahjong
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../red_mahjong/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Red Mahjong
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#install" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Install
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Usage
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#state" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        State
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="State">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#top-level-fields-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Top-level fields (state)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stateplayers-per-player-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        state.players — per-player state
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stateround_state-round-level-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        state.round_state — round-level state
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#round-transition-style-next_round_style" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Round Transition Style (next_round_style)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Round Transition Style (next_round_style)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-a-round-end-step-looks-in-each-style" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How a round-end step looks in each style
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#using-auto-rewards-in-rl" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Using auto rewards in RL
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Using auto rewards in RL">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#gae-for-turn-based-marl-with-per-player-reward-accumulators" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GAE for turn-based MARL with per-player reward accumulators
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#when-to-choose-dummy_share" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When to choose dummy_share
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://github.com/nissymori/mahjax" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GitHub
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#install" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Install
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Usage
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#state" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        State
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="State">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#top-level-fields-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Top-level fields (state)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stateplayers-per-player-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        state.players — per-player state
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stateround_state-round-level-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        state.round_state — round-level state
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#round-transition-style-next_round_style" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Round Transition Style (next_round_style)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Round Transition Style (next_round_style)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-a-round-end-step-looks-in-each-style" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How a round-end step looks in each style
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#using-auto-rewards-in-rl" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Using auto rewards in RL
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Using auto rewards in RL">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#gae-for-turn-based-marl-with-per-player-reward-accumulators" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GAE for turn-based MARL with per-player reward accumulators
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#when-to-choose-dummy_share" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When to choose dummy_share
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="api">API</h1>
+<h2 id="install">Install</h2>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip install mahjax
+</span></code></pre></div>
+<h2 id="usage">Usage</h2>
+<p>We follow almost the same API as <a href="https://github.com/sotetsuk/pgx">pgx</a>. Below is an example of MahJax usage.</p>
+<div class="language-py highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="kn">import</span><span class="w"> </span><span class="nn">mahjax</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="n">batch_size</span> <span class="o">=</span> <span class="mi">10</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="n">rng</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">PRNGKey</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="c1"># Initialize environment and state</span>
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="n">env</span> <span class="o">=</span> <span class="n">mahjax</span><span class="o">.</span><span class="n">make</span><span class="p">(</span>
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>    <span class="s2">&quot;red_mahjong&quot;</span><span class="p">,</span>
+</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>    <span class="n">round_mode</span><span class="o">=</span><span class="s2">&quot;single&quot;</span><span class="p">,</span>   <span class="c1"># &quot;single&quot;, &quot;east&quot; (tonpuusen), or &quot;half&quot; (hanchan)</span>
+</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>    <span class="n">next_round_style</span><span class="o">=</span><span class="s2">&quot;auto&quot;</span><span class="p">,</span>  <span class="c1"># &quot;auto&quot; (default, RL) or &quot;dummy_share&quot; (interactive / mjai)</span>
+</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>    <span class="n">order_points</span><span class="o">=</span><span class="p">[</span><span class="mi">30</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="o">-</span><span class="mi">10</span><span class="p">,</span> <span class="o">-</span><span class="mi">30</span><span class="p">],</span>
+</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="p">)</span>
+</span><span id="__span-1-16"><a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="n">step_fn</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">jit</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">step</span><span class="p">))</span>
+</span><span id="__span-1-17"><a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="n">obs_fn</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">jit</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">observe</span><span class="p">))</span>
+</span><span id="__span-1-18"><a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a>
+</span><span id="__span-1-19"><a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="c1"># Initialize state</span>
+</span><span id="__span-1-20"><a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a><span class="n">rng</span><span class="p">,</span> <span class="n">subrng</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">rng</span><span class="p">)</span>
+</span><span id="__span-1-21"><a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a><span class="n">rngs</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">subrng</span><span class="p">,</span> <span class="n">batch_size</span><span class="p">)</span>
+</span><span id="__span-1-22"><a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a><span class="n">state</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">jit</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">init</span><span class="p">))(</span><span class="n">rngs</span><span class="p">)</span>
+</span><span id="__span-1-23"><a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a>
+</span><span id="__span-1-24"><a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a><span class="c1"># Tsumogiri play</span>
+</span><span id="__span-1-25"><a id="__codelineno-1-25" name="__codelineno-1-25" href="#__codelineno-1-25"></a><span class="k">while</span> <span class="ow">not</span> <span class="n">state</span><span class="o">.</span><span class="n">terminated</span><span class="o">.</span><span class="n">all</span><span class="p">():</span>
+</span><span id="__span-1-26"><a id="__codelineno-1-26" name="__codelineno-1-26" href="#__codelineno-1-26"></a>    <span class="n">rng</span><span class="p">,</span> <span class="n">subrng</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">rng</span><span class="p">)</span>
+</span><span id="__span-1-27"><a id="__codelineno-1-27" name="__codelineno-1-27" href="#__codelineno-1-27"></a>    <span class="n">obs</span> <span class="o">=</span> <span class="n">obs_fn</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>  <span class="c1"># (batch_size, ...) access to the observation.</span>
+</span><span id="__span-1-28"><a id="__codelineno-1-28" name="__codelineno-1-28" href="#__codelineno-1-28"></a>    <span class="n">rngs</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">subrng</span><span class="p">,</span> <span class="n">batch_size</span><span class="p">)</span>
+</span><span id="__span-1-29"><a id="__codelineno-1-29" name="__codelineno-1-29" href="#__codelineno-1-29"></a>    <span class="n">action</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">full</span><span class="p">((</span><span class="n">batch_size</span><span class="p">,),</span> <span class="n">mahjax</span><span class="o">.</span><span class="n">Action</span><span class="o">.</span><span class="n">TSUMOGIRI</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
+</span><span id="__span-1-30"><a id="__codelineno-1-30" name="__codelineno-1-30" href="#__codelineno-1-30"></a>    <span class="n">state</span> <span class="o">=</span> <span class="n">step_fn</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">action</span><span class="p">,</span> <span class="n">rngs</span><span class="p">)</span>
+</span><span id="__span-1-31"><a id="__codelineno-1-31" name="__codelineno-1-31" href="#__codelineno-1-31"></a>    <span class="n">reward</span> <span class="o">=</span> <span class="n">state</span><span class="o">.</span><span class="n">rewards</span>  <span class="c1"># (batch_size, 4) access to the reward.</span>
+</span></code></pre></div>
+<h2 id="state">State</h2>
+<p>Both <code>no_red_mahjong</code> and <code>red_mahjong</code> share the same nested state layout. The state is an immutable JAX dataclass (<code>EnvState</code>) made of:</p>
+<ul>
+<li>a small set of <strong>top-level fields</strong> (the standard RL handles)</li>
+<li>a per-player array group (<code>state.players</code>, a <code>PlayerStateArrays</code>)</li>
+<li>a round-level array group (<code>state.round_state</code>, a <code>RoundState</code>)</li>
+</ul>
+<p><code>red_mahjong</code> adds a few extra fields on top of this — those are listed in <a href="../red_mahjong/">Red Mahjong</a>. The common fields are the same.</p>
+<h3 id="top-level-fields-state">Top-level fields (<code>state</code>)</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Field</th>
+<th style="text-align: center;">Shape</th>
+<th style="text-align: left;">Type</th>
+<th style="text-align: left;">Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>current_player</code></td>
+<td style="text-align: center;"><code>()</code></td>
+<td style="text-align: left;"><code>int8</code></td>
+<td style="text-align: left;">Player whose turn it is. The legal action mask exposed at the top level always belongs to this player.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>legal_action_mask</code></td>
+<td style="text-align: center;"><code>(num_actions,)</code></td>
+<td style="text-align: left;"><code>bool</code></td>
+<td style="text-align: left;">Legal action mask for <code>current_player</code>. At terminal states this is set to all-<code>True</code> to avoid zero-division when normalizing action probabilities.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>rewards</code></td>
+<td style="text-align: center;"><code>(4,)</code></td>
+<td style="text-align: left;"><code>float32</code></td>
+<td style="text-align: left;">4-player reward vector for the <strong>step that just ran</strong>. Mahjong rewards are score deltas in hundreds of points (e.g. ron payments, tsumo payments, tenpai/noten settlement, illegal-action penalty). Zero in steps that produced no scoring event.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>terminated</code></td>
+<td style="text-align: center;"><code>()</code></td>
+<td style="text-align: left;"><code>bool</code></td>
+<td style="text-align: left;">Game terminal. <code>True</code> once for the step that ends the game; remains <code>True</code> afterwards. After it goes <code>True</code>, subsequent <code>env.step</code> calls return the state unchanged with zero rewards.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>truncated</code></td>
+<td style="text-align: center;"><code>()</code></td>
+<td style="text-align: left;"><code>bool</code></td>
+<td style="text-align: left;">Reserved for external truncation wrappers (e.g. <code>TimeLimit</code>). MahJax does not itself produce truncated episodes.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>step_count</code></td>
+<td style="text-align: center;"><code>()</code></td>
+<td style="text-align: left;"><code>int32</code></td>
+<td style="text-align: left;">Total <code>env.step</code> calls applied so far.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>players</code></td>
+<td style="text-align: center;">nested</td>
+<td style="text-align: left;"><code>PlayerStateArrays</code></td>
+<td style="text-align: left;">Per-player arrays — see below.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>round_state</code></td>
+<td style="text-align: center;">nested</td>
+<td style="text-align: left;"><code>RoundState</code></td>
+<td style="text-align: left;">Round-level arrays — see below.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="stateplayers-per-player-state"><code>state.players</code> — per-player state</h3>
+<p>All entries are leading-axis-<code>4</code> arrays indexed by absolute player id (seat 0..3).</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Field</th>
+<th style="text-align: center;">Shape</th>
+<th style="text-align: left;">Type</th>
+<th style="text-align: left;">Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>hand</code></td>
+<td style="text-align: center;"><code>(4, 34)</code></td>
+<td style="text-align: left;"><code>int8</code></td>
+<td style="text-align: left;">Tile-type histogram of each player's concealed hand.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>legal_action_mask</code></td>
+<td style="text-align: center;"><code>(4, num_actions)</code></td>
+<td style="text-align: left;"><code>bool</code></td>
+<td style="text-align: left;">Per-player legal action mask. The 1-D <code>state.legal_action_mask</code> is <code>players.legal_action_mask[current_player]</code>.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>can_win</code></td>
+<td style="text-align: center;"><code>(4, 34)</code></td>
+<td style="text-align: left;"><code>bool</code></td>
+<td style="text-align: left;">For each player and tile type, whether the player can win on that tile.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>has_yaku</code></td>
+<td style="text-align: center;"><code>(4, 2)</code></td>
+<td style="text-align: left;"><code>bool</code></td>
+<td style="text-align: left;">Whether each player has a valid yaku, for RON / TSUMO respectively.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>fan</code></td>
+<td style="text-align: center;"><code>(4, 2)</code></td>
+<td style="text-align: left;"><code>int32</code></td>
+<td style="text-align: left;">Fan count, for RON / TSUMO respectively.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>fu</code></td>
+<td style="text-align: center;"><code>(4, 2)</code></td>
+<td style="text-align: left;"><code>int32</code></td>
+<td style="text-align: left;">Fu count, for RON / TSUMO respectively.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>melds</code></td>
+<td style="text-align: center;"><code>(4, 4)</code></td>
+<td style="text-align: left;"><code>uint16</code></td>
+<td style="text-align: left;">Packed meld records (action / target / src).</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>meld_counts</code></td>
+<td style="text-align: center;"><code>(4,)</code></td>
+<td style="text-align: left;"><code>int8</code></td>
+<td style="text-align: left;">Number of melds claimed by each player.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>river</code></td>
+<td style="text-align: center;"><code>(4, 24)</code></td>
+<td style="text-align: left;"><code>uint16</code></td>
+<td style="text-align: left;">Discard rivers; packed tile + tsumogiri flag.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>discard_counts</code></td>
+<td style="text-align: center;"><code>(4,)</code></td>
+<td style="text-align: left;"><code>int8</code></td>
+<td style="text-align: left;">Number of discards in each player's river.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>riichi</code></td>
+<td style="text-align: center;"><code>(4,)</code></td>
+<td style="text-align: left;"><code>bool</code></td>
+<td style="text-align: left;">Whether each player is in riichi.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>riichi_declared</code></td>
+<td style="text-align: center;"><code>(4,)</code></td>
+<td style="text-align: left;"><code>bool</code></td>
+<td style="text-align: left;">Whether each player has declared riichi this turn (latch cleared on accept).</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>double_riichi</code></td>
+<td style="text-align: center;"><code>(4,)</code></td>
+<td style="text-align: left;"><code>bool</code></td>
+<td style="text-align: left;">Double-riichi flag per player.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>ippatsu</code></td>
+<td style="text-align: center;"><code>(4,)</code></td>
+<td style="text-align: left;"><code>bool</code></td>
+<td style="text-align: left;">Ippatsu still live per player.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>furiten_by_discard</code></td>
+<td style="text-align: center;"><code>(4,)</code></td>
+<td style="text-align: left;"><code>bool</code></td>
+<td style="text-align: left;">Furiten because of own discard.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>furiten_by_pass</code></td>
+<td style="text-align: center;"><code>(4,)</code></td>
+<td style="text-align: left;"><code>bool</code></td>
+<td style="text-align: left;">Furiten because of passed RON.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>is_hand_concealed</code></td>
+<td style="text-align: center;"><code>(4,)</code></td>
+<td style="text-align: left;"><code>bool</code></td>
+<td style="text-align: left;">Hand still closed (no open melds).</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>pon</code></td>
+<td style="text-align: center;"><code>(4, 34)</code></td>
+<td style="text-align: left;"><code>int32</code></td>
+<td style="text-align: left;">Bookkeeping for pon-related calls per tile type.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>has_won</code></td>
+<td style="text-align: center;"><code>(4,)</code></td>
+<td style="text-align: left;"><code>bool</code></td>
+<td style="text-align: left;">Whether each player won this round (set on RON / TSUMO).</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>n_kan</code></td>
+<td style="text-align: center;"><code>(4,)</code></td>
+<td style="text-align: left;"><code>int8</code></td>
+<td style="text-align: left;">Number of kan declared by each player this round.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="stateround_state-round-level-state"><code>state.round_state</code> — round-level state</h3>
+<p>Held common across all four players.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Field</th>
+<th style="text-align: center;">Shape</th>
+<th style="text-align: left;">Type</th>
+<th style="text-align: left;">Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>action_history</code></td>
+<td style="text-align: center;"><code>(3, 200)</code></td>
+<td style="text-align: left;"><code>int8</code></td>
+<td style="text-align: left;">Per-step action history. Row 0 acting player, row 1 action payload (discarded tile for discards, raw action id otherwise), row 2 tsumogiri flag.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>round</code></td>
+<td style="text-align: center;"><code>()</code></td>
+<td style="text-align: left;"><code>int8</code></td>
+<td style="text-align: left;">Round index (<code>0</code>-based).</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>round_limit</code></td>
+<td style="text-align: center;"><code>()</code></td>
+<td style="text-align: left;"><code>int8</code></td>
+<td style="text-align: left;">Round limit derived from <code>round_mode</code>: <code>4</code> for <code>east</code>, <code>8</code> for <code>half</code>.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>terminated_round</code></td>
+<td style="text-align: center;"><code>()</code></td>
+<td style="text-align: left;"><code>bool</code></td>
+<td style="text-align: left;"><code>True</code> on the step that ends the round (RON / TSUMO / 流局). See the round-transition section for how <code>auto</code> vs <code>dummy_share</code> expose this.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>honba</code></td>
+<td style="text-align: center;"><code>()</code></td>
+<td style="text-align: left;"><code>int8</code></td>
+<td style="text-align: left;">Honba count (renchan counter).</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>kyotaku</code></td>
+<td style="text-align: center;"><code>()</code></td>
+<td style="text-align: left;"><code>int8</code></td>
+<td style="text-align: left;">Number of unclaimed riichi sticks on the table.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>init_wind</code></td>
+<td style="text-align: center;"><code>(4,)</code></td>
+<td style="text-align: left;"><code>int8</code></td>
+<td style="text-align: left;">Initial seat winds at the start of the game.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>seat_wind</code></td>
+<td style="text-align: center;"><code>(4,)</code></td>
+<td style="text-align: left;"><code>int8</code></td>
+<td style="text-align: left;">Current seat wind per player.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>dealer</code></td>
+<td style="text-align: center;"><code>()</code></td>
+<td style="text-align: left;"><code>int8</code></td>
+<td style="text-align: left;">Current dealer.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>order_points</code></td>
+<td style="text-align: center;"><code>(4,)</code></td>
+<td style="text-align: left;"><code>int32</code></td>
+<td style="text-align: left;">Placement bonus / uma.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>score</code></td>
+<td style="text-align: center;"><code>(4,)</code></td>
+<td style="text-align: left;"><code>int32</code></td>
+<td style="text-align: left;">Per-player score, in hundreds of points.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>deck</code></td>
+<td style="text-align: center;"><code>(136,)</code></td>
+<td style="text-align: left;"><code>int8</code></td>
+<td style="text-align: left;">Current round's shuffled wall (tile types).</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>next_deck_ix</code></td>
+<td style="text-align: center;"><code>()</code></td>
+<td style="text-align: left;"><code>int32</code></td>
+<td style="text-align: left;">Next index to draw from in <code>deck</code>.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>last_deck_ix</code></td>
+<td style="text-align: center;"><code>()</code></td>
+<td style="text-align: left;"><code>int8</code></td>
+<td style="text-align: left;">End of the live wall.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>last_draw</code></td>
+<td style="text-align: center;"><code>()</code></td>
+<td style="text-align: left;"><code>int8</code></td>
+<td style="text-align: left;">Most recently drawn tile type.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>last_player</code></td>
+<td style="text-align: center;"><code>()</code></td>
+<td style="text-align: left;"><code>int8</code></td>
+<td style="text-align: left;">Player who took the previous action (used for discard-target resolution).</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>dora_indicators</code></td>
+<td style="text-align: center;"><code>(5,)</code></td>
+<td style="text-align: left;"><code>int8</code></td>
+<td style="text-align: left;">Dora indicator tile types; <code>-1</code> for unrevealed slots.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>ura_dora_indicators</code></td>
+<td style="text-align: center;"><code>(5,)</code></td>
+<td style="text-align: left;"><code>int8</code></td>
+<td style="text-align: left;">Ura-dora indicators; <code>-1</code> for unrevealed slots.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>is_abortive_draw_normal</code></td>
+<td style="text-align: center;"><code>()</code></td>
+<td style="text-align: left;"><code>bool</code></td>
+<td style="text-align: left;">True once the wall has been exhausted (流局).</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>is_haitei</code></td>
+<td style="text-align: center;"><code>()</code></td>
+<td style="text-align: left;"><code>bool</code></td>
+<td style="text-align: left;">Currently on the last live-wall tile (海底).</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>target</code></td>
+<td style="text-align: center;"><code>()</code></td>
+<td style="text-align: left;"><code>int8</code></td>
+<td style="text-align: left;">Tile currently being targeted by callers.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>n_kan_doras</code></td>
+<td style="text-align: center;"><code>()</code></td>
+<td style="text-align: left;"><code>int8</code></td>
+<td style="text-align: left;">Number of kan dora flipped so far this round.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>kan_declared</code></td>
+<td style="text-align: center;"><code>()</code></td>
+<td style="text-align: left;"><code>bool</code></td>
+<td style="text-align: left;">Kan declared this step.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>can_after_kan</code></td>
+<td style="text-align: center;"><code>()</code></td>
+<td style="text-align: left;"><code>bool</code></td>
+<td style="text-align: left;">After-kan / 嶺上開花 still possible.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>can_robbing_kan</code></td>
+<td style="text-align: center;"><code>()</code></td>
+<td style="text-align: left;"><code>bool</code></td>
+<td style="text-align: left;">A robbing-a-kan / 槍槓 window is open.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>draw_next</code></td>
+<td style="text-align: center;"><code>()</code></td>
+<td style="text-align: left;"><code>bool</code></td>
+<td style="text-align: left;">Internal flag: the env should draw a tile next.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>dummy_count</code></td>
+<td style="text-align: center;"><code>()</code></td>
+<td style="text-align: left;"><code>int8</code></td>
+<td style="text-align: left;">Counter for the DUMMY-rotation phase. Only used by <code>next_round_style="dummy_share"</code> (see below); always <code>0</code> under <code>auto</code>.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="round-transition-style-next_round_style">Round Transition Style (<code>next_round_style</code>)</h2>
+<p>In multi-round modes (<code>east</code> / <code>half</code>) the env can either advance to the next round <strong>automatically inside a single <code>env.step</code></strong>, or expose an explicit DUMMY-action phase that lets every seat observe the round-end state before the next round begins. This is controlled by <code>next_round_style</code>:</p>
+<div class="language-py highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">env</span> <span class="o">=</span> <span class="n">mahjax</span><span class="o">.</span><span class="n">make</span><span class="p">(</span><span class="s2">&quot;red_mahjong&quot;</span><span class="p">,</span> <span class="n">round_mode</span><span class="o">=</span><span class="s2">&quot;half&quot;</span><span class="p">,</span> <span class="n">next_round_style</span><span class="o">=</span><span class="s2">&quot;auto&quot;</span><span class="p">)</span>  <span class="c1"># default</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">env</span> <span class="o">=</span> <span class="n">mahjax</span><span class="o">.</span><span class="n">make</span><span class="p">(</span><span class="s2">&quot;red_mahjong&quot;</span><span class="p">,</span> <span class="n">round_mode</span><span class="o">=</span><span class="s2">&quot;half&quot;</span><span class="p">,</span> <span class="n">next_round_style</span><span class="o">=</span><span class="s2">&quot;dummy_share&quot;</span><span class="p">)</span>
+</span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Style</th>
+<th style="text-align: left;">Default</th>
+<th style="text-align: left;">When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>auto</code></td>
+<td style="text-align: left;">✅</td>
+<td style="text-align: left;">RL / training. One round transition = one <code>env.step</code>.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>dummy_share</code></td>
+<td style="text-align: left;"></td>
+<td style="text-align: left;">Interactive UI, mjai-compatible replays, anything that needs per-player round-end observation.</td>
+</tr>
+</tbody>
+</table>
+<p>In <code>single</code> mode the two styles are identical — there is no "next round."</p>
+<h3 id="how-a-round-end-step-looks-in-each-style">How a round-end step looks in each style</h3>
+<p>When the agent plays the action that ends a round (RON / TSUMO / exhaustive draw):</p>
+<p><strong><code>auto</code></strong> — collapse the round transition into a single step:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>   t      action      terminated_round   terminated   rewards
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>   k       RON              False           False        X        ← state for round k+1&#39;s first turn,
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>                                                                    but `rewards` carries the round-end reward
+</span></code></pre></div>
+<p>The state returned by <code>env.step</code> is already the <strong>next round's init state</strong> (new deck, new dealer if needed, fresh hands, <code>legal_action_mask</code> for the new dealer). <code>terminated</code> is <code>False</code> until the game itself ends; on the game-ending round it is <code>True</code> and the score is updated with rank points + kyotaku bonuses.</p>
+<p><strong><code>dummy_share</code></strong> — make the round-end phase explicit. After the winning action, the env exposes a state with <code>legal_action_mask</code> containing only <code>DUMMY</code> for every seat. Each of the four players must then play <code>DUMMY</code>; the fourth <code>DUMMY</code> advances to the next round.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>   t      action      terminated_round   dummy_count   rewards
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>   k       RON              True              0           X
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>   k+1     DUMMY            True              1           X      (player k+1)
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>   k+2     DUMMY            True              2           X      (player k+2)
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>   k+3     DUMMY            True              3           X      (player k+3)
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>   k+4     DUMMY            False             0           0      ← next round&#39;s init state
+</span></code></pre></div>
+<p>This matches the "次の局へ" / "next round" button in interactive UIs.</p>
+<p>State equivalence (proved by <code>TestAutoDummyShareParity</code> in <code>tests/</code>): for the same initial state, the next-round init produced by <strong>one <code>auto</code> step</strong> equals the next-round init produced by <strong>five <code>dummy_share</code> steps (RON + 4 × DUMMY)</strong>, comparing every round-level and player-level field. The only intentional differences are <code>step_count</code> (which advances per <code>env.step</code> call) and <code>rewards</code> (preserved by <code>auto</code> on the transition step; delivered by <code>dummy_share</code> on the RON step and zeroed thereafter).</p>
+<h3 id="using-auto-rewards-in-rl">Using <code>auto</code> rewards in RL</h3>
+<p>Mahjong reward is sparse: it lands on the steps that end a round (RON / TSUMO / 流局). Under <code>auto</code>, that reward vector is <strong>carried on the same step that produces the next round's observation</strong>. This is the simplest interface for turn-based MARL because each <code>env.step</code> corresponds to exactly one logical decision and exactly one reward delivery.</p>
+<p>Note that turn-based mahjong is not a synchronous MARL game: only <code>current_player</code> acts at each step. The reward, however, is a 4-player vector — a player whose seat is not <code>current_player</code> may still receive a non-zero reward (for example, the discarder of a winning tile). The GAE has to account for "I received reward while I was not on turn." The standard trick used by the PPO example in <code>examples/ppo_with_reg.py</code> (and by NashPG / Pgx-style turn-based RL in general) is a <strong>per-player reward accumulator</strong>.</p>
+<h4 id="gae-for-turn-based-marl-with-per-player-reward-accumulators">GAE for turn-based MARL with per-player reward accumulators</h4>
+<p>Rollout each step records, for the agent that just acted:</p>
+<div class="language-py highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">Transition</span><span class="p">(</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    <span class="n">is_new_episode</span><span class="p">,</span>           <span class="c1"># 1 if this step is the first step of a fresh episode</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    <span class="n">action</span><span class="p">,</span>                   <span class="c1"># what the acting player did</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="n">value</span><span class="p">,</span>                    <span class="c1"># V(s_t) for the acting player&#39;s network</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>    <span class="n">reward</span><span class="p">,</span>                   <span class="c1"># 4-vector of rewards delivered at this step</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>    <span class="n">log_prob</span><span class="p">,</span>                 <span class="c1"># log π(a_t | s_t)</span>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>    <span class="n">observation</span><span class="p">,</span>              <span class="c1"># observation from current_player&#39;s perspective</span>
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>    <span class="n">action_mask</span><span class="p">,</span>              <span class="c1"># legal action mask shown to current_player</span>
+</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>    <span class="n">current_player</span><span class="p">,</span>           <span class="c1"># which seat acted</span>
+</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="p">)</span>
+</span></code></pre></div>
+<p>Backward scan to compute advantages: for each player keep a running accumulator. When we visit a step whose <code>current_player == p</code>, that's where player <code>p</code>'s next decision happens — we settle <code>p</code>'s accumulated reward into a single per-decision delta:</p>
+<div class="language-py highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">gae_backward</span><span class="p">(</span><span class="n">advantage_next</span><span class="p">,</span> <span class="n">value_next</span><span class="p">,</span> <span class="n">reward_accum</span><span class="p">,</span> <span class="n">transition</span><span class="p">):</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>    <span class="n">p</span> <span class="o">=</span> <span class="n">transition</span><span class="o">.</span><span class="n">current_player</span>                <span class="c1"># who acted at this step</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>    <span class="n">reward_p</span> <span class="o">=</span> <span class="n">reward_accum</span><span class="p">[</span><span class="n">p</span><span class="p">]</span> <span class="o">+</span> <span class="n">transition</span><span class="o">.</span><span class="n">reward</span><span class="p">[</span><span class="n">p</span><span class="p">]</span>  <span class="c1"># everything p has accumulated since last on-turn</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>    <span class="n">delta</span> <span class="o">=</span> <span class="n">reward_p</span> <span class="o">+</span> <span class="n">gamma</span> <span class="o">*</span> <span class="n">value_next</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">transition</span><span class="o">.</span><span class="n">is_new_episode</span><span class="p">)</span> <span class="o">-</span> <span class="n">transition</span><span class="o">.</span><span class="n">value</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>    <span class="n">advantage</span> <span class="o">=</span> <span class="n">delta</span> <span class="o">+</span> <span class="n">gamma</span> <span class="o">*</span> <span class="n">gae_lambda</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">transition</span><span class="o">.</span><span class="n">is_new_episode</span><span class="p">)</span> <span class="o">*</span> <span class="n">advantage_next</span>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>    <span class="c1"># Reset p&#39;s accumulator (consumed). Continue accumulating other players&#39; rewards.</span>
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>    <span class="n">reward_accum</span> <span class="o">=</span> <span class="n">reward_accum</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">p</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
+</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>    <span class="n">reward_accum</span> <span class="o">=</span> <span class="n">reward_accum</span> <span class="o">+</span> <span class="n">transition</span><span class="o">.</span><span class="n">reward</span>          <span class="c1"># still owe other players</span>
+</span><span id="__span-6-10"><a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>    <span class="n">reward_accum</span> <span class="o">=</span> <span class="n">reward_accum</span><span class="o">.</span><span class="n">at</span><span class="p">[</span><span class="n">p</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>               <span class="c1"># but not p again on this step</span>
+</span><span id="__span-6-11"><a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>
+</span><span id="__span-6-12"><a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>    <span class="k">return</span> <span class="n">advantage</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">reward_accum</span>
+</span></code></pre></div>
+<p>Round transitions under <code>auto</code> slot into this naturally:</p>
+<ul>
+<li>The RON step delivers a non-zero <code>reward</code> vector; the next observation is already the next round's init.</li>
+<li>The discarder seat that paid out is <em>not</em> <code>current_player</code> on this step (the RON player is). The discarder's reward sits in its accumulator until the discarder's next on-turn step (which is now in the new round).</li>
+<li>This is consistent with how mahjong logically works: the discarder learns about the loss on the same observation that opens its next turn.</li>
+</ul>
+<p>With <code>dummy_share</code> instead, the rewarded step (RON) is followed by four DUMMY steps with zero reward, and the next-round init shows up only at step <code>k+4</code>. RL-wise this is wasteful (one logical decision = five env steps, four of them no-op) and clutters the trajectory with "DUMMY" actions that should not appear in a policy's action distribution. That is why <code>auto</code> is the default — it gives the same state equivalence as <code>dummy_share</code> but exposes a clean one-step-per-decision API.</p>
+<h3 id="when-to-choose-dummy_share">When to choose <code>dummy_share</code></h3>
+<ul>
+<li>Driving an interactive UI (the user clicks "next round" after seeing the round-end summary).</li>
+<li>Round-end packet replay against external logs (e.g. mjai / mjlog) where every seat is expected to observe the round-end state.</li>
+</ul>
+<p>For everything else, use <code>auto</code>.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright © MahJax Authors
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "header.autohide"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
