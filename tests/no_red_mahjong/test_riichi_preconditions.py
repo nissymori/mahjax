@@ -1,25 +1,23 @@
 """Riichi preconditions in the after-draw mask: the 1000-point stick and the
 4-live-draws rule (Tenhou rules; every mjai-compatible engine enforces both).
 
-Why these are pinned: agents trained on an env that allows a sub-1000-point
-or a 3-tiles-left riichi actually learn to declare them, and outside this env
-that declaration is an illegal move (chombo). Both bugs were found by playing
-mahjax-trained agents against libriichi-driven referees (2026-08-02): the
-wall rule was counted with the between-turns formula ``next - last + 1`` at a
-call site where ``next_deck_ix`` is not yet decremented, over-counting the
-already-drawn tile by one.
+Mirror of ``tests/red_mahjong/test_riichi_preconditions.py`` -- the two envs
+are hand-maintained copies of each other and this rule is exactly where they
+drifted apart (red gated on ``next < last + 3``, no_red on ``+ 4``), so the
+two files are kept diffable on purpose. The only structural difference is
+that ``no_red_mahjong._draw_after_kan`` always reveals the kan dora itself,
+so it has no ``kan_dora_pre_flipped`` branch to cover.
 """
 import jax
 import jax.numpy as jnp
 
-from mahjax.red_mahjong.action import Action
-from mahjax.red_mahjong.env import (
+from mahjax.no_red_mahjong.action import Action
+from mahjax.no_red_mahjong.env import (
     _draw_after_kan,
     _init,
     _make_legal_action_mask_after_draw,
     _replace_state,
 )
-from mahjax.red_mahjong.hand import Hand
 
 
 def _riichi_ready_state(**round_overrides):
@@ -29,18 +27,13 @@ def _riichi_ready_state(**round_overrides):
     below then toggles exactly one precondition around it."""
     state = _init(jax.random.PRNGKey(5))
     c_p = int(state.current_player)
-    counts37 = jnp.zeros(37, dtype=state.players.hand_with_red.dtype)
-    for t in list(range(9)) + [9, 10, 11]:          # 1-9m, 123p
-        counts37 = counts37.at[t].set(1)
-    counts37 = counts37.at[13].set(2)               # 55p (plain)
-    hand_with_red = state.players.hand_with_red.at[c_p].set(counts37)
-    state = _replace_state(
-        state,
-        hand_with_red=hand_with_red,
-        hand=state.players.hand.at[c_p].set(Hand.to_34(counts37)),
-        **round_overrides,
-    )
-    return state, c_p, hand_with_red
+    counts34 = jnp.zeros(34, dtype=state.players.hand.dtype)
+    for t in list(range(9)) + [9, 10, 11]:           # 1-9m, 123p
+        counts34 = counts34.at[t].set(1)
+    counts34 = counts34.at[13].set(2)                # 55p
+    hand = state.players.hand.at[c_p].set(counts34)
+    state = _replace_state(state, hand=hand, **round_overrides)
+    return state, c_p, hand
 
 
 def _mask(state, c_p, hand, **kw):
@@ -63,8 +56,7 @@ def test_riichi_needs_1000_points():
 
 def test_riichi_needs_four_live_draws_after_the_draw():
     """The mask is built with the pre-decrement next_deck_ix, so the live
-    draws left after the current draw is ``next - last`` exactly (verified
-    against libriichi's tiles-left on a real game)."""
+    draws left after the current draw is ``next - last`` exactly."""
     state, c_p, hand = _riichi_ready_state()
     last = int(state.round_state.last_deck_ix)
     three_left = _replace_state(state, next_deck_ix=jnp.int32(last + 3))
@@ -101,31 +93,22 @@ _RINSHAN_TILE = 12                                   # 4p
 _POST_ANKAN_HAND = [1, 2, 3, 4, 5, 6, 8, 8, 13, 14]  # 234m 567m 99m 56p
 
 
-def _post_ankan_state(wall_left_after_rinshan, *, kan_dora_pre_flipped=False):
+def _post_ankan_state(wall_left_after_rinshan):
     """A state entering ``_draw_after_kan``: the current player has declared a
-    closed kan and is about to take the replacement tile.
-
-    ``kan_dora_pre_flipped`` picks the branch where ``_kan`` already revealed
-    the kan dora and already advanced ``last_deck_ix``, so ``_draw_after_kan``
-    must not advance it a second time.
-    """
+    closed kan and is about to take the replacement tile."""
     state = _init(jax.random.PRNGKey(5))
     c_p = int(state.current_player)
-    counts37 = jnp.zeros(37, dtype=state.players.hand_with_red.dtype)
+    counts34 = jnp.zeros(34, dtype=state.players.hand.dtype)
     for t in _POST_ANKAN_HAND:
-        counts37 = counts37.at[t].add(1)
+        counts34 = counts34.at[t].add(1)
     n_kan = state.players.n_kan.sum()                # 0: rinshan is deck[10]
     deck = state.round_state.deck.at[10 + n_kan].set(jnp.int8(_RINSHAN_TILE))
-    # In the pre-flipped branch ``_kan`` already advanced the boundary, so the
-    # state entering ``_draw_after_kan`` carries it and the call leaves it be.
-    last_in = int(state.round_state.last_deck_ix) + int(kan_dora_pre_flipped)
-    last_out = last_in if kan_dora_pre_flipped else last_in + 1
+    last_in = int(state.round_state.last_deck_ix)
+    last_out = last_in + 1
     return _replace_state(
         state,
-        hand_with_red=state.players.hand_with_red.at[c_p].set(counts37),
-        hand=state.players.hand.at[c_p].set(Hand.to_34(counts37)),
+        hand=state.players.hand.at[c_p].set(counts34),
         deck=deck,
-        n_kan_doras=jnp.int8(1 if kan_dora_pre_flipped else 0),
         last_deck_ix=jnp.int8(last_in),
         # _draw_after_kan leaves next_deck_ix alone, so the live wall left
         # after the rinshan draw is ``next - last_out + 1``.
@@ -142,28 +125,18 @@ def test_draw_after_kan_advances_only_the_dead_wall_boundary():
     assert int(out.round_state.next_deck_ix) == int(state.round_state.next_deck_ix)
 
 
-def test_draw_after_kan_advances_nothing_when_the_kan_dora_was_pre_flipped():
-    """暗槓 reveals the kan dora inside ``_kan``, which already advanced
-    ``last_deck_ix`` there; ``_draw_after_kan`` must not advance it again."""
-    state, _ = _post_ankan_state(6, kan_dora_pre_flipped=True)
-    out = _draw_after_kan(state)
-    assert int(out.round_state.last_deck_ix) == int(state.round_state.last_deck_ix)
-    assert int(out.round_state.next_deck_ix) == int(state.round_state.next_deck_ix)
-
-
 def test_rinshan_riichi_gate_matches_the_live_wall_after_the_kan():
-    for pre_flipped in (False, True):
-        for wall_left in range(1, 8):
-            state, c_p = _post_ankan_state(wall_left, kan_dora_pre_flipped=pre_flipped)
-            out = _draw_after_kan(state)
-            remaining = (
-                int(out.round_state.next_deck_ix)
-                - int(out.round_state.last_deck_ix)
-                + 1
-            )
-            assert remaining == wall_left, (pre_flipped, wall_left, remaining)
-            riichi = bool(out.players.legal_action_mask[c_p, Action.RIICHI])
-            assert riichi == (wall_left >= 4), (pre_flipped, wall_left, riichi)
+    for wall_left in range(1, 8):
+        state, c_p = _post_ankan_state(wall_left)
+        out = _draw_after_kan(state)
+        remaining = (
+            int(out.round_state.next_deck_ix)
+            - int(out.round_state.last_deck_ix)
+            + 1
+        )
+        assert remaining == wall_left, (wall_left, remaining)
+        riichi = bool(out.players.legal_action_mask[c_p, Action.RIICHI])
+        assert riichi == (wall_left >= 4), (wall_left, riichi)
 
 
 def test_rinshan_riichi_also_needs_1000_points():
