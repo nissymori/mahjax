@@ -11,6 +11,8 @@ from mahjax.no_red_mahjong.players import rule_based_player
 from mahjax.no_red_mahjong.yaku import Yaku
 from mahjax.no_red_mahjong.env import _dora_array
 
+STEP_KEY = jax.random.PRNGKey(0)  # wall key for round transitions
+
 
 IDX_AFTER_FIRST_DRAW = FIRST_DRAW_IDX - 1
 
@@ -47,7 +49,7 @@ class TestVisualize(unittest.TestCase):
         while not state.terminated and i <= 100:
             a = act_randomly(rng, state.legal_action_mask)
             print('step', i, 'current_player', state.current_player, 'action', a)
-            state = jitted_step(state, a)
+            state = jitted_step(state, a, STEP_KEY)
             i += 1
             #print("target", state.round_state.target, "action", a, "current_player", state.current_player, "melds", state.players.melds)
             #save_svg(state, f"fig/test_animation_{i}.svg")
@@ -63,7 +65,7 @@ class TestVisualize(unittest.TestCase):
         while not state.round_state.terminated_round and i <= 100:
             a = jnp.where(state.legal_action_mask[Action.DUMMY], Action.DUMMY, Action.TSUMOGIRI)
             print('step', i, 'current_player', state.current_player, 'action', a)
-            state = jitted_step(state, a)
+            state = jitted_step(state, a, STEP_KEY)
             i += 1
             #print("target", state.round_state.target, "action", a, "current_player", state.current_player, "melds", state.players.melds)
             #save_svg(state, f"fig/test_animation_{i}.svg")
@@ -117,7 +119,7 @@ class TestVisualize(unittest.TestCase):
                 print(yaku, fan, fu)
 
             print('step', i, 'current_player', state.current_player, 'action', a)
-            state = jitted_step(state, a)
+            state = jitted_step(state, a, STEP_KEY)
             i += 1
             states.append(state)
         print(state.round_state.score)

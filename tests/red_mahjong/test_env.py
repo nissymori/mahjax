@@ -21,6 +21,8 @@ from mahjax.red_mahjong.meld import Meld
 from mahjax.red_mahjong.state import default_state
 from mahjax.red_mahjong.tile import Tile
 
+STEP_KEY = jax.random.PRNGKey(0)  # wall key for round transitions
+
 
 def test_init_shape_and_first_draw_position() -> None:
     state = _init(jax.random.PRNGKey(1))
@@ -52,7 +54,7 @@ def test_mask_after_draw_has_discard_or_tsumogiri() -> None:
 def test_tsumogiri_action_history_records_actual_tile_and_flag() -> None:
     state = _init(jax.random.PRNGKey(4))
     last_draw = int(state.round_state.last_draw)
-    next_state = _step(state, jnp.int8(Action.TSUMOGIRI))
+    next_state = _step(state, jnp.int8(Action.TSUMOGIRI), STEP_KEY)
 
     assert int(next_state.round_state.action_history[0, 0]) == int(state.current_player)
     assert int(next_state.round_state.action_history[1, 0]) == last_draw
@@ -222,7 +224,7 @@ def test_robbing_kan_ron_finalizes_to_dummy_share_mask() -> None:
 
     env = RedMahjong(round_mode="half", next_round_style="dummy_share")
     kan_state = _kan(state, jnp.int32(action))
-    ron_state = env.step(kan_state, jnp.int32(Action.RON))
+    ron_state = env.step(kan_state, jnp.int32(Action.RON), STEP_KEY)
 
     expected = jnp.zeros((Action.NUM_ACTION,), dtype=jnp.bool_).at[Action.DUMMY].set(True)
     assert bool(ron_state.round_state.terminated_round)
@@ -276,8 +278,8 @@ def test_robbing_kan_second_candidate_pass_after_ron_does_not_draw_after_kan() -
 
     env = RedMahjong(round_mode="half", next_round_style="dummy_share")
     kan_state = _kan(state, jnp.int32(action))
-    first_ron_state = env.step(kan_state, jnp.int32(Action.RON))
-    pass_state = env.step(first_ron_state, jnp.int32(Action.PASS))
+    first_ron_state = env.step(kan_state, jnp.int32(Action.RON), STEP_KEY)
+    pass_state = env.step(first_ron_state, jnp.int32(Action.PASS), STEP_KEY)
 
     expected = jnp.zeros((Action.NUM_ACTION,), dtype=jnp.bool_).at[Action.DUMMY].set(True)
     assert bool(pass_state.round_state.terminated_round)
@@ -318,7 +320,7 @@ def test_red_auto_ron_advances_to_next_round_in_one_step() -> None:
         legal_action_mask=_ron_legal_mask(0),
         current_player=jnp.int8(0),
     )
-    next_state = env_auto.step(state, jnp.int32(Action.RON))
+    next_state = env_auto.step(state, jnp.int32(Action.RON), STEP_KEY)
     assert not bool(next_state.terminated)
     assert not bool(next_state.round_state.terminated_round)
     assert int(next_state.round_state.dummy_count) == 0
@@ -339,7 +341,7 @@ def test_red_dummy_share_ron_keeps_dummy_phase() -> None:
         legal_action_mask=_ron_legal_mask(0),
         current_player=jnp.int8(0),
     )
-    next_state = env_share.step(state, jnp.int32(Action.RON))
+    next_state = env_share.step(state, jnp.int32(Action.RON), STEP_KEY)
     assert not bool(next_state.terminated)
     assert bool(next_state.round_state.terminated_round)
     assert int(next_state.round_state.dummy_count) == 0
@@ -355,7 +357,7 @@ def test_red_auto_single_mode_terminates_like_legacy() -> None:
         legal_action_mask=_ron_legal_mask(0),
         current_player=jnp.int8(0),
     )
-    next_state = env_auto.step(state, jnp.int32(Action.RON))
+    next_state = env_auto.step(state, jnp.int32(Action.RON), STEP_KEY)
     assert bool(next_state.terminated)
 
 
@@ -374,7 +376,7 @@ def test_red_auto_game_end_sets_terminated_with_final_score() -> None:
         kyotaku=jnp.int8(3),
         has_won=jnp.array([False, False, False, False], dtype=jnp.bool_),
     )
-    next_state = env_auto.step(state, jnp.int32(Action.RON))
+    next_state = env_auto.step(state, jnp.int32(Action.RON), STEP_KEY)
     assert bool(next_state.terminated)
     expected = jnp.array([370, 320, 180, 160], dtype=jnp.int32)
     assert bool(jnp.all(next_state.round_state.score == expected)), (
@@ -410,11 +412,11 @@ def test_red_auto_matches_dummy_share_at_mid_game_round_transition() -> None:
     env_share = RedMahjong(round_mode="half", next_round_style="dummy_share")
     key = jax.random.PRNGKey(2026)
 
-    state_auto = env_auto.step(_force_ron_state(env_auto, key), jnp.int32(Action.RON))
-    state_share = env_share.step(_force_ron_state(env_share, key), jnp.int32(Action.RON))
+    state_auto = env_auto.step(_force_ron_state(env_auto, key), jnp.int32(Action.RON), STEP_KEY)
+    state_share = env_share.step(_force_ron_state(env_share, key), jnp.int32(Action.RON), STEP_KEY)
     rewards_at_ron = state_share.rewards  # round-end reward delivered at RON step in dummy_share
     for _ in range(4):
-        state_share = env_share.step(state_share, jnp.int32(Action.DUMMY))
+        state_share = env_share.step(state_share, jnp.int32(Action.DUMMY), STEP_KEY)
 
     # Both must land in the next-round init: mid-game ⇒ not terminated, not terminated_round.
     assert not bool(state_auto.terminated)
@@ -469,9 +471,9 @@ def test_red_auto_matches_dummy_share_at_game_end() -> None:
     state_auto = _replace_state(_force_ron_state(env_auto, key), **forced)
     state_share = _replace_state(_force_ron_state(env_share, key), **forced)
 
-    state_auto = env_auto.step(state_auto, jnp.int32(Action.RON))
-    state_share = env_share.step(state_share, jnp.int32(Action.RON))
-    state_share = env_share.step(state_share, jnp.int32(Action.DUMMY))
+    state_auto = env_auto.step(state_auto, jnp.int32(Action.RON), STEP_KEY)
+    state_share = env_share.step(state_share, jnp.int32(Action.RON), STEP_KEY)
+    state_share = env_share.step(state_share, jnp.int32(Action.DUMMY), STEP_KEY)
 
     assert bool(state_auto.terminated)
     assert bool(state_share.terminated)

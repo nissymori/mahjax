@@ -61,7 +61,6 @@ _PLAYER_FIELDS = {
 }
 
 _ROUND_FIELDS = {
-    "rng_key",
     "action_history",
     "shanten_current_player",
     "round",
@@ -252,8 +251,16 @@ class NoRedMahjong(Env):
         action: Array,
         key: Optional[Array] = None,
     ) -> State:
-        del key
-        """Step function."""
+        """Step function.
+
+        ``key`` deals the wall whenever this step ends a round, so it is
+        required: the state carries no rng of its own.
+        """
+        if key is None:
+            raise ValueError(
+                "step() requires a PRNG key: a step that ends a round deals the "
+                "next wall from it, and the state carries no rng of its own."
+            )
         is_illegal = ~state.legal_action_mask[action]
         current_player = state.current_player
         state = _replace_state(state,   # type:ignore
@@ -263,7 +270,7 @@ class NoRedMahjong(Env):
         # If the state is already terminated or truncated, environment does not take usual step,
         # but return the same state with zero-rewards for all players
         step_fn = _step_auto if self.next_round_style == "auto" else _step_dummy_share
-        stepped_state = _replace_state(step_fn(state, action), step_count=state.step_count + 1)
+        stepped_state = _replace_state(step_fn(state, action, key), step_count=state.step_count + 1)
         state = jax.lax.cond(
             (state.terminated | state.truncated),
             lambda: _replace_state(state, rewards=jnp.zeros_like(state.rewards)),  # type: ignore
@@ -282,7 +289,7 @@ class NoRedMahjong(Env):
         if self.next_round_style == "auto":
             state = jax.lax.cond(
                 state.round_state.terminated_round & ~state.terminated & ~jnp.bool_(self.one_round),
-                lambda: _advance_to_next_round_auto(state),
+                lambda: _advance_to_next_round_auto(state, key),
                 lambda: state,
             )
         # Taking illegal action leads to immediate game terminal with negative reward
@@ -347,10 +354,13 @@ def _init(rng: PRNGKey) -> State:
     Initialize the state
     - Generate the initial hand
     - Set decks
-    - Set game-related variables (dealer, seat wind, last player, deck, dora indicators, ura dora indicators, hand, rng key)
+    - Set game-related variables (dealer, seat wind, last player, deck, dora indicators, ura dora indicators, hand)
     - Calculate the can_win
     - Calculate the YAKU for the initial hand
     - Generate the legal action mask
+
+    The state carries no rng: later rounds are dealt from the key passed to
+    ``step``. The split below is kept only so this deal stays bitwise the same.
 
     Args:
         rng (PRNGKey): Random number generator key
@@ -358,7 +368,7 @@ def _init(rng: PRNGKey) -> State:
     Returns:
         State: Initial state of the game
     """
-    rng, subkey = jax.random.split(rng)
+    rng, _ = jax.random.split(rng)
     current_player = jnp.int8(jax.random.randint(rng, (), 0, 4))
     last_player = jnp.int8(-1)
     deck = Tile.from_tile_id_to_tile(
@@ -431,11 +441,10 @@ def _init(rng: PRNGKey) -> State:
 def _init_for_next_round(rng: PRNGKey, state: State) -> State:
     """
     Initialize the state for the next round
-    - Generate the new deck
-    - Set game-related variables (last player, deck, dora indicators, ura dora indicators, hand, rng key)
+    - Generate the new deck from ``rng`` (the key given to ``step``)
+    - Set game-related variables (last player, deck, dora indicators, ura dora indicators, hand)
     - Succeed the process of _next_round (dealer, seat wind, round, honba, kyotaku, score, etc.)
     """
-    rng, subkey = jax.random.split(rng)
     last_player = jnp.int8(-1)
     deck = Tile.from_tile_id_to_tile(
         jax.random.permutation(rng, jnp.arange(136))
@@ -455,7 +464,6 @@ def _init_for_next_round(rng: PRNGKey, state: State) -> State:
         dora_indicators=dora_indicators,
         ura_dora_indicators=ura_dora_indicators,
         hand=init_hand,
-        rng_key=subkey,
     )
     can_ron = v_can_win(state.players.hand, TILE_RANGE)  # (4, 34)
     c_p = (
@@ -565,7 +573,7 @@ def _finalize_step_state(state: State) -> State:
     return _replace_state(state, shanten_current_player=shanten_val)  # type:ignore
 
 
-def _dispatch_action_dummy_share(state: State, action: Array) -> State:
+def _dispatch_action_dummy_share(state: State, action: Array, key: PRNGKey) -> State:
     discard_state = _discard(state, action)
     kan_state = _kan(state, action)
     riichi_state = _riichi(state)
@@ -574,7 +582,7 @@ def _dispatch_action_dummy_share(state: State, action: Array) -> State:
     pon_state = _pon(state, action)
     chi_state = _chi(state, action)
     pass_state = _pass(state)
-    next_round_state = _next_round(state)
+    next_round_state = _next_round(state, key)
     fn_idx = ACTION_FUN_MAP[action]
     return jax.lax.switch(
         fn_idx,
@@ -623,26 +631,28 @@ def _dispatch_action_auto(state: State, action: Array) -> State:
     )
 
 
-def _step_dummy_share(state: State, action: Array) -> State:
+def _step_dummy_share(state: State, action: Array, key: PRNGKey) -> State:
     """Step used by ``next_round_style='dummy_share'``.
 
     Dispatch table includes the dummy-rotation ``_next_round`` branch (selected
     when ``action == DUMMY``). Used by the UI and by tests that exercise the
-    four-DUMMY share phase.
+    four-DUMMY share phase. ``key`` deals the next round's wall.
     """
     action_history = _append_action_history(state, action)
     state = _replace_state(state, action_history=action_history)  # type:ignore
-    state = _dispatch_action_dummy_share(state, action)
+    state = _dispatch_action_dummy_share(state, action, key)
     return _finalize_step_state(state)
 
 
-def _step_auto(state: State, action: Array) -> State:
+def _step_auto(state: State, action: Array, key: PRNGKey) -> State:
     """Step used by ``next_round_style='auto'`` (RL default).
 
     Skips the dummy-rotation ``_next_round`` branch — round transitions are
     handled by the auto-advance in ``NoRedMahjong.step`` so each round ends in
-    a single env.step call.
+    a single env.step call. ``key`` is therefore consumed there, not here; it
+    is accepted so both step functions share one signature.
     """
+    del key
     action_history = _append_action_history(state, action)
     state = _replace_state(state, action_history=action_history)  # type:ignore
     state = _dispatch_action_auto(state, action)
@@ -1663,9 +1673,9 @@ def _abortive_draw_normal(state: State) -> State:
     )
 
 
-def _next_round(state: State) -> State:
+def _next_round(state: State, key: PRNGKey) -> State:
     """
-    Move to the next round
+    Move to the next round (``key`` deals the new wall)
     - Process the next round
     - Move the dealer
     - Process the round
@@ -1737,11 +1747,8 @@ def _next_round(state: State) -> State:
             will_dealer_continue, dealer, (dealer + 1) % 4
         )  # if the dealer continues, the dealer is kept, otherwise the dealer is incremented
 
-        rng, subkey = jax.random.split(s.round_state.rng_key)
-
         # ★ Initialize only at this timing
         base_next = _make_state(
-            rng_key=subkey,
             current_player=next_dealer,  # Start from the dealer
             dealer=next_dealer,
             seat_wind=_calc_wind(next_dealer),
@@ -1750,7 +1757,7 @@ def _next_round(state: State) -> State:
             kyotaku=s.round_state.kyotaku,
             score=s.round_state.score,
         )
-        next_round_state = _init_for_next_round(subkey, base_next)
+        next_round_state = _init_for_next_round(key, base_next)
 
         terminated_state = _make_state(
             score=s.round_state.score,
@@ -1797,7 +1804,7 @@ def _next_round(state: State) -> State:
     )
 
 
-def _advance_to_next_round_auto(state: State) -> State:
+def _advance_to_next_round_auto(state: State, key: PRNGKey) -> State:
     """``auto`` next_round_style: round transition without DUMMY sharing.
 
     Called when ``terminated_round`` becomes True (RON / TSUMO / 流局) and
@@ -1846,9 +1853,7 @@ def _advance_to_next_round_auto(state: State) -> State:
     )
     next_dealer = jnp.where(will_dealer_continue, dealer, (dealer + 1) % 4)
 
-    rng, subkey = jax.random.split(state.round_state.rng_key)
     base_next = _make_state(
-        rng_key=subkey,
         current_player=next_dealer,
         dealer=next_dealer,
         seat_wind=_calc_wind(next_dealer),
@@ -1859,7 +1864,7 @@ def _advance_to_next_round_auto(state: State) -> State:
         kyotaku=state.round_state.kyotaku,
         score=state.round_state.score,
     )
-    next_round_state = _init_for_next_round(subkey, base_next)
+    next_round_state = _init_for_next_round(key, base_next)
     next_round_state = _replace_state(next_round_state,
         current_player=jnp.int8(next_round_state.round_state.dealer),
         rewards=state.rewards,

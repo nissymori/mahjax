@@ -479,7 +479,8 @@ class GameSession:
         mask = self.state.legal_action_mask
         ensure_valid_action(action, mask)
         prev_state = self.state
-        next_state = self._step_fn(prev_state, jnp.int32(action))
+        self.rng, step_key = jax.random.split(self.rng)
+        next_state = self._step_fn(prev_state, jnp.int32(action), step_key)
         next_state = jax.device_get(next_state)
         self.state = next_state
         self.step_counter += 1

@@ -14,6 +14,8 @@ from mahjax.no_red_mahjong.shanten import Shanten
 from mahjax.no_red_mahjong.yaku import Yaku
 from mahjax.no_red_mahjong.players import rule_based_player
 
+STEP_KEY = jax.random.PRNGKey(0)  # wall key for round transitions
+
 jitted_init = jax.jit(_init)
 jitted_step = jax.jit(_step)
 jitted_shanten_discard = jax.jit(Shanten.discard)
@@ -822,7 +824,7 @@ class TestPlay(unittest.TestCase):
                 ls = state
                 action = act_randomly(rng, state.legal_action_mask)
                 rng, rng_sub = jax.random.split(rng)
-                state_next = jitted_step(state, action)
+                state_next = jitted_step(state, action, STEP_KEY)
                 assert state_next.step_count <= len(state_next.round_state.action_history[0]), "step_count should be less than the length of action_history"
                 print("seed", i, "step", steps, "current_player", int(ls.current_player), "action", action, "next_deck_ix", int(ls.round_state.next_deck_ix), "remaining_deck_ix", int(ls.round_state.next_deck_ix - ls.round_state.last_deck_ix + 1))
                 try:
@@ -858,7 +860,7 @@ class TestPlay(unittest.TestCase):
                     state.legal_action_mask
                 )
                 rng, rng_sub = jax.random.split(rng)
-                state_next = jitted_step(state, action)
+                state_next = jitted_step(state, action, STEP_KEY)
                 assert state_next.step_count <= len(state_next.round_state.action_history[0]), "step_count should be less than the length of action_history"
                 print("seed", i, "step", steps, "current_player", int(ls.current_player), "action", action)
                 try:
@@ -888,7 +890,7 @@ class TestPlay(unittest.TestCase):
                 ls = state
                 action = play_kan_orientedly(rng, ls.players.hand[ls.current_player], state.legal_action_mask)
                 rng, rng_sub = jax.random.split(rng, 2)
-                state_next = jitted_step(state, action)
+                state_next = jitted_step(state, action, STEP_KEY)
                 assert state_next.step_count <= len(state_next.round_state.action_history[0]), "step_count should be less than the length of action_history"
                 print(
                     "seed", i,
@@ -925,7 +927,7 @@ class TestPlay(unittest.TestCase):
                 ls = state
                 action = jitted_rule_based_player(state, rng)
                 rng, rng_sub = jax.random.split(rng, 2)
-                state_next = jitted_step(state, action)
+                state_next = jitted_step(state, action, STEP_KEY)
                 assert state_next.step_count <= len(state_next.round_state.action_history[0]), "step_count should be less than the length of action_history"
                 print(
                     "seed", i,

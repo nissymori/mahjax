@@ -5,6 +5,8 @@ from mahjax.no_red_mahjong.action import Action
 from mahjax.no_red_mahjong.state import FIRST_DRAW_IDX
 from mahjax.no_red_mahjong.env import _init, _step, _make_legal_action_mask_after_draw, _make_legal_action_mask_after_draw_w_riichi, _discard, _next_meld_player, _tsumo, _next_round, _replace_state
 
+STEP_KEY = jax.random.PRNGKey(0)  # wall key for round transitions
+
 jitted_init = jax.jit(_init)
 jitted_step = jax.jit(_step)
 jitted_make_legal_action_mask_after_draw = jax.jit(_make_legal_action_mask_after_draw)
@@ -21,7 +23,7 @@ def _advance_after_dummy(state, steps: int = 4):
     # If the dummy count is 0, the dummy sharing is complete, so the next round is called.
     # If the dummy count is not 0, the dummy sharing is not complete, so the next round is called.
     for _ in range(steps):
-        state = jitted_next_round(state)
+        state = jitted_next_round(state, STEP_KEY)
         if int(state.round_state.dummy_count) == 0:
             # The dummy sharing is complete, so the next round is called.
             break

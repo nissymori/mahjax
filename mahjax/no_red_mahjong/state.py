@@ -13,11 +13,10 @@
 # limitations under the License.
 
 
-import jax
 import jax.numpy as jnp
 
 from mahjax._src.struct import dataclass
-from mahjax._src.types import Array, PRNGKey
+from mahjax._src.types import Array
 from mahjax.core import EnvId
 from mahjax.no_red_mahjong.action import Action
 from mahjax.no_red_mahjong.meld import EMPTY_MELD
@@ -107,7 +106,6 @@ class PlayerStateArrays:
 
 @dataclass
 class RoundState:
-    rng_key: PRNGKey = jax.random.PRNGKey(0)
     # action history (player, action, is_tsumogiri), 70 (discard) + 70 (every pass) + 16 (four players meld 4 times) + 16 (discard for the melds) + 4 (dummy actions) + 20 (buffer)
     action_history: Array = jnp.full((3, 200), -1, dtype=jnp.int8)
     shanten_current_player: Array = jnp.int8(0)

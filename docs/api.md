@@ -100,7 +100,6 @@ Held common across all four players.
 
 | Field | Shape | Type | Meaning |
 | :--- | :---: | :--- | :--- |
-| `rng_key` | `(2,)` | `uint32` | JAX PRNG key used to deal the current round. |
 | `action_history` | `(3, 200)` | `int8` | Per-step action history. Row 0 acting player, row 1 action payload (discarded tile for discards, raw action id otherwise), row 2 tsumogiri flag. |
 | `round` | `()` | `int8` | Round index (`0`-based). |
 | `round_limit` | `()` | `int8` | Round limit derived from `round_mode`: `4` for `east`, `8` for `half`. |

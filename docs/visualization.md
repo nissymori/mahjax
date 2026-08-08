@@ -59,14 +59,16 @@ import jax.numpy as jnp
 import mahjax
 
 env = mahjax.make("no_red_mahjong")
-state = env.init(jax.random.PRNGKey(0))
+rng = jax.random.PRNGKey(0)
+state = env.init(rng)
 history = [state]
 
 for _ in range(40):
     if bool(state.terminated | state.truncated):
         break
     action = jnp.argmax(state.legal_action_mask).astype(jnp.int32)
-    state = env.step(state, action)
+    rng, step_key = jax.random.split(rng)
+    state = env.step(state, action, step_key)
     history.append(state)
 
 mahjax.save_svg_animation(
@@ -84,14 +86,16 @@ import jax.numpy as jnp
 import mahjax
 
 env = mahjax.make("no_red_mahjong")
-state = env.init(jax.random.PRNGKey(0))
+rng = jax.random.PRNGKey(0)
+state = env.init(rng)
 history = [state]
 
 for _ in range(40):
     if bool(state.terminated | state.truncated):
         break
     action = jnp.argmax(state.legal_action_mask).astype(jnp.int32)
-    state = env.step(state, action)
+    rng, step_key = jax.random.split(rng)
+    state = env.step(state, action, step_key)
     history.append(state)
 
 mahjax.save_svg_animation(

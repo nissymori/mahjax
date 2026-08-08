@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import jax
 import jax.numpy as jnp
 
 from mahjax.red_mahjong.action import Action
@@ -257,7 +258,7 @@ def test_special_next_round_keeps_dealer_and_increments_honba() -> None:
         ),
     )
 
-    next_state = _special_next_round(state)
+    next_state = _special_next_round(state, jax.random.PRNGKey(0))
 
     assert int(next_state.current_player) == 2
     assert int(next_state.round_state.dealer) == 2

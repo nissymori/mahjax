@@ -122,7 +122,7 @@ def visualize_game(cfg, train_state):
     
     step = 0
     while not state.terminated and step < cfg.viz_max_steps:
-        rng, k_act, k_rule = jax.random.split(rng, 3)
+        rng, k_act, k_rule, k_step = jax.random.split(rng, 4)
         if state.current_player == agent_seat:
             obs = env.observe(state)
             # Add batch dim
@@ -131,7 +131,7 @@ def visualize_game(cfg, train_state):
             action = policy_fn(obs_batched, mask_batched, k_act)[0]
         else:
             action = rule_based_player(state, k_rule)
-        state = jitted_step(state, action)
+        state = jitted_step(state, action, k_step)
         history.append(state)
         step += 1
             
