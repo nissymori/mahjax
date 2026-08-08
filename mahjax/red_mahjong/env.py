@@ -412,12 +412,13 @@ def _init(rng: PRNGKey, game_config: Optional[GameConfig] = None) -> State:
     Initialize the state.
 
     The state carries no rng: later rounds are dealt from the key passed to
-    ``step``. The split below is kept only so this deal stays bitwise the same.
+    ``step``. Dealer and wall draw from independent subkeys, so the dealer is
+    not a deterministic function of the wall.
     """
-    rng, _ = jax.random.split(rng)
-    current_player = jnp.int8(jax.random.randint(rng, (), 0, 4))
+    dealer_key, wall_key = jax.random.split(rng)
+    current_player = jnp.int8(jax.random.randint(dealer_key, (), 0, 4))
     last_player = jnp.int8(-1)
-    deck = Tile.from_tile_id_to_tile(jax.random.permutation(rng, jnp.arange(136))).astype(jnp.int8)
+    deck = Tile.from_tile_id_to_tile(jax.random.permutation(wall_key, jnp.arange(136))).astype(jnp.int8)
     deck = _apply_red_five_config(deck, game_config)
     init_hand_with_red = Hand.make_init_hand(deck)
     init_hand = jax.vmap(Hand.to_34)(init_hand_with_red)

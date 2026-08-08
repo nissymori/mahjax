@@ -360,7 +360,8 @@ def _init(rng: PRNGKey) -> State:
     - Generate the legal action mask
 
     The state carries no rng: later rounds are dealt from the key passed to
-    ``step``. The split below is kept only so this deal stays bitwise the same.
+    ``step``. Dealer and wall draw from independent subkeys, so the dealer is
+    not a deterministic function of the wall.
 
     Args:
         rng (PRNGKey): Random number generator key
@@ -368,11 +369,11 @@ def _init(rng: PRNGKey) -> State:
     Returns:
         State: Initial state of the game
     """
-    rng, _ = jax.random.split(rng)
-    current_player = jnp.int8(jax.random.randint(rng, (), 0, 4))
+    dealer_key, wall_key = jax.random.split(rng)
+    current_player = jnp.int8(jax.random.randint(dealer_key, (), 0, 4))
     last_player = jnp.int8(-1)
     deck = Tile.from_tile_id_to_tile(
-        jax.random.permutation(rng, jnp.arange(136))
+        jax.random.permutation(wall_key, jnp.arange(136))
     ).astype(
         jnp.int8
     )  # (0-34)
