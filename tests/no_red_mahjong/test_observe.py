@@ -74,7 +74,10 @@ class TestObserveDict(TestCase):
         self.assertEqual(obs["round"].item(), 3)
         self.assertEqual(obs["honba"].item(), 2)
         self.assertEqual(obs["kyotaku"].item(), 4)
-        self.assertEqual(obs["prevalent_wind"].item(), 2)
+        # round 3 is East-4, so the round wind is still East (rounds 0-3): 0.
+        # The old expectation (2) matched the pre-fix implementation, which
+        # returned the current player's seat wind under this key.
+        self.assertEqual(obs["prevalent_wind"].item(), 0)
         self.assertEqual(obs["seat_wind"].item(), 2)
         np.testing.assert_array_equal(
             np.array(obs["dora_indicators"]),
