@@ -15,7 +15,6 @@
 import abc
 from typing import Literal, Optional, Tuple, get_args
 
-import jax
 import jax.numpy as jnp
 
 from mahjax._src.struct import dataclass
@@ -25,6 +24,7 @@ TRUE = jnp.bool_(True)
 FALSE = jnp.bool_(False)
 
 EnvId = Literal[
+    "hong_kong_mahjong",
     "no_red_mahjong",
     "red_mahjong",
 ]
@@ -108,6 +108,7 @@ class State(abc.ABC):
             )
 
         from mahjax._src.visualizer import Visualizer
+
         v = Visualizer(color_theme=color_theme, scale=scale)
         return v.get_dwg(states=self).tostring()
 
@@ -268,14 +269,15 @@ def make(env_id: EnvId, **kwargs):  # noqa: C901
         )
         ```
     """
+    from mahjax.hong_kong_mahjong.env import HongKongMahjong
     from mahjax.no_red_mahjong.env import NoRedMahjong
     from mahjax.red_mahjong.env import RedMahjong
 
-    if env_id == "no_red_mahjong":
+    if env_id == "hong_kong_mahjong":
+        return HongKongMahjong(**kwargs)
+    elif env_id == "no_red_mahjong":
         return NoRedMahjong(**kwargs)
     elif env_id == "red_mahjong":
         return RedMahjong(**kwargs)
     else:
-        raise ValueError(
-            f"Wrong env_id '{env_id}' is passed. Available ids are: \n{available_envs()}"
-        )
+        raise ValueError(f"Wrong env_id '{env_id}' is passed. Available ids are: \n{available_envs()}")

@@ -52,6 +52,20 @@ pip install -e .
 > [!NOTE]
 > The current API is still provisional and under active development, so it may change in future releases.
 
+### Hong Kong Old Style
+
+This fork includes a 144-tile Hong Kong Old Style environment with flowers,
+three faan required to win, a ten-faan cap, single-winner discard priority, and
+Hong Kong payments:
+
+```python
+env = mahjax.make("hong_kong_mahjong", round_mode="half")
+state = env.init(jax.random.PRNGKey(0))
+```
+
+See [the complete HKOS_V1 rules](docs/hong_kong_mahjong.md) for the faan and
+payout tables.
+
 ### Basic Usage
 We basically follow the [Pgx](https://github.com/sotetsuk/pgx) API design.
 
@@ -137,6 +151,7 @@ Currently, MahJax supports the following rules:
 
 | Rule | id | Status | Code | Speed (steps/sec) |
 |------|------|--------|------|--------|
+| Hong Kong Old Style | `hong_kong_mahjong` | ✅ | [hong_kong_mahjong](mahjax/hong_kong_mahjong) | - |
 | No-Red Mahjong | `no_red_mahjong` | ✅ | [no_red_mahjong](https://github.com/nissymori/mahjax/tree/main/mahjax/mahjax/no_red_mahjong) | ~2M |
 | Red Mahjong | `red_mahjong` | ✅ | [red_mahjong](https://github.com/nissymori/mahjax/tree/main/mahjax/mahjax/red_mahjong) | ~1M |
 | Selective Rules | - | 🚧 | - | - |
@@ -150,9 +165,13 @@ For the detailed rule specification, see the [official Tenhou rules](https://ten
 This variant is intentionally simplified for speed, and excludes some rules such as abortive draws (`特殊流局`), pao, and double ron.
 If throughput is your priority, `no_red_mahjong` is the recommended option (roughly 2x faster).
 
+`hong_kong_mahjong` implements the `HKOS_V1` rules in this fork. It has its own
+flower-aware observation dictionary and does not accept riichi-only options such
+as `observe_type` or `order_points`.
+
 You can configure the environment with:
 
-- `id`: the rule set, such as `red_mahjong` or `no_red_mahjong`
+- `id`: the rule set, such as `hong_kong_mahjong`, `red_mahjong`, or `no_red_mahjong`
 - `round_mode`: `single` for a single round, `east` for tonpuusen (East-only), or `half` for hanchan (East-South)
 - `observe_type`: `dict` for transformer-style inputs or `2D` for CNN-style inputs
 - `order_points`: final placement bonuses (uma), for example `[30, 10, -10, -30]`
