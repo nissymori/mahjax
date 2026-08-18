@@ -86,6 +86,16 @@ class PlayerStateArrays:
 @dataclass
 class RoundState:
     action_history: jnp.ndarray = jnp.full((3, 200), -1, dtype=jnp.int8)
+    # Write cursor into ``action_history``. It lives on RoundState so that it is
+    # reset to 0 together with the buffer at every round boundary. Do NOT index
+    # ``action_history`` with ``EnvState.step_count``: that counter is
+    # hanchan-global (``_advance_to_next_round_auto`` carries it across rounds),
+    # so it walks past the end of a per-round buffer and JAX silently drops the
+    # out-of-bounds scatter, leaving the history all -1.
+    round_step: jnp.int32 = jnp.int32(0)
+    # Set when a round produces more actions than ``action_history`` can hold,
+    # so that truncation is observable instead of silent.
+    history_overflow: jnp.bool_ = FALSE
     shanten_current_player: jnp.int8 = jnp.int8(0)
     round: jnp.int8 = jnp.int8(0)
     round_limit: jnp.int8 = jnp.int8(7)

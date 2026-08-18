@@ -53,6 +53,13 @@ def _make_state():
     legal_action_mask = legal_action_mask.at[0, Action.PASS].set(True)
     legal_action_mask = legal_action_mask.at[0, Action.TSUMO].set(True)
     legal_action_mask = legal_action_mask.at[0, Action.RIICHI].set(True)
+    # Seat 1 is observed below while a draw is on the table, so it needs a legal
+    # discard for the tile it holds. ``_observe_dict`` reports ``last_draw`` only to a
+    # player who can still act on it -- otherwise the field, which is round-level,
+    # would hand a chankan responder the kan declarer's private draw. A seat holding a
+    # draw with no legal action at all is not a reachable state.
+    # See tests/red_mahjong/test_observe_rollout.py for the leak itself.
+    legal_action_mask = legal_action_mask.at[1, 9].set(True)
 
     action_history = state.round_state.action_history
     action_history = action_history.at[0, :3].set(jnp.array([0, 1, 3], dtype=jnp.int8))
