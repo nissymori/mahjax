@@ -131,11 +131,16 @@ def test_relative_player_channel_is_self_consistent(rollout):
         np.testing.assert_array_equal(history[0][~valid], raw[0][~valid])
 
 
-def test_shanten_count_is_never_stale(rollout):
+def test_shanten_count_matches_the_observed_seats_hand(rollout):
     """``shanten_count`` must describe the hand the observer is actually holding.
 
-    The round-advance path rebuilt RoundState from defaults, so this used to read
-    0 (== tenpai) on the first observation of every round after the first.
+    This used to be the regression guard for a staleness bug: the field was cached on
+    ``RoundState`` and the round-advance path rebuilt RoundState from defaults, so it
+    read 0 (== tenpai) on the first observation of every round after the first. It is
+    now computed inside ``_observe_dict`` from ``hand[current_player]``, which makes
+    that bug unrepresentable -- so this assertion is close to tautological and is kept
+    only as a cheap guard that the observation reads the OBSERVER's hand and not
+    another seat's.
     """
     for state, obs in rollout:
         hand = state.players.hand[state.current_player]

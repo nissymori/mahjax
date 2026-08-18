@@ -152,7 +152,13 @@ def _observe_dict(state: State) -> Dict:
     )
     action_history = state.round_state.action_history.at[0, :].set(relative_player_history)
     # game features
-    shanten_c_p = state.round_state.shanten_current_player
+    # Computed here rather than cached in ``RoundState``: it is a pure function of the
+    # hand being observed, and this function already defines the observer as ``c_p``.
+    # As a cached field it had to be re-established by every round-construction path,
+    # and the one that rebuilt RoundState from defaults after the step had finalized
+    # silently reset it to 0 (== tenpai) for the first observation of every new round.
+    # Deriving it at the point of use makes that class of staleness unrepresentable.
+    shanten_c_p = Shanten.number(state.players.hand[c_p]).astype(jnp.int8)
     # Per-discard shanten, split by hand shape. Computed unconditionally on
     # purpose: under vmap each lane sits at a different node type, so
     # "is this a discard node" is a per-lane tracer and both sides of any branch

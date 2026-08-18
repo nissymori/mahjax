@@ -90,7 +90,6 @@ _ROUND_FIELDS = {
     "action_history",
     "round_step",
     "history_overflow",
-    "shanten_current_player",
     "round",
     "round_limit",
     "terminated_round",
@@ -298,8 +297,7 @@ class RedMahjong(Env):
             order_points=jnp.array(self.order_points, dtype=jnp.int32),
             round_limit=self.round_limit,
         )
-        shanten_val = Shanten.number(state.players.hand[state.current_player]).astype(jnp.int8)
-        return _replace_state(state, shanten_current_player=shanten_val)
+        return state
 
     def step(
         self,
@@ -346,19 +344,6 @@ class RedMahjong(Env):
                 lambda: _advance_to_next_round_auto(state, key, self.game_config),
                 lambda: state,
             )
-        # ``_advance_to_next_round_auto`` rebuilds RoundState from ``default_state()``,
-        # which resets ``shanten_current_player`` to 0 (== tenpai) and never recomputes
-        # it for the freshly dealt hand, so the first observation of every new round
-        # claimed tenpai. Refresh unconditionally here rather than inside that branch:
-        # the branch predicate is per-lane batched under vmap, and a ``Shanten`` call
-        # under such a ``lax.cond`` makes XLA materialize the ~70MiB shanten CACHE once
-        # per lane (PR #65). Unconditionally it stays a plain gather.
-        state = _replace_state(
-            state,
-            shanten_current_player=Shanten.number(
-                state.players.hand[state.current_player]
-            ).astype(jnp.int8),
-        )
         state = jax.lax.cond(
             is_illegal,
             lambda: self._step_with_illegal_action(state, current_player),
@@ -629,7 +614,7 @@ def _step_dummy_share(
     """
     state = _append_action_history(state, action)
     state = _dispatch_action_dummy_share(state, action, key, game_config)
-    return _finalize_step_state(state, game_config, update_shanten=TRUE)
+    return _finalize_step_state(state, game_config)
 
 
 def _step_auto(
@@ -644,7 +629,7 @@ def _step_auto(
     """
     state = _append_action_history(state, action)
     state = _dispatch_action_auto(state, action, key, game_config)
-    return _finalize_step_state(state, game_config, update_shanten=TRUE)
+    return _finalize_step_state(state, game_config)
 
 
 # Back-compat alias for internal tests that import ``_step`` directly. They
@@ -761,7 +746,7 @@ def _step_verify_lazy(
 ) -> State:
     state = _append_action_history(state, action)
     state = _dispatch_action_lazy(state, action, key, game_config)
-    return _finalize_step_state(state, game_config, update_shanten=FALSE)
+    return _finalize_step_state(state, game_config)
 
 
 def verify_step(
@@ -798,8 +783,6 @@ def verify_step(
 def _finalize_step_state(
     state: State,
     game_config: Optional[GameConfig] = None,
-    *,
-    update_shanten: Array = TRUE,
 ) -> State:
     state = jax.lax.cond(
         state.round_state.draw_next & ~state.round_state.is_abortive_draw_normal,
@@ -818,17 +801,9 @@ def _finalize_step_state(
         lambda: _abortive_draw_normal(state),
         lambda: state,
     )
-    state = _replace_state(
+    return _replace_state(
         state,
         legal_action_mask=state.players.legal_action_mask[state.current_player],
-    )
-    return jax.lax.cond(
-        update_shanten,
-        lambda: _replace_state(
-            state,
-            shanten_current_player=Shanten.number(state.players.hand[state.current_player]).astype(jnp.int8),
-        ),
-        lambda: state,
     )
 
 

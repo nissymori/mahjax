@@ -96,7 +96,6 @@ class RoundState:
     # Set when a round produces more actions than ``action_history`` can hold,
     # so that truncation is observable instead of silent.
     history_overflow: jnp.bool_ = FALSE
-    shanten_current_player: jnp.int8 = jnp.int8(0)
     round: jnp.int8 = jnp.int8(0)
     round_limit: jnp.int8 = jnp.int8(7)
     terminated_round: jnp.bool_ = FALSE
