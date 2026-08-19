@@ -7,6 +7,7 @@ from mahjax.no_red_mahjong.tile import EMPTY_RIVER, River
 from mahjax.no_red_mahjong.meld import Meld, EMPTY_MELD
 from mahjax.no_red_mahjong.action import Action
 from mahjax.no_red_mahjong.env import _replace_state
+from mahjax.no_red_mahjong.shanten import Shanten
 import numpy as np
 
 jitted_observe_dict = jax.jit(_observe_dict)
@@ -24,7 +25,7 @@ class TestObserveDict(TestCase):
         test_hand = test_hand.at[2, 3].set(1) # 3m 1 tile
         test_hand = test_hand.at[3, 4].set(1) # 4m 1 tile
 
-        self.state = _replace_state(self.state, hand=test_hand, shanten_current_player=jnp.int8(1))
+        self.state = _replace_state(self.state, hand=test_hand)
         # can ron
         test_can_win = jnp.zeros((4, 34), dtype=jnp.int32).at[0, :].set(1)  # player0 only can ron
         self.state = _replace_state(self.state, can_win=test_can_win)
@@ -49,7 +50,12 @@ class TestObserveDict(TestCase):
         obs = jitted_observe_dict(state)
         expected_hand = np.array([1] + [-1] * 13, dtype=np.int32)
         np.testing.assert_array_equal(np.array(obs["hand"]), expected_hand)
-        self.assertEqual(obs["shanten_count"].item(), 1)
+        # ``shanten_count`` is derived from the observed seat's hand at observe time,
+        # not read from a cached field, so pin it against that seat's hand rather than
+        # a literal. This still catches reporting the wrong seat's shanten.
+        self.assertEqual(
+            obs["shanten_count"].item(), int(Shanten.number(state.players.hand[0]))
+        )
         self.assertEqual(obs["furiten"].item(), 1)
 
     def test_hand_related_other_player(self):
@@ -57,7 +63,9 @@ class TestObserveDict(TestCase):
         obs = jitted_observe_dict(state)
         expected_hand = np.array([2] + [-1] * 13, dtype=np.int32)
         np.testing.assert_array_equal(np.array(obs["hand"]), expected_hand)
-        self.assertEqual(obs["shanten_count"].item(), 1)
+        self.assertEqual(
+            obs["shanten_count"].item(), int(Shanten.number(state.players.hand[1]))
+        )
         self.assertEqual(obs["furiten"].item(), 0)
 
     def test_game_related_fields(self):

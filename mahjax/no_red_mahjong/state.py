@@ -108,7 +108,16 @@ class PlayerStateArrays:
 class RoundState:
     # action history (player, action, is_tsumogiri), 70 (discard) + 70 (every pass) + 16 (four players meld 4 times) + 16 (discard for the melds) + 4 (dummy actions) + 20 (buffer)
     action_history: Array = jnp.full((3, 200), -1, dtype=jnp.int8)
-    shanten_current_player: Array = jnp.int8(0)
+    # Write cursor into ``action_history``. It lives on RoundState so that it is
+    # reset to 0 together with the buffer at every round boundary. Do NOT index
+    # ``action_history`` with ``EnvState.step_count``: that counter is
+    # hanchan-global (``_advance_to_next_round_auto`` carries it across rounds),
+    # so it walks past the end of a per-round buffer and JAX silently drops the
+    # out-of-bounds scatter, leaving the history all -1.
+    round_step: Array = jnp.int32(0)
+    # Set when a round produces more actions than ``action_history`` can hold,
+    # so that truncation is observable instead of silent.
+    history_overflow: Array = FALSE
     round: Array = jnp.int8(0)
     round_limit: Array = jnp.int8(7)
     terminated_round: Array = FALSE
