@@ -969,9 +969,6 @@ def orient_red_state_for_player(state: Any, player: int) -> Any:
             init_wind=_reorder(state.round_state.init_wind),
             score=_reorder(state.round_state.score),
             dealer=jnp.int8((int(state.round_state.dealer) - seat) % 4),
-            shanten_current_player=jnp.int8(
-                (int(state.round_state.shanten_current_player) - seat) % 4
-            ),
             last_player=jnp.int8(
                 jnp.where(
                     state.round_state.last_player < 0,

@@ -4,6 +4,7 @@ import jax.numpy as jnp
 from mahjax.red_mahjong.action import Action
 from mahjax.red_mahjong.env import _observe_dict
 from mahjax.red_mahjong.meld import Meld
+from mahjax.red_mahjong.shanten import Shanten
 from mahjax.red_mahjong.state import default_state
 from mahjax.red_mahjong.tile import River, Tile
 
@@ -53,6 +54,13 @@ def _make_state():
     legal_action_mask = legal_action_mask.at[0, Action.PASS].set(True)
     legal_action_mask = legal_action_mask.at[0, Action.TSUMO].set(True)
     legal_action_mask = legal_action_mask.at[0, Action.RIICHI].set(True)
+    # Seat 1 is observed below while a draw is on the table, so it needs a legal
+    # discard for the tile it holds. ``_observe_dict`` reports ``last_draw`` only to a
+    # player who can still act on it -- otherwise the field, which is round-level,
+    # would hand a chankan responder the kan declarer's private draw. A seat holding a
+    # draw with no legal action at all is not a reachable state.
+    # See tests/red_mahjong/test_observe_rollout.py for the leak itself.
+    legal_action_mask = legal_action_mask.at[1, 9].set(True)
 
     action_history = state.round_state.action_history
     action_history = action_history.at[0, :3].set(jnp.array([0, 1, 3], dtype=jnp.int8))
@@ -75,7 +83,6 @@ def _make_state():
         ),
         round_state=state.round_state.replace(
             action_history=action_history,
-            shanten_current_player=jnp.int8(2),
             round=jnp.int8(5),
             honba=jnp.int8(2),
             kyotaku=jnp.int8(4),
@@ -96,7 +103,6 @@ def test_observe_dict_returns_relative_view() -> None:
     state = _make_state().replace(
         current_player=jnp.int8(1),
         legal_action_mask=_make_state().players.legal_action_mask[1],
-        round_state=_make_state().round_state.replace(shanten_current_player=jnp.int8(1)),
     )
 
     obs = _observe_dict(state)
@@ -123,7 +129,10 @@ def test_observe_dict_returns_relative_view() -> None:
         np.array(obs["dora_indicators"]),
         np.array([0, Tile.RED_FIVE["p"], -1, -1, -1], dtype=np.int8),
     )
-    assert obs["shanten_count"].item() == 1
+    # ``shanten_count`` is derived from the observed seat's hand at observe time, not
+    # read from a cached field, so pin it against that seat's hand rather than a
+    # literal. This still catches reporting the wrong seat's shanten.
+    assert obs["shanten_count"].item() == int(Shanten.number(state.players.hand[1]))
     assert obs["furiten"].item() == 0
     assert obs["round"].item() == 5
     assert obs["honba"].item() == 2

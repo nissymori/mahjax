@@ -23,7 +23,6 @@ from mahjax.core import Env
 from mahjax.no_red_mahjong.action import Action
 from mahjax.no_red_mahjong.hand import Hand
 from mahjax.no_red_mahjong.meld import Meld
-from mahjax.no_red_mahjong.shanten import Shanten
 from mahjax.no_red_mahjong.state import DORA_ARRAY, FIRST_DRAW_IDX, State, default_state
 from mahjax.no_red_mahjong.tile import River, Tile
 from mahjax.no_red_mahjong.yaku import Yaku
@@ -62,7 +61,8 @@ _PLAYER_FIELDS = {
 
 _ROUND_FIELDS = {
     "action_history",
-    "shanten_current_player",
+    "round_step",
+    "history_overflow",
     "round",
     "round_limit",
     "terminated_round",
@@ -239,10 +239,6 @@ class NoRedMahjong(Env):
             order_points=jnp.array(self.order_points, dtype=jnp.int32),
             round_limit=self.round_limit,
         )  # type: ignore
-        shanten_val = Shanten.number(state.players.hand[state.current_player]).astype(jnp.int8)
-        state = _replace_state(state,   # type:ignore
-            shanten_current_player=shanten_val
-        )
         return state
 
     def step(
@@ -331,11 +327,17 @@ class NoRedMahjong(Env):
         return int(state.legal_action_mask.shape[0])
 
     @property
-    def observation_shape(self) -> Tuple[int, ...]:
-        """Return the matrix shape of observation"""
+    def observation_shape(self) -> Dict[str, Tuple[int, ...]]:
+        """Per-key shapes of the observation.
+
+        ``observe_type='dict'`` is the only supported mode, so the observation is a
+        dict and there is no single array shape to report -- this used to call
+        ``.shape`` on the dict and raise ``AttributeError``. Scalar fields map to
+        ``()``.
+        """
         state = State()
         obs = self.observe(state)
-        return obs.shape
+        return {key: jnp.shape(value) for key, value in obs.items()}
 
     @property
     def _illegal_action_penalty(self) -> float:
@@ -513,26 +515,38 @@ def _init_for_next_round(rng: PRNGKey, state: State) -> State:
 
 
 def _calc_wind(east_player: Array) -> Array:
-    return jnp.array(
-        [
-            east_player,
-            (east_player + 1) % 4,
-            (east_player + 2) % 4,
-            (east_player + 3) % 4,
-        ],
-        dtype=jnp.int8,
-    )
+    """Seat wind per player, indexed BY PLAYER: ``seat_wind[p]`` is player p's wind.
+
+    Must be ``(p - dealer) % 4`` so the dealer reads 0 (East). The earlier form
+    ``[(dealer + i) % 4]`` is the INVERSE permutation: it happens to agree when the
+    dealer sits at seat 0 or 2 (where the permutation is self-inverse) but reports
+    the dealer as West and some other seat as East when the dealer sits at 1 or 3.
+    Every consumer indexes by player (players.py wind yakuhai, yaku.py WIND_TILE and
+    the fu terms, and the observation), so that mislabelled scoring, not just
+    display. Matches ``red_mahjong._calc_wind``.
+    """
+    east_player = jnp.asarray(east_player, dtype=jnp.int32)
+    players = jnp.arange(4, dtype=jnp.int32)
+    return ((players - east_player) % 4).astype(jnp.int8)
 
 
 def _is_first_turn(next_deck_ix: Array) -> Array:
     return next_deck_ix >= FIRST_DRAW_IDX - 4
 
 
-def _append_action_history(state: State, action: Array) -> Array:
+def _append_action_history(state: State, action: Array) -> State:
+    """Record ``action`` in this round's action history and advance the cursor.
+
+    The cursor is ``round_state.round_step``, which resets with the rest of
+    ``RoundState`` at every round boundary. It must not be ``state.step_count``:
+    that counter is incremented one layer up (``NoRedMahjong.step``) and is carried
+    across rounds by ``_advance_to_next_round_auto``, while ``action_history``
+    itself is rebuilt empty each round. Indexing a per-round buffer with a
+    hanchan-global counter walked past the end of the buffer, and JAX drops
+    out-of-bounds scatters silently, so the observation saw an all -1 history for
+    most of a game.
+    """
     action_i8 = jnp.int8(action)
-    action_history = state.round_state.action_history.at[0, state.step_count].set(
-        state.current_player
-    )
     is_tsumogiri = action_i8 == Action.TSUMOGIRI
     is_discard = ((0 <= action_i8) & (action_i8 < Tile.NUM_TILE_TYPE)) | is_tsumogiri
     recorded_action = jnp.where(
@@ -543,8 +557,22 @@ def _append_action_history(state: State, action: Array) -> Array:
         is_tsumogiri.astype(jnp.int8),
         jnp.int8(-1),
     )
-    action_history = action_history.at[1, state.step_count].set(recorded_action)
-    return action_history.at[2, state.step_count].set(tsumogiri_flag)
+
+    capacity = jnp.int32(state.round_state.action_history.shape[1])
+    cursor = jnp.asarray(state.round_state.round_step, dtype=jnp.int32)
+    # Clamp rather than let the scatter vanish: on overflow the newest action
+    # overwrites the last slot and ``history_overflow`` records that it happened.
+    idx = jnp.minimum(cursor, capacity - 1)
+
+    action_history = state.round_state.action_history.at[0, idx].set(state.current_player)
+    action_history = action_history.at[1, idx].set(recorded_action)
+    action_history = action_history.at[2, idx].set(tsumogiri_flag)
+    return _replace_state(
+        state,
+        action_history=action_history,
+        round_step=jnp.minimum(cursor + 1, capacity),
+        history_overflow=state.round_state.history_overflow | (cursor >= capacity),
+    )
 
 
 def _finalize_step_state(state: State) -> State:
@@ -567,11 +595,9 @@ def _finalize_step_state(state: State) -> State:
         lambda: _abortive_draw_normal(state),
         lambda: state,
     )
-    state = _replace_state(state,  # type:ignore
+    return _replace_state(state,  # type:ignore
         legal_action_mask=state.players.legal_action_mask[state.current_player]
     )
-    shanten_val = Shanten.number(state.players.hand[state.current_player]).astype(jnp.int8)
-    return _replace_state(state, shanten_current_player=shanten_val)  # type:ignore
 
 
 def _dispatch_action_dummy_share(state: State, action: Array, key: PRNGKey) -> State:
@@ -639,8 +665,7 @@ def _step_dummy_share(state: State, action: Array, key: PRNGKey) -> State:
     when ``action == DUMMY``). Used by the UI and by tests that exercise the
     four-DUMMY share phase. ``key`` deals the next round's wall.
     """
-    action_history = _append_action_history(state, action)
-    state = _replace_state(state, action_history=action_history)  # type:ignore
+    state = _append_action_history(state, action)
     state = _dispatch_action_dummy_share(state, action, key)
     return _finalize_step_state(state)
 
@@ -654,8 +679,7 @@ def _step_auto(state: State, action: Array, key: PRNGKey) -> State:
     is accepted so both step functions share one signature.
     """
     del key
-    action_history = _append_action_history(state, action)
-    state = _replace_state(state, action_history=action_history)  # type:ignore
+    state = _append_action_history(state, action)
     state = _dispatch_action_auto(state, action)
     return _finalize_step_state(state)
 
@@ -1191,7 +1215,19 @@ def _kan(state: State, action):
     - Disable Ippatsu
     """
     c_p = state.current_player
-    tile = action - Tile.NUM_TILE_TYPE
+    # Self-kan ids are 34-67, so ``action - NUM_TILE_TYPE`` is the tile type for those.
+    # OPEN_KAN (73) also lands here, and for it that arithmetic gives 39 -- outside
+    # [0, 33]. ``tile`` is then used unguarded below by the yaku judge and by the RON
+    # mask, and JAX CLAMPS an out-of-bounds gather (it only drops out-of-bounds
+    # scatters), so index 39 silently reads index 33 and a daiminkan was scored
+    # against the red dragon instead of the tile actually kanned. Take the called tile
+    # from ``target`` for the open-kan case, as ``_open_kan`` itself does and as
+    # ``red_mahjong._kan`` does.
+    tile = jnp.where(
+        action == Action.OPEN_KAN,
+        state.round_state.target,
+        action - Tile.NUM_TILE_TYPE,
+    )
     prevalent_wind = state.round_state.round % 4
     rinshan_tile = state.round_state.deck[
         jnp.int32(10 + state.players.n_kan.sum())

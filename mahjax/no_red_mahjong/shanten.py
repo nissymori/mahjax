@@ -50,12 +50,49 @@ class Shanten:
         res = jax.vmap(Shanten.number)(cand)  # (34,)
         return jnp.where(hand > 0, res, jnp.int32(6))
 
+    @staticmethod
     def detailed_discard(hand: Array) -> Array:
         # See discard() for why this avoids lax.cond.
         eye = jnp.eye(34, dtype=hand.dtype)
         cand = jnp.maximum(hand[None, :] - eye, 0)  # (34, 34)
         res = jax.vmap(Shanten.detailed_number)(cand)  # (34, 3)
         return jnp.where((hand > 0)[:, None], res, jnp.int32(6))
+
+    # Sentinel meaning "the hand does not hold this tile" in
+    # detailed_discard_shanten. It must sit above every reachable normalized
+    # value; the widest column is thirteen orphans, which tops out at 13.
+    NOT_IN_HAND: int = 14
+
+    @staticmethod
+    def detailed_discard_shanten(hand: Array, fill: int = 14) -> Array:
+        """Standard-notation shanten after discarding each tile type, split by hand shape.
+
+        Returns ``(34, 3)`` with columns ``[normal, seven pairs, thirteen orphans]``,
+        each already in standard shanten notation (the ``- 1`` that :meth:`number`
+        applies), so ``out.min(axis=1) == Shanten.discard(hand)`` on held tiles.
+
+        Reachable ranges are ``[0, 8]`` / ``[0, 13]`` / ``[0, 13]``. The normal column
+        is *not* bounded by 6: the combined shanten is, but only because seven pairs
+        and thirteen orphans undercut it on exactly the hands where the normal
+        decomposition is worst. ``min(axis=1)`` is in ``[0, 6]``.
+
+        13 is therefore attainable and :attr:`NOT_IN_HAND` == 14 clears it by exactly
+        one. Do not lower the sentinel.
+
+        This is the observation-facing variant of :meth:`detailed_discard`, which
+        returns *raw* costs and fills absent tiles with ``6`` -- a value that collides
+        with real entries in all three columns. :meth:`detailed_discard` keeps its old
+        behaviour because ``players.py`` depends on it.
+
+        Cost is the same as :meth:`discard`: ``number`` and ``detailed_number`` issue
+        the identical normal / seven-pairs / thirteen-orphans trio, so the two extra
+        columns are the same cache lookups with a wider output. See :meth:`discard`
+        for why this must stay free of ``lax.cond``.
+        """
+        eye = jnp.eye(34, dtype=hand.dtype)
+        cand = jnp.maximum(hand[None, :] - eye, 0)  # (34, 34)
+        res = jax.vmap(Shanten.detailed_number)(cand) - jnp.int32(1)  # (34, 3)
+        return jnp.where((hand > 0)[:, None], res, jnp.int32(fill))
 
     @staticmethod
     def number(hand: Array) -> Array:

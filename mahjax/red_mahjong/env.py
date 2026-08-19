@@ -88,7 +88,8 @@ _PLAYER_FIELDS = {
 
 _ROUND_FIELDS = {
     "action_history",
-    "shanten_current_player",
+    "round_step",
+    "history_overflow",
     "round",
     "round_limit",
     "terminated_round",
@@ -296,8 +297,7 @@ class RedMahjong(Env):
             order_points=jnp.array(self.order_points, dtype=jnp.int32),
             round_limit=self.round_limit,
         )
-        shanten_val = Shanten.number(state.players.hand[state.current_player]).astype(jnp.int8)
-        return _replace_state(state, shanten_current_player=shanten_val)
+        return state
 
     def step(
         self,
@@ -389,11 +389,17 @@ class RedMahjong(Env):
         return int(state.legal_action_mask.shape[0])
 
     @property
-    def observation_shape(self) -> Tuple[int, ...]:
-        """Return the matrix shape of observation"""
+    def observation_shape(self) -> Dict[str, Tuple[int, ...]]:
+        """Per-key shapes of the observation.
+
+        ``observe_type='dict'`` is the only supported mode, so the observation is a
+        dict and there is no single array shape to report -- this used to call
+        ``.shape`` on the dict and raise ``AttributeError``. Scalar fields map to
+        ``()``.
+        """
         state = default_state()
         obs = self.observe(state)
-        return obs.shape
+        return {key: jnp.shape(value) for key, value in obs.items()}
 
     @property
     def _illegal_action_penalty(self) -> float:
@@ -556,7 +562,18 @@ def _is_first_turn(next_deck_ix: Array) -> Array:
     return next_deck_ix >= FIRST_DRAW_IDX - 4
 
 
-def _append_action_history(state: State, action: Array) -> Array:
+def _append_action_history(state: State, action: Array) -> State:
+    """Record ``action`` in this round's action history and advance the cursor.
+
+    The cursor is ``round_state.round_step``, which resets with the rest of
+    ``RoundState`` at every round boundary. It must not be ``state.step_count``:
+    that counter is incremented one layer up (``RedMahjong.step``) and is carried
+    across rounds by ``_advance_to_next_round_auto``, while ``action_history``
+    itself is rebuilt empty each round. Indexing a per-round buffer with a
+    hanchan-global counter walked past the end of the buffer, and JAX drops
+    out-of-bounds scatters silently, so the observation saw an all -1 history for
+    most of a game.
+    """
     action_i32 = jnp.asarray(action, dtype=jnp.int32)
     is_tsumogiri = action_i32 == Action.TSUMOGIRI
     is_discard = ((0 <= action_i32) & (action_i32 < Tile.NUM_TILE_TYPE_WITH_RED)) | is_tsumogiri
@@ -568,11 +585,21 @@ def _append_action_history(state: State, action: Array) -> Array:
         jnp.int8(-1),
     )
 
-    action_history = state.round_state.action_history.at[0, state.step_count].set(
-        state.current_player
+    capacity = jnp.int32(state.round_state.action_history.shape[1])
+    cursor = jnp.asarray(state.round_state.round_step, dtype=jnp.int32)
+    # Clamp rather than let the scatter vanish: on overflow the newest action
+    # overwrites the last slot and ``history_overflow`` records that it happened.
+    idx = jnp.minimum(cursor, capacity - 1)
+
+    action_history = state.round_state.action_history.at[0, idx].set(state.current_player)
+    action_history = action_history.at[1, idx].set(history_action)
+    action_history = action_history.at[2, idx].set(history_tsumogiri)
+    return _replace_state(
+        state,
+        action_history=action_history,
+        round_step=jnp.minimum(cursor + 1, capacity),
+        history_overflow=state.round_state.history_overflow | (cursor >= capacity),
     )
-    action_history = action_history.at[1, state.step_count].set(history_action)
-    return action_history.at[2, state.step_count].set(history_tsumogiri)
 
 
 def _step_dummy_share(
@@ -585,10 +612,9 @@ def _step_dummy_share(
     phase explicitly. Heavier than ``_step_auto`` because both
     ``_special_next_round`` and ``_next_round`` are pre-computed every step.
     """
-    action_history = _append_action_history(state, action)
-    state = _replace_state(state, action_history=action_history)  # type:ignore
+    state = _append_action_history(state, action)
     state = _dispatch_action_dummy_share(state, action, key, game_config)
-    return _finalize_step_state(state, game_config, update_shanten=TRUE)
+    return _finalize_step_state(state, game_config)
 
 
 def _step_auto(
@@ -601,10 +627,9 @@ def _step_auto(
     transitions, and ``DUMMY`` is never a legal action. The dispatch table
     still keeps the ``_special_next_round`` branch for ``KYUUSHU``.
     """
-    action_history = _append_action_history(state, action)
-    state = _replace_state(state, action_history=action_history)  # type:ignore
+    state = _append_action_history(state, action)
     state = _dispatch_action_auto(state, action, key, game_config)
-    return _finalize_step_state(state, game_config, update_shanten=TRUE)
+    return _finalize_step_state(state, game_config)
 
 
 # Back-compat alias for internal tests that import ``_step`` directly. They
@@ -719,10 +744,9 @@ def _dispatch_action_lazy(
 def _step_verify_lazy(
     state: State, action: Array, key: PRNGKey, game_config: Optional[GameConfig] = None
 ) -> State:
-    action_history = _append_action_history(state, action)
-    state = _replace_state(state, action_history=action_history)
+    state = _append_action_history(state, action)
     state = _dispatch_action_lazy(state, action, key, game_config)
-    return _finalize_step_state(state, game_config, update_shanten=FALSE)
+    return _finalize_step_state(state, game_config)
 
 
 def verify_step(
@@ -759,8 +783,6 @@ def verify_step(
 def _finalize_step_state(
     state: State,
     game_config: Optional[GameConfig] = None,
-    *,
-    update_shanten: Array = TRUE,
 ) -> State:
     state = jax.lax.cond(
         state.round_state.draw_next & ~state.round_state.is_abortive_draw_normal,
@@ -779,17 +801,9 @@ def _finalize_step_state(
         lambda: _abortive_draw_normal(state),
         lambda: state,
     )
-    state = _replace_state(
+    return _replace_state(
         state,
         legal_action_mask=state.players.legal_action_mask[state.current_player],
-    )
-    return jax.lax.cond(
-        update_shanten,
-        lambda: _replace_state(
-            state,
-            shanten_current_player=Shanten.number(state.players.hand[state.current_player]).astype(jnp.int8),
-        ),
-        lambda: state,
     )
 
 
