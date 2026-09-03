@@ -28,6 +28,10 @@ from common import (
 @dataclass
 class TrainConfig:
     env_name: str = "no_red_mahjong"
+    # "transformer" or "perceiver". Selects the sequence model in networks/network.py.
+    # NOTE: the two have DIFFERENT parameter trees, so a checkpoint from one cannot be
+    # loaded by the other -- give each encoder its own save_model_path.
+    encoder: str = "transformer"
     dataset_path: str | None = None
     batch_size: int = 1024
     lr: float = 3e-4
@@ -56,7 +60,7 @@ else:
     # network for the importer.
     _bc_keys = {k: v for k, v in conf_dict.items() if k in TrainConfig.__dataclass_fields__}
     cfg = TrainConfig(**_bc_keys)
-NETWORK_CLS = get_network_cls(cfg.env_name)
+NETWORK_CLS = get_network_cls(cfg.env_name, cfg.encoder)
 
 # --- Train State ---
 class AgentTrainState(TrainState):

@@ -16,8 +16,15 @@ def default_bc_params_path(env_name: str) -> str:
     return str(PARAMS_DIR / f"{env_name}_bc_params.pkl")
 
 
-def default_rl_params_path(env_name: str, seed: int) -> str:
-    return str(PARAMS_DIR / f"{env_name}-seed={seed}.ckpt")
+def default_rl_params_path(env_name: str, seed: int, encoder: str = "transformer") -> str:
+    """RL checkpoint path.
+
+    The encoder is part of the identity: a perceiver checkpoint cannot be loaded by a
+    transformer network or vice versa, so they must not share a filename. The
+    transformer keeps the original unsuffixed name so existing checkpoints stay valid.
+    """
+    suffix = "" if encoder == "transformer" else f"-{encoder}"
+    return str(PARAMS_DIR / f"{env_name}-seed={seed}{suffix}.ckpt")
 
 
 def get_rule_based_player(env_name: str) -> Callable[..., Any]:

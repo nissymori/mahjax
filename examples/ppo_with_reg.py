@@ -40,6 +40,10 @@ class PPOWithRegArgs(BaseModel):
     algo: str = "ppo_with_reg"
     # Environment
     env_name: str = "no_red_mahjong"
+    # "transformer" or "perceiver" (networks/network.py). The two have DIFFERENT
+    # parameter trees, so pretrained_model_path must point at a BC checkpoint trained
+    # with the SAME encoder, and RL checkpoints must not share a path across encoders.
+    encoder: Literal["transformer", "perceiver"] = "transformer"
     round_mode: Literal["single", "east", "half"] = "single"
     seed: int = 0
     # Training setup
@@ -77,7 +81,7 @@ class PPOWithRegArgs(BaseModel):
     class args: extra = "forbid"
 
 args = PPOWithRegArgs(**OmegaConf.to_object(OmegaConf.from_cli()))
-NETWORK_CLS = get_network_cls(args.env_name)
+NETWORK_CLS = get_network_cls(args.env_name, args.encoder)
 if args.pretrained_model_path == "bc_params.pkl":
     args.pretrained_model_path = default_bc_params_path(args.env_name)
 print(args, file=sys.stderr)
@@ -392,7 +396,7 @@ if __name__ == "__main__":
     wandb.init(project=args.wandb_project, config=args.dict())
     final_state = train(jax.random.PRNGKey(args.seed))
     if args.save_model:
-        save_path = default_rl_params_path(args.env_name, args.seed)
+        save_path = default_rl_params_path(args.env_name, args.seed, args.encoder)
         os.makedirs(os.path.dirname(save_path) or ".", exist_ok=True)
         with open(save_path, "wb") as f:
             pickle.dump(final_state.params, f)
