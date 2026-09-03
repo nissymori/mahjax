@@ -16,7 +16,9 @@ def default_bc_params_path(env_name: str) -> str:
     return str(PARAMS_DIR / f"{env_name}_bc_params.pkl")
 
 
-def default_rl_params_path(env_name: str, seed: int, encoder: str = "transformer") -> str:
+def default_rl_params_path(
+    env_name: str, seed: int, encoder: str = "transformer", run_tag: str = ""
+) -> str:
     """RL checkpoint path.
 
     The encoder is part of the identity: a perceiver checkpoint cannot be loaded by a
@@ -24,7 +26,10 @@ def default_rl_params_path(env_name: str, seed: int, encoder: str = "transformer
     transformer keeps the original unsuffixed name so existing checkpoints stay valid.
     """
     suffix = "" if encoder == "transformer" else f"-{encoder}"
-    return str(PARAMS_DIR / f"{env_name}-seed={seed}{suffix}.ckpt")
+    # run_tag separates ABLATIONS that share env/seed/encoder and would otherwise
+    # race for the same file when run concurrently.
+    tag = f"-{run_tag}" if run_tag else ""
+    return str(PARAMS_DIR / f"{env_name}-seed={seed}{suffix}{tag}.ckpt")
 
 
 def get_rule_based_player(env_name: str) -> Callable[..., Any]:
