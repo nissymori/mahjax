@@ -312,63 +312,7 @@ def test_target_is_present_whenever_a_call_is_legal(rollout):
             assert int(obs["last_player"]) >= 0, "call node with no discarder"
 
 
-def test_river_is_rotated_and_matches_the_raw_state(rollout):
-    from mahjax.no_red_mahjong.tile import River
 
-    for state, obs in rollout:
-        c_p = int(state.current_player)
-        order = (np.arange(4) + c_p) % 4
-        expected = np.asarray(River.decode_river(state.players.river[order]))
-        river = np.asarray(obs["river"])
-        assert river.shape == (6, 4, 24)
-        np.testing.assert_array_equal(river, expected.astype(np.int8))
-        # Row 0 is the observer.
-        own = np.asarray(River.decode_river(state.players.river[c_p : c_p + 1]))
-        np.testing.assert_array_equal(river[:, 0, :], own[:, 0, :].astype(np.int8))
-
-
-def test_river_tiles_match_the_discard_counts(rollout):
-    for state, obs in rollout:
-        c_p = int(state.current_player)
-        river = np.asarray(obs["river"])
-        counts = np.asarray(state.players.discard_counts)[(np.arange(4) + c_p) % 4]
-        for row in range(4):
-            occupied = int((river[0, row] >= 0).sum())
-            assert occupied == int(counts[row])
-            # Dense from 0, like the history buffer.
-            assert bool((river[0, row][:occupied] >= 0).all())
-
-
-def test_river_src_frame_recovers_the_actual_caller(rollout):
-    """``src`` is (discarder - caller) mod 4 stored on the DISCARDER's row.
-
-    Getting this frame backwards is silent and plausible-looking, so check it
-    against the melds, which record the same call from the caller's side.
-    """
-    for state, obs in rollout:
-        river = np.asarray(obs["river"])
-        melds = np.asarray(obs["melds"])
-        tile, called_away, src, meld_type = river[0], river[2], river[4], river[5]
-        for row in range(4):
-            for slot in range(24):
-                if not called_away[row, slot]:
-                    continue
-                caller = (row - int(src[row, slot])) % 4
-                assert caller != row, "a player cannot call their own discard"
-                # The caller must own a meld formed from this tile, and that meld's
-                # own src must point back at this row.
-                owned = [
-                    m
-                    for m in range(4)
-                    if melds[0, caller, m] >= 0
-                    and int(melds[1, caller, m]) == int(tile[row, slot])
-                    and (caller + int(melds[2, caller, m])) % 4 == row
-                ]
-                assert owned, (
-                    f"river says seat {caller} called tile {int(tile[row, slot])} from "
-                    f"seat {row} (meld_type={int(meld_type[row, slot])}) but that seat "
-                    f"has no matching meld: {melds[:, caller]}"
-                )
 
 
 def test_melds_match_the_raw_state_and_counts(rollout):
@@ -535,9 +479,13 @@ def test_tiles_seen_never_exceeds_four(rollout):
 
 def test_tiles_seen_counts_a_called_tile_exactly_once(rollout):
     """Regression for the double-count: rivers keep called tiles, melds repeat them."""
+    from mahjax.no_red_mahjong.tile import River
+
     saw_a_call = False
     for state, obs in rollout:
-        river = np.asarray(obs["river"])
+        # river is no longer emitted; decode it from raw state. The invariant it
+        # guards -- a called tile counted once, not twice -- is unchanged.
+        river = np.asarray(River.decode_river(state.players.river))
         if not river[2].any():
             continue
         saw_a_call = True
@@ -581,13 +529,17 @@ def test_observation_keys_and_shapes_are_stable(rollout):
         "discard_shanten": (34, 3),
         "is_discard_node": (),
         "furiten": (),
+        "can_win": (34,),
+        "ippatsu": (4,),
+        "riichi": (4,),
+        "is_hand_concealed": (4,),
         "target": (),
         "last_player": (),
-        "river": (6, 4, 24),
         "melds": (3, 4, 4),
         "tiles_seen": (34,),
         "scores": (4,),
         "round": (),
+        "round_limit": (),
         "honba": (),
         "kyotaku": (),
         "wall_remaining": (),
@@ -623,3 +575,57 @@ def test_observation_shape_property_does_not_raise():
     shapes = env.observation_shape
     assert shapes["discard_shanten"] == (34, 3)
     assert shapes["target"] == ()
+
+
+def test_can_win_is_self_only_and_matches_state(rollout):
+    """The wait table must be the OBSERVER's row -- exposing all four would leak."""
+    for state, obs in rollout:
+        c_p = int(state.current_player)
+        np.testing.assert_array_equal(
+            np.asarray(obs["can_win"]), np.asarray(state.players.can_win[c_p])
+        )
+        assert np.asarray(obs["can_win"]).shape == (34,)
+
+
+def test_can_win_is_consistent_with_tenpai(rollout):
+    """A non-empty wait table means tenpai (shanten 0) or a complete hand (-1)."""
+    for _, obs in rollout:
+        if bool(np.asarray(obs["can_win"]).any()):
+            assert int(obs["shanten_count"]) <= 0, (
+                f"waits present but shanten_count={int(obs['shanten_count'])}"
+            )
+
+
+def test_ippatsu_and_concealed_are_seat_rotated(rollout):
+    for state, obs in rollout:
+        c_p = int(state.current_player)
+        order = (np.arange(4) + c_p) % 4
+        np.testing.assert_array_equal(
+            np.asarray(obs["ippatsu"]), np.asarray(state.players.ippatsu)[order]
+        )
+        np.testing.assert_array_equal(
+            np.asarray(obs["is_hand_concealed"]),
+            np.asarray(state.players.is_hand_concealed)[order],
+        )
+
+
+def test_is_hand_concealed_is_not_merely_no_melds(rollout):
+    """A closed kan keeps the hand concealed, so `melds` alone cannot derive this.
+
+    Guards the reason the field is exposed at all: if it ever became equivalent to
+    "has no melds", the justification in the docstring would be stale.
+    """
+    saw_concealed_with_meld = False
+    for _, obs in rollout:
+        melds = np.asarray(obs["melds"])
+        concealed = np.asarray(obs["is_hand_concealed"])
+        for seat in range(4):
+            actions = melds[0, seat][melds[0, seat] >= 0]
+            if actions.size and bool(concealed[seat]):
+                # Every meld held by a still-concealed seat must be a closed kan.
+                assert bool(((actions >= 34) & (actions <= 67)).all()), (
+                    f"seat {seat} concealed but holds a non-self-kan meld {actions}"
+                )
+                saw_concealed_with_meld = True
+    if not saw_concealed_with_meld:
+        pytest.skip("random rollout produced no closed kan")

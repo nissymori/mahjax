@@ -404,7 +404,11 @@ def _init(rng: PRNGKey) -> State:
     new_tile = state.round_state.deck[state.round_state.next_deck_ix]
     next_deck_ix = state.round_state.next_deck_ix - 1
     # Only judge the Yakuman.
-    prevalent_wind = state.round_state.round % 4
+    # ROUND wind is round // 4 (East-1..4 are all East); round % 4 is the KYOKU
+    # ordinal within the wind. Using % 4 here scored the wrong wind in every kyoku
+    # except 0 and 4, and since has_yaku gates ron legality it could also make a
+    # legal ron illegal. Matches red (yaku.py) and the observation.
+    prevalent_wind = state.round_state.round // 4
     dora = _dora_array(state)
     _, yakuman_num, _ = Yaku.judge_yakuman(
         state.players.hand[c_p],
@@ -475,7 +479,11 @@ def _init_for_next_round(rng: PRNGKey, state: State) -> State:
     new_tile = state.round_state.deck[state.round_state.next_deck_ix]
     next_deck_ix = state.round_state.next_deck_ix - 1
     # Only judge the Yakuman.
-    prevalent_wind = state.round_state.round % 4
+    # ROUND wind is round // 4 (East-1..4 are all East); round % 4 is the KYOKU
+    # ordinal within the wind. Using % 4 here scored the wrong wind in every kyoku
+    # except 0 and 4, and since has_yaku gates ron legality it could also make a
+    # legal ron illegal. Matches red (yaku.py) and the observation.
+    prevalent_wind = state.round_state.round // 4
     dora = _dora_array(state)
     _, yakuman_num, _ = Yaku.judge_yakuman(
         state.players.hand[c_p],
@@ -855,7 +863,11 @@ def _discard(state: State, tile: Array) -> State:
         discard_counts=n_river,
     )
     # Calculate YAKU for the discarded tile and the next drawn tile
-    prevalent_wind = state.round_state.round % 4
+    # ROUND wind is round // 4 (East-1..4 are all East); round % 4 is the KYOKU
+    # ordinal within the wind. Using % 4 here scored the wrong wind in every kyoku
+    # except 0 and 4, and since has_yaku gates ron legality it could also make a
+    # legal ron illegal. Matches red (yaku.py) and the observation.
+    prevalent_wind = state.round_state.round // 4
     next_tile = state.round_state.deck[state.round_state.next_deck_ix]
     has_yaku, fan, fu = yaku_judge_for_discarded_or_kanned_tile_and_next_draw_tile(
         state, tile, next_tile, prevalent_wind
@@ -1228,7 +1240,11 @@ def _kan(state: State, action):
         state.round_state.target,
         action - Tile.NUM_TILE_TYPE,
     )
-    prevalent_wind = state.round_state.round % 4
+    # ROUND wind is round // 4 (East-1..4 are all East); round % 4 is the KYOKU
+    # ordinal within the wind. Using % 4 here scored the wrong wind in every kyoku
+    # except 0 and 4, and since has_yaku gates ron legality it could also make a
+    # legal ron illegal. Matches red (yaku.py) and the observation.
+    prevalent_wind = state.round_state.round // 4
     rinshan_tile = state.round_state.deck[
         jnp.int32(10 + state.players.n_kan.sum())
     ]  # Reference the deck in _state.py
@@ -1790,6 +1806,10 @@ def _next_round(state: State, key: PRNGKey) -> State:
             dealer=next_dealer,
             seat_wind=_calc_wind(next_dealer),
             round=next_round,
+            # _make_state starts from default_state(), so ANY field not passed here
+            # silently reverts to the dataclass default -- round_limit would drop to 7
+            # regardless of the 4 ('east') or 8 the env configured.
+            round_limit=s.round_state.round_limit,
             honba=next_honba,
             kyotaku=s.round_state.kyotaku,
             score=s.round_state.score,

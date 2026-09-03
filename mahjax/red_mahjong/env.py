@@ -2165,6 +2165,12 @@ def _next_round(
             dealer=next_dealer,
             seat_wind=_calc_wind(next_dealer),
             round=next_round,
+            # _make_state starts from default_state(), so ANY field not passed here
+            # silently reverts to the dataclass default -- round_limit would drop to 7
+            # regardless of the 4 ('east') or 8 the env configured, so the game would
+            # run past its intended end and the observation would report the wrong
+            # round_limit from the second kyoku onward.
+            round_limit=s.round_state.round_limit,
             honba=next_honba,
             kyotaku=s.round_state.kyotaku,
             score=s.round_state.score,

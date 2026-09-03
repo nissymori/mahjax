@@ -32,21 +32,30 @@ def get_rule_based_player(env_name: str) -> Callable[..., Any]:
     raise ValueError(f"Unsupported env_name: {env_name}")
 
 
-def get_network_cls(env_name: str):
+def get_network_cls(env_name: str, encoder: str = "transformer"):
+    """Bind the env's tokenizer to a sequence model.
+
+    ``network.py`` is env-agnostic; the red / no-red split lives entirely in the two
+    feature modules, which expose the same contract (D_MODEL, NUM_ACTIONS,
+    CLS_POSITIONS). ``encoder`` selects "transformer" or "perceiver".
+    """
+    try:
+        from .networks.network import make_acnet
+    except ImportError:
+        from networks.network import make_acnet
+
     if env_name == "red_mahjong":
         try:
-            from .networks.red_network import ACNet
+            from .networks.red_feature import ObservationTokenizer
         except ImportError:
-            from networks.red_network import ACNet
-
-        return ACNet
+            from networks.red_feature import ObservationTokenizer
+        return make_acnet(ObservationTokenizer, encoder)
     if env_name == "no_red_mahjong":
         try:
-            from .networks.no_red_network import ACNet
+            from .networks.no_red_feature import ObservationTokenizer
         except ImportError:
-            from networks.no_red_network import ACNet
-
-        return ACNet
+            from networks.no_red_feature import ObservationTokenizer
+        return make_acnet(ObservationTokenizer, encoder)
     raise ValueError(f"Unsupported env_name: {env_name}")
 
 

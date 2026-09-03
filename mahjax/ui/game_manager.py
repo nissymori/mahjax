@@ -1474,7 +1474,7 @@ def summarise_winner(
     n_meld = jnp.int32(prev_state.players.meld_counts[player])
     riichi = jnp.bool_(prev_state.players.riichi[player])
     riichi_flag_state = bool(np.array(riichi))
-    prevalent_wind = jnp.int32(prev_state.round_state.round % 4)
+    prevalent_wind = jnp.int32(prev_state.round_state.round // 4)
     seat_wind = jnp.int32(prev_state.round_state.seat_wind[player])
     dora = jnp.asarray(_dora_array(prev_state))
     hand_for_count = hand
