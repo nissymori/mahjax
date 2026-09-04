@@ -479,3 +479,23 @@ def test_red_auto_matches_dummy_share_at_game_end() -> None:
     assert bool(state_share.terminated)
     assert bool(jnp.all(state_auto.round_state.score == state_share.round_state.score))
     assert bool(jnp.all(state_auto.rewards == state_share.rewards))
+
+
+def test_calc_wind_assigns_east_to_dealer() -> None:
+    """``seat_wind`` is indexed BY PLAYER, so the dealer must read 0 (East).
+
+    This contract was previously asserted only in ``tests/red_mahjong/test_replay.py``,
+    which is gitignored -- so nothing tracked enforced it, and no_red shipped the
+    inverse permutation (``[(dealer + i) % 4]``) for a long time. That form agrees
+    only when the dealer sits at seat 0 or 2; at seats 1 and 3 it reports the dealer
+    as West and some other seat as East, which mislabels seat-wind yakuhai and fu.
+    """
+    from mahjax.red_mahjong.env import _calc_wind
+
+    assert _calc_wind(jnp.int32(0)).tolist() == [0, 1, 2, 3]
+    assert _calc_wind(jnp.int32(1)).tolist() == [3, 0, 1, 2]
+    assert _calc_wind(jnp.int32(2)).tolist() == [2, 3, 0, 1]
+    assert _calc_wind(jnp.int32(3)).tolist() == [1, 2, 3, 0]
+    # The invariant the four literals encode.
+    for dealer in range(4):
+        assert int(_calc_wind(jnp.int32(dealer))[dealer]) == 0

@@ -43,7 +43,6 @@ _SHARED_PLAYER_FIELDS = (
 
 _SHARED_ROUND_FIELDS = (
     "action_history",
-    "shanten_current_player",
     "round",
     "round_limit",
     "terminated_round",

@@ -655,7 +655,7 @@ def test_ron(ls, action, cs):
     assert int(cs.round_state.kyotaku) == 0, "kyotaku should be cleared to 0 after RON"
     assert _bool(cs.players.has_won[cp]), "winner's _has_won must be True"
     # Yaku and score calculation
-    prevalent_wind = ls.round_state.round % 4
+    prevalent_wind = ls.round_state.round // 4
     seat_wind = ls.round_state.seat_wind[ls.current_player]
     yaku, fan, fu = jitted_yaku_judge(
         ls.players.hand[cp],
@@ -681,7 +681,7 @@ def test_tsumo(ls, action, cs):
     assert int(cs.round_state.kyotaku) == 0, "kyotaku should be cleared to 0 after TSUMO"
     assert _bool(cs.players.has_won[cp]), "winner's _has_won must be True"
     # Yaku and score calculation
-    prevalent_wind = ls.round_state.round % 4
+    prevalent_wind = ls.round_state.round // 4
     seat_wind = ls.round_state.seat_wind[ls.current_player]
     yaku, fan, fu = jitted_yaku_judge(
         ls.players.hand[cp].at[ls.round_state.last_draw].set(ls.players.hand[cp][ls.round_state.last_draw] -1),

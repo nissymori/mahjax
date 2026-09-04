@@ -266,7 +266,16 @@ def _pon_logic(
     prob = jnp.where(is_yaku_meld, YAKU_MELD_PON_PROB, prob)
     prob = jnp.where(has_pung, HAS_PUNG_PON_PROB, prob)
     do_pon = jax.random.bernoulli(rng, prob)
-    return jnp.where(do_pon, Action.PON, Action.PASS)
+    # PON and PON_RED are separate actions, and when the pon would necessarily
+    # consume the red five ONLY PON_RED is legal. Returning a bare Action.PON there
+    # emits an action the mask forbids -- the caller gates on
+    # ``legal_action_mask[PON] | legal_action_mask[PON_RED]`` (see _rule_based_player),
+    # so "a pon is available" was already true. no_red has no such split, which is why
+    # only red produced illegal actions in collected data.
+    pon_action = jnp.where(
+        state.legal_action_mask[Action.PON], Action.PON, Action.PON_RED
+    )
+    return jnp.where(do_pon, pon_action, Action.PASS)
 
 
 def _chi_logic(

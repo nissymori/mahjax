@@ -84,7 +84,7 @@ class TestVisualize(unittest.TestCase):
             a = jax.jit(rule_based_player)(state, rng)
             if state.legal_action_mask[Action.RIICHI]:
                 print("立直できるよ！")
-            round_wind = state.round_state.round % 4
+            round_wind = state.round_state.round // 4
             if a == Action.TSUMO:
                 yaku, fan, fu = jax.jit(Yaku.judge)(
                     state.players.hand[state.current_player],

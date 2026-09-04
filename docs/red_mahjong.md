@@ -120,20 +120,19 @@ The current training-oriented observation is `dict`. It is the format we recomme
 
 The returned dictionary contains:
 
+The full per-key table — shapes, ranges and the reasoning behind each field — lives in
+[api.md](api.md#observation-envobserve). It is kept in one place on purpose: two copies of
+a 25-key table drift apart. The keys specific to this env are:
+
 | Key | Shape | Meaning |
 | :--- | :---: | :--- |
-| `hand` | `(14,)` | Current player's hand as sorted 34-type tiles; unused slots are `-1`. |
-| `last_draw` | `()` | Last drawn tile in `[0, 36]`; `-1` means there is no drawn tile to expose. |
-| `action_history` | `(3, 200)` | Relative-view action history. |
-| `shanten_count` | `()` | Current player's shanten number. |
-| `furiten` | `()` | Whether the current player is in furiten. |
-| `scores` | `(4,)` | Scores ordered from the current player's perspective. |
-| `round` | `()` | Round index. |
-| `honba` | `()` | Honba count. |
-| `kyotaku` | `()` | Riichi stick count. |
-| `prevalent_wind` | `()` | Prevailing wind. |
-| `seat_wind` | `()` | Current player's seat wind. |
-| `dora_indicators` | `(5,)` | Dora indicator tiles in `[0, 36]` (red-aware); missing entries are `-1`. |
+| `is_red` | `(34,)` | Whether the concealed hand holds the RED five of that type (indices 4 / 13 / 22 only). `no_red_mahjong` has no such key. |
+
+Tile ids are red-aware `[0, 36]` wherever a tile appears (`last_draw`, `target`,
+`dora_indicators`, the meld and history channels). Tile **types** stay `[0, 33]`, with red
+fives folded into their type, so `hand`, `discard_shanten`, `can_win`, `discard_can_win` and
+`tiles_seen` are all 34-wide. The action space is 87 wide (discards 0-36, self-kan 37-70,
+calls 75-83 including `*_RED` variants).
 
 ### Action History
 
@@ -178,3 +177,5 @@ For how to consume these rewards in turn-based MARL training (per-player reward 
 In multi-round modes, the next-round transition behavior is controlled by `next_round_style` (see [API](api.md#round-transition-style-next_round_style)).
 
 `red_mahjong` is the env used by `mahjax_tenhou_test`, which validates round trajectories against real tenhou mjlogs using `next_round_style="dummy_share"`. The state-level equivalence between `auto` and `dummy_share` at round boundaries is asserted by the parity tests in `tests/red_mahjong/test_env.py`, so the same correctness target also covers `auto` mode end-to-end.
+
+`env.observe_privileged(state)` returns the same dict plus `others_hand` `(3, 34)` and `others_is_red` `(3, 34)` — the other three players' concealed hands in seat-relative order (right / across / left). That is hidden information: use it for centralised critics and analysis, never for a policy that will face real opponents.

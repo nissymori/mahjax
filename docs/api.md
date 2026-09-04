@@ -100,7 +100,9 @@ Held common across all four players.
 
 | Field | Shape | Type | Meaning |
 | :--- | :---: | :--- | :--- |
-| `action_history` | `(3, 200)` | `int8` | Per-step action history. Row 0 acting player, row 1 action payload (discarded tile for discards, raw action id otherwise), row 2 tsumogiri flag. |
+| `action_history` | `(3, 200)` | `int8` | Per-step action history for the **current round**. Row 0 acting player, row 1 action payload (discarded tile for discards, raw action id otherwise), row 2 tsumogiri flag. Unused slots are `-1`. |
+| `round_step` | `()` | `int32` | Write cursor into `action_history`, reset to 0 each round. Do **not** index the history with `state.step_count`: that counter is hanchan-global, so it walks past the end of this per-round buffer and JAX drops the out-of-bounds scatter silently. |
+| `history_overflow` | `()` | `bool` | `True` once a round produced more actions than `action_history` can hold; the newest action then overwrites the last slot. Makes truncation observable instead of silent. |
 | `round` | `()` | `int8` | Round index (`0`-based). |
 | `round_limit` | `()` | `int8` | Round limit derived from `round_mode`: `4` for `east`, `8` for `half`. |
 | `terminated_round` | `()` | `bool` | `True` on the step that ends the round (RON / TSUMO / 流局). See the round-transition section for how `auto` vs `dummy_share` expose this. |
@@ -127,6 +129,81 @@ Held common across all four players.
 | `can_robbing_kan` | `()` | `bool` | A robbing-a-kan / 槍槓 window is open. |
 | `draw_next` | `()` | `bool` | Internal flag: the env should draw a tile next. |
 | `dummy_count` | `()` | `int8` | Counter for the DUMMY-rotation phase. Only used by `next_round_style="dummy_share"` (see below); always `0` under `auto`. |
+
+## Observation (`env.observe`)
+
+`observe_type="dict"` is the only supported mode. `env.observe(state)` returns a dict of
+arrays describing the table **from the current player's seat**. Everything in it is either
+that player's own private information or public information — no opponent hands, no wall,
+no ura dora. Scalars are 0-d arrays, not length-1 vectors. `env.observation_shape` returns
+the per-key shapes.
+
+Fields with a seat axis are rotated so index 0 is the observer and 1/2/3 are the players to
+the right / across / left.
+
+| Key | Shape | Type | Meaning |
+| :--- | :---: | :--- | :--- |
+| `hand` | `(34,)` | `int8` | **Count** of each tile type in the concealed hand, `[0, 4]`. Red fives fold into their type; `is_red` carries the redness. Melded tiles are **not** here — see `melds`. |
+| `is_red` | `(34,)` | `bool` | Whether the concealed hand holds the **red** five of that type. Only indices 4 / 13 / 22 can be `True`. **`red_mahjong` only** — `no_red_mahjong` omits the key rather than emitting an always-zero column. |
+| `last_draw` | `()` | `int8` | The observer's own most recent draw `[0-36]`, `-1` if none. This is the tile `TSUMOGIRI` discards. Masked: the underlying state field is round-level, so during a robbing-a-kan window it would otherwise expose the kan declarer's private draw to the responder. |
+| `shanten_count` | `()` | `int8` | Shanten of the concealed hand, `[-1, 6]` (`-1` complete, `0` tenpai). |
+| `discard_shanten` | `(34, 3)` | `int8` | Shanten after discarding each tile **type**, split `[normal, seven pairs, thirteen orphans]`, per-column ranges `[0,8]`/`[0,13]`/`[0,13]`. `Shanten.NOT_IN_HAND` (14) marks types the hand does not hold. At a 3n+1 response node these describe the 3n hands one further discard out — see `is_discard_node`. |
+| `can_win` | `(34,)` | `bool` | **Self only.** For each tile type, whether it completes the hand (the wait table). Opponents' rows exist in state but are hidden and deliberately not exposed. Stale after a pon/chi — see the note below. |
+| `discard_can_win` | `(34, 34)` | `int8` | Per-discard wait table. Row `t` is "if I discard tile type `t`, which tiles then complete my hand". `-1` fills rows with no answer: not a discard node, or a tile the hand does not hold; elsewhere `0`/`1`. `discard_shanten` says **whether** a discard reaches tenpai, this says **what** the wait is — the difference between two tenpai discards. Derived at observe time, not stored in state. |
+| `furiten` | `()` | `bool` | Furiten by own discard **or** by pass. |
+| `is_discard_node` | `()` | `bool` | Whether a discard is legal, i.e. whether `discard_shanten` means "if I discard this" (3n+2 hand) rather than a floater map one discard further out (3n+1). |
+| `melds` | `(3, 4, 4)` | `int8` | Melds per seat. Channels `[action, called_tile, src]`; `action == -1` is the mask. `src` is `(discarder - owner) mod 4` and `0` means a closed kan. |
+| `action_history` | `(3, 200)` | `int8` | This round's actions in order, `[player, action, tsumogiri]`. Row 0 is a seat **relative** to the observer (0 == me). Discards store the tile, other actions the raw action id, told apart by the tsumogiri channel. Per-round buffer, cleared at every round boundary. |
+| `scores` | `(4,)` | `int32` | Scores, seat-rotated. |
+| `target` | `()` | `int8` | Tile the pending call/ron decision is about, `-1` if none. Red-aware for calls on a discard; a bare tile type for chankan. |
+| `last_player` | `()` | `int8` | Relative seat of whoever acted last, `-1` if none. Only refers to the pending call when `target >= 0`; otherwise read it as "who moved last". |
+| `tiles_seen` | `(34,)` | `int8` | Copies of each tile type already visible from this seat, `[0, 4]`: own concealed hand + every river + every meld + revealed dora indicators. Red fives fold into their type. Called tiles are counted once. |
+| `ippatsu` | `(4,)` | `bool` | Seat-rotated. Not derivable from anything else here. |
+| `riichi` | `(4,)` | `bool` | Seat-rotated. Public for every seat. |
+| `is_hand_concealed` | `(4,)` | `bool` | Seat-rotated. Gates riichi legality and menzen tsumo. Deriving it from `melds` means reimplementing the rule that a closed kan keeps the hand concealed. |
+| `wall_remaining` | `()` | `int32` | Tiles still drawable from the live wall, `[0, 70]`. Drives haitei, the exhaustive draw and the riichi precondition. |
+| `round` | `()` | `int8` | Kyoku counter in `[0, round_limit]`. |
+| `round_limit` | `()` | `int8` | Last kyoku index: 4 for `east`, 8 for `single`/`half`. With `round`, how much game is left. |
+| `honba` | `()` | `int8` | Honba count. |
+| `kyotaku` | `()` | `int8` | Riichi sticks on the table. |
+| `prevalent_wind` | `()` | `int8` | Round wind, `round // 4`. Reaches 2 (West) on the last kyoku of a `half` game. |
+| `seat_wind` | `()` | `int8` | Observer's seat wind `[0-3]`; 0 is the dealer. |
+| `dora_indicators` | `(5,)` | `int8` | Indicators `[0-36]`, `-1` for unrevealed slots. |
+
+`melds` is derivable from an intact `action_history`, but only by learning a parser —
+linking a call to the discard it consumed, and a kan upgrade to the pon before it, are
+non-adjacent lookups. It is provided decoded because it costs nothing (state reads, no
+shanten evaluation) and removes that sub-problem.
+
+There is no `river` key. Every discard is already in `action_history` (the tile in channel 1,
+tsumogiri in channel 2) and every call in `melds`, so a river plane would ship the same
+events twice.
+
+**`can_win` vs `discard_can_win`.** They answer at complementary nodes. `can_win` is exact
+at a 3n+1 response node (ron/pon/chi/pass), where it is the current wait; at a 3n+2 discard
+node it is the wait of the hand **before** the draw, i.e. the wait you keep if you tsumogiri.
+`discard_can_win` is the reverse: all `-1` at a response node, exact at a discard node.
+
+One caveat on `can_win`: the env refreshes it on init, on discard and on the post-kan draw,
+but **not** in `_pon` / `_chi`. Those rewrite the hand, so at a post-call discard node it can
+claim a wait the player no longer has. `shanten_count` is recomputed on every observation;
+trust it where the two disagree. Recomputing `can_win` there would not help — after a call the
+concealed hand is 3n+2, where `Hand.can_ron` is structurally `False` for every tile.
+
+## Privileged observation (`env.observe_privileged`)
+
+`env.observe_privileged(state)` returns everything `observe()` does, plus the other players'
+concealed hands. This is **hidden information**: use it for centralised critics, opponent
+modelling, dataset analysis and debugging, never for a policy that will be evaluated or
+deployed against real opponents. It always returns a dict, independent of `observe_type`.
+
+| Key | Shape | Type | Meaning |
+| :--- | :---: | :--- | :--- |
+| `others_hand` | `(3, 34)` | `int8` | Per-type counts of each **other** player's concealed hand, `[0, 4]`. Melds excluded, as for `hand`. |
+| `others_is_red` | `(3, 34)` | `bool` | Whether that player holds the red five of the type. **`red_mahjong` only.** |
+
+Rows use the same seat-relative frame as `scores`: index 0 is the player to the observer's
+right, 1 across, 2 left. The observer's own hand is not repeated — it is already `hand`.
 
 ## Round Transition Style (`next_round_style`)
 

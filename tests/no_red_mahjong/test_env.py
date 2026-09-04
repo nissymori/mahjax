@@ -1474,3 +1474,75 @@ class TestAutoDummyShareParity(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_calc_wind_assigns_east_to_dealer() -> None:
+    """``seat_wind`` is indexed BY PLAYER, so the dealer must read 0 (East).
+
+    no_red previously returned the INVERSE permutation, ``[(dealer + i) % 4]``, which
+    agrees only when the dealer sits at seat 0 or 2. At seats 1 and 3 it reported the
+    dealer as West and another seat as East. Every consumer indexes by player
+    (players.py wind yakuhai, yaku.py ``WIND_TILE[seat_wind]`` and the fu terms, and
+    the observation), so it mislabelled scoring, not just display.
+
+    The equivalent red test lived only in the gitignored ``test_replay.py``, which is
+    why nothing caught the divergence; ``test_yaku.py`` cannot catch it either,
+    because it takes ``seat_wind`` straight from a JSON fixture and never calls this.
+    """
+    from mahjax.no_red_mahjong.env import _calc_wind
+
+    assert _calc_wind(jnp.int32(0)).tolist() == [0, 1, 2, 3]
+    assert _calc_wind(jnp.int32(1)).tolist() == [3, 0, 1, 2]
+    assert _calc_wind(jnp.int32(2)).tolist() == [2, 3, 0, 1]
+    assert _calc_wind(jnp.int32(3)).tolist() == [1, 2, 3, 0]
+    for dealer in range(4):
+        assert int(_calc_wind(jnp.int32(dealer))[dealer]) == 0
+
+
+def test_open_kan_derives_the_tile_from_target_not_the_action_id() -> None:
+    """``_kan`` must not compute ``action - NUM_TILE_TYPE`` for OPEN_KAN.
+
+    Self-kan ids are 34-67, so that arithmetic is right for them, but OPEN_KAN is 73
+    and yields 39 -- outside [0, 33]. JAX CLAMPS out-of-bounds gathers (it only drops
+    out-of-bounds scatters), so index 39 silently read index 33.
+
+    The sharpest consequence is the ``is_added_kan = pon[c_p, tile] != 0`` probe: a
+    daiminkan whose caller happens to hold a recorded pon of tile type 33 was
+    misclassified as an ADDED kan, taking the robbing-a-kan branch (which leaves
+    ``target`` set and hands the turn to a ron candidate) instead of the plain-kan
+    branch that clears ``target``. Rigged here so the two readings diverge: the caller
+    has a pon at 33 but none at the tile actually kanned.
+    """
+    from mahjax.no_red_mahjong.env import _kan, _replace_state
+    from mahjax.no_red_mahjong.state import State
+
+    kanned, caller, discarder, ron_seat = 5, 0, 3, 2
+    assert Action.OPEN_KAN - Tile.NUM_TILE_TYPE == 39, "premise of the bug"
+
+    state = State()
+    hand = state.players.hand.at[caller, kanned].set(3)  # 3 in hand + 1 called == kan
+    # Only the CLAMPED tile type (33) is rigged to look like a prior pon, and only 33
+    # is rigged as a winning tile -- so the chankan branch is reachable exclusively
+    # via the buggy read.
+    pon = state.players.pon.at[caller, 33].set(1)
+    can_win = state.players.can_win.at[ron_seat, 33].set(True)
+    state = _replace_state(
+        state,
+        current_player=jnp.int8(caller),
+        hand=hand,
+        pon=pon,
+        can_win=can_win,
+        discard_counts=state.players.discard_counts.at[discarder].set(jnp.int8(1)),
+        target=jnp.int8(kanned),
+        last_player=jnp.int8(discarder),
+    )
+
+    out = _kan(state, jnp.int32(Action.OPEN_KAN))
+
+    # A daiminkan is not ronnable, so the plain-kan branch must run and clear target.
+    # Reading tile 33 instead would set is_added_kan, open the chankan window and
+    # leave target at 33.
+    assert int(out.round_state.target) == -1, (
+        "open kan took the robbing-a-kan branch -- tile was derived from the action id"
+    )
+
