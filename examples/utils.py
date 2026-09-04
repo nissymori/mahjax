@@ -79,6 +79,13 @@ def make_eval_fn(env: Env, num_eval_envs: int, max_steps: int = 200):
 
                 event = {
                     "hand_ended": hand_ended.astype(jnp.int32),
+                    # Points moved on the hands that ended in a win / a deal-in, so the
+                    # ratio against the counts below is "how big is my average win" and
+                    # "how big is my average deal-in". Signed as the reward is: a win is
+                    # positive, a deal-in negative -- deal-in is negated at the division
+                    # so the reported figure is a positive magnitude.
+                    "won_pts": jnp.where(hand_ended & won, rewards, 0.0),
+                    "dealt_in_pts": jnp.where(hand_ended & dealt_in_mask, rewards, 0.0),
                     "hora_hand": (hand_ended & is_hora).astype(jnp.int32),
                     "ryuu_hand": (hand_ended & is_ryuukyoku).astype(jnp.int32),
                     "won": (hand_ended & won).astype(jnp.int32),
@@ -139,6 +146,11 @@ def make_eval_fn(env: Env, num_eval_envs: int, max_steps: int = 200):
                 return {
                     f"{prefix}/hora_rate":           safe_div(w("won"),         player_hands),
                     f"{prefix}/deal_in_rate":        safe_div(w("dealt_in"),    player_hands),
+                    # Per-event averages, in the same 100-point unit as the score.
+                    # Denominator is the number of wins / deal-ins, NOT hands, so these
+                    # read as "when it happens, how big is it".
+                    f"{prefix}/avg_win_pts":         safe_div(w("won_pts"),     w("won")),
+                    f"{prefix}/avg_deal_in_pts":     safe_div(-w("dealt_in_pts"), w("dealt_in")),
                     f"{prefix}/riichi_rate":         safe_div(w("riichi"),      player_hands),
                     f"{prefix}/meld_rate":           safe_div(w("melded"),      player_hands),
                     f"{prefix}/tenpai_at_ryuu_rate": safe_div(w("tenpai_ryuu"), player_ryuu),
