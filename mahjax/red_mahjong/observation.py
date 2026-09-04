@@ -109,16 +109,6 @@ def _observe_dict(state: State) -> Dict:
     GLOBAL -- table context that is not about any one tile or event.
     - scores: (4,) int32, scores ordered from the current player's seat
       (me, right, across, left)
-    - target: () int8, the tile the pending call/ron decision is about, -1 when
-      there is none. Without this a PON/CHI/RON/PASS choice is blind. Caveat: for a
-      call on a discard this is the red-aware id [0-36], but for a chankan (robbing
-      an added kan) the env stores the bare tile type [0-33] (``_selfkan`` derives it
-      as ``action - 37``), so redness is not reported in that one case.
-    - last_player: () int8, seat of the player who acted last, RELATIVE to the
-      current player in [0, 3], -1 when there is none. Together with ``target``
-      this identifies who the callable tile came from. Note it is not cleared when a
-      call window closes, so it is only about the *pending* call when
-      ``target >= 0``; otherwise read it as "who moved last".
     - round: () int8, the kyoku counter in [0, round_limit]. ``RedMahjong`` sets
       round_limit to 4 for 'east' and 8 for 'single'/'half', so the widest range is
       [0, 8] -- not the [0, 12] an older docstring claimed.
@@ -148,7 +138,8 @@ def _observe_dict(state: State) -> Dict:
       (the tile stays in the discarder's river with a `called_away` bit while the
       caller's meld also holds it). Derivable from `hand`/`river`/`melds` -- it is a
       scatter-add, not a walk -- but provided directly since it costs nothing.
-
+    - target: () int8, the tile a pending call/ron decision is about, -1 if none
+    - last_player: () int8, relative seat of whoever acted last, -1 if none
     """
     c_p = state.current_player
     c_p_based_order = (jnp.arange(4) + c_p) % 4
@@ -355,14 +346,12 @@ def _observe_dict(state: State) -> Dict:
         "shanten_count": shanten_c_p,
         "discard_shanten": discard_shanten,
         "can_win": can_win,
+        "furiten": furiten,
+        "is_discard_node": is_discard_node,
         # ---- meld-related: the open sets, mine and everyone else's --------------
         "melds": melds,
         # ---- action history: the round as a sequence, and the pending decision --
         "action_history": action_history,
-        "target": target,
-        "last_player": last_player,
-        "furiten": furiten,
-        "is_discard_node": is_discard_node,
         # ---- global: table context that is not about any one tile or event ------
         "scores": scores,
         "round": _round,
@@ -377,6 +366,8 @@ def _observe_dict(state: State) -> Dict:
         "is_hand_concealed": is_hand_concealed,
         "wall_remaining": wall_remaining,
         "tiles_seen": tiles_seen,
+        "target": target,  # the tile the pending call/ron decision is about, -1 when
+        "last_player": last_player,
     }
 
 
