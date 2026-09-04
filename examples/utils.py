@@ -62,7 +62,11 @@ def make_eval_fn(env: Env, num_eval_envs: int, max_steps: int = 200):
                 p = next_state.players
                 won = p.has_won
                 riichi = p.riichi
-                melded = p.meld_counts > 0
+                # 副露率 counts OPEN calls only. ``meld_counts`` includes a closed kan,
+                # which is not a 副露 -- it leaves the hand concealed. ``is_hand_concealed``
+                # is cleared by exactly _pon / _chi / _open_kan, so its negation is the
+                # standard definition.
+                melded = ~p.is_hand_concealed
                 tenpai = p.can_win.any(axis=-1)
                 rewards = next_state.rewards
                 is_hora = won.any()
@@ -92,6 +96,7 @@ def make_eval_fn(env: Env, num_eval_envs: int, max_steps: int = 200):
                     "dealt_in": (hand_ended & dealt_in_mask).astype(jnp.int32),
                     "riichi": (hand_ended & riichi).astype(jnp.int32),
                     "melded": (hand_ended & melded).astype(jnp.int32),
+                    "any_meld": (hand_ended & (p.meld_counts > 0)).astype(jnp.int32),
                     "tenpai_ryuu": (hand_ended & is_ryuukyoku & tenpai).astype(jnp.int32),
                 }
                 return (next_state, rng), event
@@ -153,6 +158,9 @@ def make_eval_fn(env: Env, num_eval_envs: int, max_steps: int = 200):
                     f"{prefix}/avg_deal_in_pts":     safe_div(-w("dealt_in_pts"), w("dealt_in")),
                     f"{prefix}/riichi_rate":         safe_div(w("riichi"),      player_hands),
                     f"{prefix}/meld_rate":           safe_div(w("melded"),      player_hands),
+                    # Including closed kan, which 副露率 excludes. The gap between the
+                    # two is the ankan rate.
+                    f"{prefix}/any_meld_rate":       safe_div(w("any_meld"),    player_hands),
                     f"{prefix}/tenpai_at_ryuu_rate": safe_div(w("tenpai_ryuu"), player_ryuu),
                     f"{prefix}/avg_rank":            safe_div((ranks * mf).sum(), n_seats),
                     f"{prefix}/avg_gain":            safe_div((gains * mf).sum(), n_seats),
