@@ -19,8 +19,8 @@ Sequence layout, mirroring the observation's own grouping:
     [CLS_glob]   global token     (1)
                                   = 255
 
-Hand tokens are per tile TYPE, not per physical tile -- which here is the only
-sensible choice anyway, since without red fives a tile id already IS its type.
+Hand tokens are per tile TYPE, not per physical tile. ``hand`` arrives as a 34-wide
+count vector, so no scatter is needed.
 ``discard_shanten`` and ``can_win`` are 34-indexed, so one token per type carries the
 count alongside those rows with no gather. ``tiles_seen`` is also 34-indexed but is
 table state rather than hand state, so it goes to the GLOBAL segment, not here.
@@ -108,15 +108,15 @@ class ObservationTokenizer(nn.Module):
     @nn.compact
     def __call__(self, obs: Dict[str, jnp.ndarray]) -> Tuple[jnp.ndarray, jnp.ndarray]:
         D = self.D_MODEL
-        hand_ids = _batch(obs["hand"], base_ndim=1).astype(jnp.int32)
-        B = hand_ids.shape[0]
+        hand_counts = _batch(obs["hand"], base_ndim=1).astype(jnp.int32)
+        B = hand_counts.shape[0]
 
         tile_emb = nn.Embed(NUM_TILE_TYPE + 1, D, embedding_init=orthogonal_init())
         type_emb = nn.Embed(NUM_TOKEN_TYPES, D, embedding_init=orthogonal_init())
         seat_emb = nn.Embed(NUM_PLAYERS, D, embedding_init=orthogonal_init())
 
         globals_vec = self._globals(obs, B)
-        hand_tok, hand_mask = self._hand_tokens(obs, hand_ids, B, D, tile_emb, type_emb)
+        hand_tok, hand_mask = self._hand_tokens(obs, hand_counts, B, D, tile_emb, type_emb)
         meld_tok, meld_mask = self._meld_tokens(obs, B, D, tile_emb, type_emb, seat_emb)
         hist_tok, hist_mask = self._history_tokens(obs, B, D, type_emb)
 
@@ -144,7 +144,7 @@ class ObservationTokenizer(nn.Module):
 
     # ---- segments ----------------------------------------------------------
 
-    def _hand_tokens(self, obs, hand_ids, B, D, tile_emb, type_emb):
+    def _hand_tokens(self, obs, hand_counts, B, D, tile_emb, type_emb):
         """One token per tile TYPE, built by SUMMING embedding lookups.
 
         Every feature here is a small integer code, so each value gets its own
@@ -158,13 +158,10 @@ class ObservationTokenizer(nn.Module):
         happens to be indexed by tile type; gathering it onto hand tokens would put
         a global fact inside the hand segment and defeat the segmentation.
         """
-        held = hand_ids >= 0
-        types = jnp.where(held, jnp.clip(hand_ids, 0, NUM_TILE_TYPE - 1), 0)
-
-        rows = jnp.arange(B)[:, None]
-        counts = jnp.zeros((B, NUM_TILE_TYPE), jnp.int32).at[rows, types].add(
-            held.astype(jnp.int32)
-        )
+        # The observation now hands over per-type counts directly, so the scatter that
+        # used to rebuild them from a (14,) id list is gone. The embedding tables below
+        # are unchanged, which is why existing checkpoints still load.
+        counts = jnp.clip(hand_counts, 0, 4)
 
         # (B,34,3), where 14 == NOT_IN_HAND. The per-column offset gives each
         # decomposition its own table, so "2 away by seven pairs" and "2 away

@@ -48,7 +48,8 @@ class TestObserveDict(TestCase):
     def test_hand_related(self):
         state = _replace_state(self.state, current_player=0)
         obs = jitted_observe_dict(state)
-        expected_hand = np.array([1] + [-1] * 13, dtype=np.int32)
+        expected_hand = np.zeros(34, dtype=np.int8)
+        expected_hand[1] = 1
         np.testing.assert_array_equal(np.array(obs["hand"]), expected_hand)
         # ``shanten_count`` is derived from the observed seat's hand at observe time,
         # not read from a cached field, so pin it against that seat's hand rather than
@@ -61,7 +62,8 @@ class TestObserveDict(TestCase):
     def test_hand_related_other_player(self):
         state = _replace_state(self.state, current_player=1)
         obs = jitted_observe_dict(state)
-        expected_hand = np.array([2] + [-1] * 13, dtype=np.int32)
+        expected_hand = np.zeros(34, dtype=np.int8)
+        expected_hand[2] = 1
         np.testing.assert_array_equal(np.array(obs["hand"]), expected_hand)
         self.assertEqual(
             obs["shanten_count"].item(), int(Shanten.number(state.players.hand[1]))

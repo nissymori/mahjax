@@ -47,8 +47,9 @@ def _observe_dict(state: State) -> Dict:
     Shapes marked ``()`` are 0-d arrays, not length-1 vectors.
 
     HAND-RELATED -- what I am holding and what I can do with it.
-    - hand: (14,) int32, concealed hand as tile types [0-33], -1 padding. Melded
-      tiles are NOT here.
+    - hand: (34,) int8, COUNT of each tile TYPE in the concealed hand, [0, 4]. Melded
+      tiles are NOT here. red also emits ``is_red``; this env has no red fives, so
+      that key is absent rather than an always-zero column.
     - last_draw: () int8, the observer's own most recent draw [0-33], -1 when they
       are not currently holding a draw. Masked rather than passed through: the
       underlying state field is round-level, and during a robbing-a-kan window it
@@ -106,8 +107,10 @@ def _observe_dict(state: State) -> Dict:
     c_p = state.current_player
     c_p_based_order = (jnp.arange(4) + c_p) % 4
     # hand features
+    # Emitted as a 34-wide COUNT vector rather than a list of tile ids: consumers want
+    # "how many of type t do I hold" directly. red additionally emits ``is_red``; this
+    # env has no red fives, so a red flag would be an always-zero column and is omitted.
     hand_c_p_34 = state.players.hand[c_p]
-    hand_c_p_14 = hand_counts_to_idx(hand_c_p_34)
     # action histories
     player_history = state.round_state.action_history[0, :].astype(jnp.int32)  # (200,)
     valid_history = player_history >= 0  # default value is -1, so we need to mask it
@@ -260,7 +263,7 @@ def _observe_dict(state: State) -> Dict:
     seat_wind = state.round_state.seat_wind[c_p]
     dora_indicators = state.round_state.dora_indicators
     return {
-        "hand": hand_c_p_14,
+        "hand": hand_c_p_34.astype(jnp.int8),
         "last_draw": last_draw,
         "action_history": action_history,
         "shanten_count": shanten_c_p,
@@ -288,6 +291,33 @@ def _observe_dict(state: State) -> Dict:
 
 
 def _observe_2D(state: State) -> Array:
+    """
+    TBD
+    """
+    pass
+
+def _observe_privileged_dict(state: State) -> Dict:
+    """``_observe_dict`` plus the OTHER players' concealed hands.
+
+    This is HIDDEN INFORMATION and must never reach a policy that will be evaluated
+    or deployed against real opponents. It exists for centralised-critic training,
+    opponent modelling, dataset analysis and debugging.
+
+    Added key, in the same seat-relative frame as ``scores`` -- row 0 is the player to
+    the current player's RIGHT, row 1 across, row 2 left. The observer's own hand is
+    NOT repeated; it is already ``hand``.
+    - others_hand: (3, 34) int8, per-type counts of each other player's CONCEALED
+      hand, [0, 4]. Melded tiles are excluded, exactly as for ``hand``.
+
+    red additionally exposes ``others_is_red``; this env has no red fives.
+    """
+    obs = _observe_dict(state)
+    others = (jnp.arange(1, 4) + state.current_player) % 4
+    obs["others_hand"] = state.players.hand[others].astype(jnp.int8)
+    return obs
+
+
+def _observe_privileged_2D(state: State) -> Array:
     """
     TBD
     """

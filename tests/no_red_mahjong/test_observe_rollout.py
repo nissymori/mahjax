@@ -23,6 +23,7 @@ import numpy as np
 import pytest
 
 from mahjax.no_red_mahjong.env import NoRedMahjong, _observe_dict
+from mahjax.no_red_mahjong.observation import _observe_privileged_dict
 from mahjax.no_red_mahjong.shanten import Shanten
 from mahjax.no_red_mahjong.state import MAX_DORA_INDICATORS
 
@@ -522,7 +523,7 @@ def test_scores_are_rotated_to_the_observer(rollout):
 
 def test_observation_keys_and_shapes_are_stable(rollout):
     expected = {
-        "hand": (14,),
+        "hand": (34,),
         "last_draw": (),
         "action_history": (3, 200),
         "shanten_count": (),
@@ -629,3 +630,47 @@ def test_is_hand_concealed_is_not_merely_no_melds(rollout):
                 saw_concealed_with_meld = True
     if not saw_concealed_with_meld:
         pytest.skip("random rollout produced no closed kan")
+
+
+def test_privileged_observation_is_a_strict_superset(rollout):
+    """``observe_privileged`` must add keys and change nothing else.
+
+    no_red has no red fives, so it adds ``others_hand`` only; red also adds
+    ``others_is_red``.
+    """
+    for state, obs in rollout:
+        priv = _observe_privileged_dict(state)
+        assert set(priv) - set(obs) == {"others_hand"}
+        for k, v in obs.items():
+            np.testing.assert_array_equal(np.asarray(priv[k]), np.asarray(v))
+
+
+def test_privileged_other_hands_are_the_right_seats_in_relative_order(rollout):
+    """Rows are right / across / left of the observer, the same frame as ``scores``."""
+    for state, _ in rollout:
+        priv = _observe_privileged_dict(state)
+        c_p = int(state.current_player)
+        assert np.asarray(priv["others_hand"]).shape == (3, 34)
+        for i in range(3):
+            seat = (c_p + 1 + i) % 4
+            np.testing.assert_array_equal(
+                np.asarray(priv["others_hand"][i]),
+                np.asarray(state.players.hand[seat]),
+            )
+
+
+def test_privileged_hands_are_well_formed(rollout):
+    for state, _ in rollout:
+        oh = np.asarray(_observe_privileged_dict(state)["others_hand"])
+        assert oh.min() >= 0 and oh.max() <= 4, (oh.min(), oh.max())
+
+
+def test_own_hand_is_a_count_vector(rollout):
+    """``hand`` is a 34-wide count vector; no ``is_red`` in this env."""
+    for state, obs in rollout:
+        c_p = int(state.current_player)
+        h = np.asarray(obs["hand"])
+        assert h.shape == (34,)
+        assert h.min() >= 0 and h.max() <= 4, (h.min(), h.max())
+        np.testing.assert_array_equal(h, np.asarray(state.players.hand[c_p]))
+        assert "is_red" not in obs

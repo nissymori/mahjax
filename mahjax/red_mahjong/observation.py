@@ -8,7 +8,11 @@ import jax.numpy as jnp
 # module, so ``import mahjax.red_mahjong.observation`` used to raise a circular
 # ImportError unless ``env`` happened to have been imported first.
 from mahjax.red_mahjong.action import Action
-from mahjax.red_mahjong.constants import MAX_DORA_INDICATORS, NUM_TILE_TYPES_WITH_RED
+from mahjax.red_mahjong.constants import (
+    MAX_DORA_INDICATORS,
+    NUM_TILE_TYPES_WITH_RED,
+    RED_FIVE_TILE_TYPES,
+)
 from mahjax.red_mahjong.meld import EMPTY_MELD, Meld
 from mahjax.red_mahjong.shanten import Shanten
 from mahjax.red_mahjong.state import State
@@ -50,9 +54,15 @@ def _observe_dict(state: State) -> Dict:
     Shapes marked ``()`` are 0-d arrays, not length-1 vectors.
 
     HAND-RELATED -- what I am holding and what I can do with it.
-    - hand: (14,) int32, the player's concealed hand as tile ids [0-36]
-      (red-aware), -1 padding. Melded tiles are NOT here -- they left the
-      concealed hand -- so a hand with melds has fewer than 13/14 entries.
+    - hand: (34,) int8, COUNT of each tile TYPE in the concealed hand, [0, 4]. Red
+      fives are folded into their type (5m red and 5m black both count at index 4);
+      ``is_red`` carries the redness. Melded tiles are NOT here -- they left the
+      concealed hand -- so the counts sum to fewer than 13/14 when melds exist.
+    - is_red: (34,) bool, whether the concealed hand holds the RED five of that type.
+      Only indices 4 / 13 / 22 (5m / 5p / 5s) can ever be True, since there is exactly
+      one red five per suit. Together with ``hand`` this is lossless: it is the same
+      information the old (14,) red-aware id list carried, in the shape consumers
+      actually wanted.
     - last_draw: () int8, the observer's own most recent draw [0-36], -1 when they
       are not currently holding a draw. Masked rather than passed through: the
       underlying state field is round-level, and during a robbing-a-kan window it
@@ -145,7 +155,17 @@ def _observe_dict(state: State) -> Dict:
     c_p_based_order = (jnp.arange(4) + c_p) % 4
     # hand features
     hand_c_p_37 = state.players.hand_with_red[c_p]
-    hand_c_p_14 = hand_counts_to_idx(hand_c_p_37)
+    # Emitted as a 34-wide COUNT vector plus a separate red flag rather than as a list
+    # of tile ids: consumers want "how many of type t do I hold" directly, and the id
+    # list forced every one of them to redo the same scatter. ``players.hand`` is
+    # already ``Hand.to_34(hand_with_red)``, so reds are folded into their type here
+    # and the redness is carried alongside.
+    hand_c_p_34 = state.players.hand[c_p].astype(jnp.int8)
+    is_red_c_p = (
+        jnp.zeros(Tile.NUM_TILE_TYPE, dtype=jnp.bool_)
+        .at[jnp.asarray(RED_FIVE_TILE_TYPES)]
+        .set(hand_c_p_37[Tile.NUM_TILE_TYPE : NUM_TILE_TYPES_WITH_RED] > 0)
+    )
     # action histories
     player_history = state.round_state.action_history[0, :].astype(jnp.int32)  # (200,)
     valid_history = player_history >= 0  # default value is -1, so we need to mask it
@@ -341,7 +361,8 @@ def _observe_dict(state: State) -> Dict:
     dora_indicators = state.round_state.dora_indicators[:MAX_DORA_INDICATORS]
     return {
         # ---- hand-related: what I am holding and what I can do with it ----------
-        "hand": hand_c_p_14,
+        "hand": hand_c_p_34,
+        "is_red": is_red_c_p,
         "last_draw": last_draw,
         "shanten_count": shanten_c_p,
         "discard_shanten": discard_shanten,
@@ -377,3 +398,36 @@ def _observe_2D(state: State) -> Array:
     """
     pass
   
+
+def _observe_privileged_dict(state: State) -> Dict:
+    """``_observe_dict`` plus the OTHER players' concealed hands.
+
+    This is HIDDEN INFORMATION and must never reach a policy that will be evaluated
+    or deployed against real opponents. It exists for centralised-critic training,
+    opponent modelling, dataset analysis and debugging, where seeing all four hands
+    is legitimate. Everything in the base observation is unchanged, so anything
+    consuming ``observe()`` also consumes this.
+
+    Added keys, both in the same seat-relative frame as ``scores`` -- row 0 is the
+    player to the current player's RIGHT, row 1 across, row 2 left. The observer's
+    own hand is NOT repeated here; it is already ``hand`` / ``is_red``.
+    - others_hand: (3, 34) int8, per-type counts of each other player's CONCEALED
+      hand, [0, 4]. Melded tiles are excluded, exactly as for ``hand``.
+    - others_is_red: (3, 34) bool, whether that player holds the RED five of the type.
+    """
+    obs = _observe_dict(state)
+    # Rows 1..3 of the observer-rooted rotation: right, across, left.
+    others = (jnp.arange(1, 4) + state.current_player) % 4
+    obs["others_hand"] = state.players.hand[others].astype(jnp.int8)
+    obs["others_is_red"] = (
+        jnp.zeros((3, Tile.NUM_TILE_TYPE), dtype=jnp.bool_)
+        .at[:, jnp.asarray(RED_FIVE_TILE_TYPES)]
+        .set(state.players.hand_with_red[others][:, Tile.NUM_TILE_TYPE : NUM_TILE_TYPES_WITH_RED] > 0)
+    )
+    return obs
+
+def _observe_privileged_2D(state: State) -> Array:
+    """
+    TBD
+    """
+    pass

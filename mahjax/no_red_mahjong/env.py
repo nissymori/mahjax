@@ -26,7 +26,12 @@ from mahjax.no_red_mahjong.meld import Meld
 from mahjax.no_red_mahjong.state import DORA_ARRAY, FIRST_DRAW_IDX, State, default_state
 from mahjax.no_red_mahjong.tile import River, Tile
 from mahjax.no_red_mahjong.yaku import Yaku
-from mahjax.no_red_mahjong.observation import _observe_dict, _observe_2D
+from mahjax.no_red_mahjong.observation import (
+    _observe_dict,
+    _observe_2D,
+    _observe_privileged_dict,
+    _observe_privileged_2D,
+)
 
 FALSE = jnp.bool_(False)
 TRUE = jnp.bool_(True)
@@ -223,6 +228,7 @@ class NoRedMahjong(Env):
         self.one_round = round_mode == "single"
         self.round_limit = jnp.int8(4 if round_mode == "east" else 8)
         self.observe_func = _observe_dict if observe_type == "dict" else _observe_2D
+        self.observe_privileged_func = _observe_privileged_dict if observe_type == "dict" else _observe_privileged_2D
         self.order_points = order_points
         self.next_round_style = next_round_style
 
@@ -307,6 +313,16 @@ class NoRedMahjong(Env):
     def observe(self, state: State) -> Array:
         assert isinstance(state, State)
         return self.observe_func(state)
+
+    def observe_privileged(self, state: State) -> Dict:
+        """``observe()`` plus every other player's concealed hand.
+
+        HIDDEN INFORMATION -- for centralised critics, opponent modelling and
+        analysis, never for a policy that will face real opponents. Always returns a
+        dict, independent of ``observe_type``: the extra keys have no 2D encoding.
+        """
+        assert isinstance(state, State)
+        return self.observe_privileged_func(state)
 
     @property
     def id(self) -> str:

@@ -23,6 +23,7 @@ import numpy as np
 import pytest
 
 from mahjax.red_mahjong.env import RedMahjong, _observe_dict
+from mahjax.red_mahjong.observation import _observe_privileged_dict
 from mahjax.red_mahjong.shanten import Shanten
 from mahjax.red_mahjong.constants import MAX_DORA_INDICATORS
 
@@ -521,7 +522,8 @@ def test_scores_are_rotated_to_the_observer(rollout):
 
 def test_observation_keys_and_shapes_are_stable(rollout):
     expected = {
-        "hand": (14,),
+        "hand": (34,),
+        "is_red": (34,),
         "last_draw": (),
         "action_history": (3, 200),
         "shanten_count": (),
@@ -628,3 +630,59 @@ def test_is_hand_concealed_is_not_merely_no_melds(rollout):
                 saw_concealed_with_meld = True
     if not saw_concealed_with_meld:
         pytest.skip("random rollout produced no closed kan")
+
+
+def test_privileged_observation_is_a_strict_superset(rollout):
+    """``observe_privileged`` must add keys and change nothing else.
+
+    A centralised critic reads this while its actor reads ``observe()``; if the
+    shared keys ever diverged the two would silently disagree about the same state.
+    """
+    for state, obs in rollout:
+        priv = _observe_privileged_dict(state)
+        assert set(priv) - set(obs) == {"others_hand", "others_is_red"}
+        for k, v in obs.items():
+            np.testing.assert_array_equal(np.asarray(priv[k]), np.asarray(v))
+
+
+def test_privileged_other_hands_are_the_right_seats_in_relative_order(rollout):
+    """Rows are right / across / left of the observer, the same frame as ``scores``."""
+    for state, _ in rollout:
+        priv = _observe_privileged_dict(state)
+        c_p = int(state.current_player)
+        assert np.asarray(priv["others_hand"]).shape == (3, 34)
+        assert np.asarray(priv["others_is_red"]).shape == (3, 34)
+        for i in range(3):
+            seat = (c_p + 1 + i) % 4
+            np.testing.assert_array_equal(
+                np.asarray(priv["others_hand"][i]),
+                np.asarray(state.players.hand[seat]),
+            )
+
+
+def test_privileged_hands_are_well_formed(rollout):
+    """Counts stay in [0,4], and a red flag only ever sits on a five."""
+    non_five = [t for t in range(34) if t not in (4, 13, 22)]
+    for state, _ in rollout:
+        priv = _observe_privileged_dict(state)
+        oh = np.asarray(priv["others_hand"])
+        assert oh.min() >= 0 and oh.max() <= 4, (oh.min(), oh.max())
+        red = np.asarray(priv["others_is_red"])
+        assert not red[:, non_five].any(), "red flag on a non-five tile type"
+        # A red five implies at least one tile of that type is held.
+        assert (oh[red] >= 1).all()
+
+
+def test_own_hand_is_counts_plus_red_flag(rollout):
+    """``hand`` is a 34-wide count vector and ``is_red`` marks the red fives."""
+    non_five = [t for t in range(34) if t not in (4, 13, 22)]
+    for state, obs in rollout:
+        c_p = int(state.current_player)
+        h = np.asarray(obs["hand"])
+        assert h.shape == (34,)
+        assert h.min() >= 0 and h.max() <= 4, (h.min(), h.max())
+        np.testing.assert_array_equal(h, np.asarray(state.players.hand[c_p]))
+        r = np.asarray(obs["is_red"])
+        assert r.shape == (34,)
+        assert not r[non_five].any(), "red flag on a non-five tile type"
+        assert (h[r] >= 1).all(), "red five flagged but no tile of that type held"

@@ -29,7 +29,7 @@ from .state import GameConfig, State, default_game_config, default_state
 from .tile import River, Tile
 from .types import Array, PRNGKey
 from .yaku import Yaku
-from .observation import _observe_dict, _observe_2D
+from .observation import _observe_dict, _observe_2D, _observe_privileged_dict, _observe_privileged_2D
 
 v_can_win = jax.vmap(
     jax.vmap(Hand.can_ron, in_axes=(None, 0)), in_axes=(0, None)
@@ -278,6 +278,7 @@ class RedMahjong(Env):
         self.one_round = round_mode == "single"
         self.round_limit = jnp.int8(4 if round_mode == "east" else 8)
         self.observe_func = _observe_dict if observe_type == "dict" else _observe_2D
+        self.observe_privileged_func = _observe_privileged_dict if observe_type == "dict" else _observe_privileged_2D
         self.order_points = order_points
         self.game_config = _resolve_game_config(game_config)
         self.next_round_style = next_round_style
@@ -369,6 +370,16 @@ class RedMahjong(Env):
     def observe(self, state: State) -> Array:
         assert isinstance(state, State)
         return self.observe_func(state)
+
+    def observe_privileged(self, state: State) -> Dict:
+        """``observe()`` plus every other player's concealed hand.
+
+        HIDDEN INFORMATION -- for centralised critics, opponent modelling and
+        analysis, never for a policy that will face real opponents. Always returns a
+        dict, independent of ``observe_type``: the extra keys have no 2D encoding.
+        """
+        assert isinstance(state, State)
+        return self.observe_privileged_func(state)
 
     @property
     def id(self) -> str:

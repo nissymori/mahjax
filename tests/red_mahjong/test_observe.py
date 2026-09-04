@@ -107,7 +107,14 @@ def test_observe_dict_returns_relative_view() -> None:
 
     obs = _observe_dict(state)
 
-    np.testing.assert_array_equal(np.array(obs["hand"]), np.array([9] + [-1] * 13, dtype=np.int32))
+    # ``hand`` is now a 34-wide COUNT vector, not a padded id list: seat 1 holds one
+    # tile of type 9. Still a literal rather than a read of state, so observing the
+    # wrong seat is still caught.
+    expected_hand = np.zeros(34, dtype=np.int8)
+    expected_hand[9] = 1
+    np.testing.assert_array_equal(np.array(obs["hand"]), expected_hand)
+    # That single tile is not a five, so no red flag anywhere.
+    np.testing.assert_array_equal(np.array(obs["is_red"]), np.zeros(34, dtype=bool))
     assert obs["last_draw"].item() == Tile.RED_FIVE["p"]
     np.testing.assert_array_equal(
         np.array(obs["scores"]),
