@@ -80,20 +80,13 @@ The current training examples use the `dict` observation. It is the most stable 
 
 The returned dictionary contains:
 
-| Key | Shape | Meaning |
-| :--- | :---: | :--- |
-| `hand` | `(14,)` | Current player's hand as sorted tile types in `[0, 33]`; unused slots are `-1`. |
-| `last_draw` | `()` | Last drawn tile in `[0, 33]`; `-1` means there is no drawn tile to expose. |
-| `action_history` | `(3, 200)` | Action history. |
-| `shanten_count` | `()` | Current player's shanten number. |
-| `furiten` | `()` | Whether the current player is in furiten. |
-| `scores` | `(4,)` | Scores ordered from the current player's perspective. |
-| `round` | `()` | Round index used by the environment. |
-| `honba` | `()` | Honba count. |
-| `kyotaku` | `()` | Riichi stick count. |
-| `prevalent_wind` | `()` | Current round wind information used by the environment. |
-| `seat_wind` | `()` | Current player's seat wind information used by the environment. |
-| `dora_indicators` | `(5,)` | Dora indicator tile types in `[0, 33]`; missing entries are `-1`. |
+The full per-key table — shapes, ranges and the reasoning behind each field — lives in
+[api.md](api.md#observation-envobserve). It is kept in one place on purpose: two copies of
+a 25-key table drift apart. The keys specific to this env are:
+
+There are none: `no_red_mahjong` emits the same keys as `red_mahjong` minus `is_red`, since
+it has no red fives. Tiles are plain types `[0, 33]` everywhere, and the action space is 79
+wide (discards 0-33, self-kan 34-67, no `*_RED` call variants).
 
 ### Action History
 
@@ -134,3 +127,5 @@ For how to consume these rewards in turn-based MARL training (per-player reward 
 - `round_mode="half"` runs East-South progression with `round_limit=8`.
 
 In multi-round modes, the next-round transition behavior is controlled by `next_round_style` (see [API](api.md#round-transition-style-next_round_style)).
+
+`env.observe_privileged(state)` returns the same dict plus `others_hand` `(3, 34)` — the other three players' concealed hands in seat-relative order (right / across / left). That is hidden information: use it for centralised critics and analysis, never for a policy that will face real opponents.

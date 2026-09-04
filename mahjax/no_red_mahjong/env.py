@@ -1832,7 +1832,13 @@ def _next_round(state: State, key: PRNGKey) -> State:
         )
         next_round_state = _init_for_next_round(key, base_next)
 
-        terminated_state = _make_state(
+        # _replace_state, NOT _make_state: the latter builds from default_state(), so
+        # every field not listed here silently reverts to its dataclass default --
+        # round, dealer, honba, kyotaku, seat_wind and the whole player array. The
+        # final observation of a game would then describe a table that never existed.
+        # Matches red_mahjong._next_round.
+        terminated_state = _replace_state(
+            s,
             score=s.round_state.score,
             terminated=TRUE,
         )

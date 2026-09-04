@@ -531,6 +531,7 @@ def test_observation_keys_and_shapes_are_stable(rollout):
         "is_discard_node": (),
         "furiten": (),
         "can_win": (34,),
+        "discard_can_win": (34, 34),
         "ippatsu": (4,),
         "riichi": (4,),
         "is_hand_concealed": (4,),
@@ -674,3 +675,33 @@ def test_own_hand_is_a_count_vector(rollout):
         assert h.min() >= 0 and h.max() <= 4, (h.min(), h.max())
         np.testing.assert_array_equal(h, np.asarray(state.players.hand[c_p]))
         assert "is_red" not in obs
+def test_discard_can_win_is_masked_where_it_has_no_answer(rollout):
+    """`-1` exactly where there is nothing to answer, 0/1 everywhere else."""
+    for state, obs in rollout:
+        d = np.asarray(obs["discard_can_win"])
+        assert d.shape == (34, 34)
+        held = np.asarray(obs["hand"]) > 0
+        answered = np.asarray(obs["is_discard_node"]) & held
+        # Rows with an answer are 0/1; rows without are entirely -1.
+        assert (d[answered] >= 0).all(), "answered row contains -1"
+        assert (d[~answered] == -1).all(), "unanswered row is not fully -1"
+
+
+def test_discard_can_win_agrees_with_discard_shanten(rollout):
+    """A discard leaves a non-empty wait iff it reaches tenpai.
+
+    This is the invariant that makes the feature worth its cost: it must refine
+    `discard_shanten`, not contradict it.
+    """
+    for state, obs in rollout:
+        if not bool(obs["is_discard_node"]):
+            continue
+        d = np.asarray(obs["discard_can_win"])
+        ds = np.asarray(obs["discard_shanten"])
+        held = np.asarray(obs["hand"]) > 0
+        for t in np.flatnonzero(held):
+            tenpai_after = ds[t].min() == 0
+            has_wait = (d[t] == 1).any()
+            assert has_wait == tenpai_after, (
+                f"tile {t}: wait={has_wait} but shanten-after-discard={ds[t].min()}"
+            )

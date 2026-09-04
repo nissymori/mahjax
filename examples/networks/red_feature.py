@@ -82,6 +82,8 @@ SHANTEN_VOCAB = int(NOT_IN_HAND) + 1  # 15
 # shanten_count is documented [-1, 6] (-1 == complete). Sized to [-1, 8] so that a
 # widening of the bound clips at the extreme instead of indexing out of the table.
 SHANTEN_COUNT_VOCAB = 10
+# A 13-tile hand can wait on at most 13 tile types (the thirteen-orphans wait).
+MAX_WAIT_KINDS = 13
 # Red-five ids 34/35/36 fold onto tile types 4/13/22.
 RED_FIVE_TYPES = jnp.array([4, 13, 22], dtype=jnp.int32)
 
@@ -112,29 +114,67 @@ class ObservationTokenizer(nn.Module):
         3 + NUM_HAND_TOKENS + NUM_MELD_TOKENS + NUM_HIST_TOKENS,
     )
 
-    @nn.compact
+    def setup(self):
+        """Every learned table, declared once and named.
+
+        Under ``@nn.compact`` Flax names these positionally (``Embed_0``,
+        ``Embed_1``, ...), so inserting one table renames every table after it and
+        silently invalidates checkpoints. Naming them here makes the parameter tree
+        stable against reordering and lets each table say what it is.
+        """
+        D = self.D_MODEL
+        emb = lambda n: nn.Embed(n, D, embedding_init=orthogonal_init())
+
+        # Shared across segments.
+        self.tile_emb = emb(NUM_TILE_TYPE + 1)      # row 0 = "no tile", type t at t+1
+        self.type_emb = emb(NUM_TOKEN_TYPES)        # which segment a token belongs to
+        self.seat_emb = emb(NUM_PLAYERS)
+        self.action_emb = emb(self.NUM_ACTIONS + 1)  # melds and history, -1 -> row 0
+
+        # Hand segment, per tile type.
+        self.count_emb = emb(5)                      # 0..4 copies held
+        self.red_emb = emb(2)                        # holds the red five of this type
+        self.discard_shanten_emb = emb(3 * SHANTEN_VOCAB)  # 3 decompositions x 15 rows
+        self.can_win_emb = emb(2)
+        self.last_draw_emb = emb(2)
+        # Bag-of-tiles for the per-discard wait. Deliberately NOT ``tile_emb``:
+        # "I am tile t" and "discarding me leaves a wait on tile u" are different
+        # roles, and one shared table would make them interfere.
+        self.wait_emb = emb(NUM_TILE_TYPE)
+        self.n_wait_emb = emb(MAX_WAIT_KINDS + 1)
+
+        # Hand segment, whole-hand scalars broadcast over all 34 tokens.
+        self.shanten_emb = emb(SHANTEN_COUNT_VOCAB)
+        self.furiten_emb = emb(2)
+        self.discard_node_emb = emb(2)
+
+        # History segment.
+        self.actor_emb = emb(NUM_PLAYERS + 1)
+        self.tsumogiri_emb = emb(3)                  # -1/0/1 -> row 0/1/2
+        self.pos_emb = emb(MAX_HISTORY_LENGTH)
+
+        # Projections.
+        self.meld_src_proj = nn.Dense(D, kernel_init=orthogonal_init())
+        self.globals_proj = nn.Dense(D, kernel_init=orthogonal_init())
+
     def __call__(self, obs: Dict[str, jnp.ndarray]) -> Tuple[jnp.ndarray, jnp.ndarray]:
         D = self.D_MODEL
         hand_counts = _batch(obs["hand"], base_ndim=1).astype(jnp.int32)
         B = hand_counts.shape[0]
 
-        tile_emb = nn.Embed(NUM_TILE_TYPE + 1, D, embedding_init=orthogonal_init())
-        type_emb = nn.Embed(NUM_TOKEN_TYPES, D, embedding_init=orthogonal_init())
-        seat_emb = nn.Embed(NUM_PLAYERS, D, embedding_init=orthogonal_init())
-
         globals_vec = self._globals(obs, B)
-        hand_tok, hand_mask = self._hand_tokens(obs, hand_counts, B, D, tile_emb, type_emb)
-        meld_tok, meld_mask = self._meld_tokens(obs, B, D, tile_emb, type_emb, seat_emb)
-        hist_tok, hist_mask = self._history_tokens(obs, B, D, type_emb)
+        hand_tok, hand_mask = self._hand_tokens(obs, hand_counts, B, D)
+        meld_tok, meld_mask = self._meld_tokens(obs, B, D)
+        hist_tok, hist_mask = self._history_tokens(obs, B, D)
 
         glob_tok = jnp.broadcast_to(
-            type_emb(jnp.full((1,), TOK_GLOB))[None]
-            + nn.Dense(D, kernel_init=orthogonal_init())(globals_vec)[:, None, :],
+            self.type_emb(jnp.full((1,), TOK_GLOB))[None]
+            + self.globals_proj(globals_vec)[:, None, :],
             (B, self.NUM_GLOBAL_TOKENS, D),
         )
 
         def cls(type_id):
-            return jnp.broadcast_to(type_emb(jnp.full((1,), type_id))[None], (B, 1, D))
+            return jnp.broadcast_to(self.type_emb(jnp.full((1,), type_id))[None], (B, 1, D))
 
         ones = jnp.ones((B, 1), jnp.float32)
         tokens = jnp.concatenate(
@@ -151,7 +191,7 @@ class ObservationTokenizer(nn.Module):
 
     # ---- segments ----------------------------------------------------------
 
-    def _hand_tokens(self, obs, hand_counts, B, D, tile_emb, type_emb):
+    def _hand_tokens(self, obs, hand_counts, B, D):
         """One token per tile TYPE, built by SUMMING embedding lookups.
 
         Every feature here is a small integer code, so each value gets its own
@@ -179,20 +219,35 @@ class ObservationTokenizer(nn.Module):
         ds = jnp.clip(
             _batch(obs["discard_shanten"], base_ndim=2).astype(jnp.int32), 0, NOT_IN_HAND
         )
-        ds_tok = nn.Embed(3 * SHANTEN_VOCAB, D, embedding_init=orthogonal_init())(
+        ds_tok = self.discard_shanten_emb(
             ds + jnp.arange(3, dtype=jnp.int32) * SHANTEN_VOCAB
         ).sum(axis=-2)
+
+        # (B,34,34) in {-1,0,1}. Only >0 counts as a wait; -1 and 0 both contribute
+        # nothing to the bag, so the null case needs no separate branch.
+        dcw = _batch(obs["discard_can_win"], base_ndim=2).astype(jnp.float32)
+        is_wait = (dcw > 0).astype(jnp.float32)
+        wait_bag = is_wait @ self.wait_emb.embedding
+        # A 13-tile hand waits on at most 13 types (thirteen orphans), so 0..13.
+        n_wait = jnp.clip(is_wait.sum(-1).astype(jnp.int32), 0, MAX_WAIT_KINDS)
+
+        # last_draw is -1 when the observer holds no draw; to_type keeps -1, and no
+        # tile index equals -1, so the flag is all-zero in that case.
+        draw_type = self.to_type(_batch(obs["last_draw"], base_ndim=0).astype(jnp.int32))
+        is_last_draw = (
+            jnp.arange(NUM_TILE_TYPE)[None, :] == draw_type[:, None]
+        ).astype(jnp.int32)
 
         # Hand-wide scalars, added to all 34 tokens so each tile is read in the
         # context of the hand holding it.
         whole = (
-            nn.Embed(SHANTEN_COUNT_VOCAB, D, embedding_init=orthogonal_init())(
+            self.shanten_emb(
                 jnp.clip(_batch(obs["shanten_count"], base_ndim=0).astype(jnp.int32), -1, 8) + 1
             )
-            + nn.Embed(2, D, embedding_init=orthogonal_init())(
+            + self.furiten_emb(
                 _batch(obs["furiten"], base_ndim=0).astype(jnp.int32)
             )
-            + nn.Embed(2, D, embedding_init=orthogonal_init())(
+            + self.discard_node_emb(
                 _batch(obs["is_discard_node"], base_ndim=0).astype(jnp.int32)
             )
         )[:, None, :]
@@ -202,36 +257,46 @@ class ObservationTokenizer(nn.Module):
             # stores tile type t at row t+1. Both segments share this table so that a
             # 5m in hand and a 5m in someone's pon are the SAME vector; indexing it
             # with two conventions silently breaks exactly that.
-            tile_emb(jnp.arange(NUM_TILE_TYPE) + 1)[None]
-            + type_emb(jnp.full((1,), TOK_HAND))[None]
-            + nn.Embed(5, D, embedding_init=orthogonal_init())(jnp.clip(counts, 0, 4))
-            + nn.Embed(2, D, embedding_init=orthogonal_init())(jnp.clip(reds, 0, 1))
+            self.tile_emb(jnp.arange(NUM_TILE_TYPE) + 1)[None]
+            + self.type_emb(jnp.full((1,), TOK_HAND))[None]
+            + self.count_emb(jnp.clip(counts, 0, 4))
+            + self.red_emb(jnp.clip(reds, 0, 1))
             + ds_tok
-            + nn.Embed(2, D, embedding_init=orthogonal_init())(
+            + self.can_win_emb(
                 _batch(obs["can_win"], base_ndim=1).astype(jnp.int32)
             )
+            # Per-discard wait, as a BAG OF TILES on the token for the discard itself:
+            # token t gets the sum of the embeddings of the tiles it would leave me
+            # waiting on. A separate table from ``tile_emb`` on purpose -- "I am tile t"
+            # and "discarding me leaves a wait on tile u" are different roles, and
+            # sharing one table would make them interfere. -1 rows (not a discard node,
+            # or tile not held) contribute nothing, which is the correct null.
+            + wait_bag
+            + self.n_wait_emb(n_wait)
+            # "is this the tile I just drew" -- a per-tile flag, not a global one-hot.
+            # A tsumogiri decision is exactly about this token, so the fact belongs on
+            # the token rather than in a vector the hand segment cannot see.
+            + self.last_draw_emb(is_last_draw)
             + whole
         )
         # Every tile type is a valid token: "I hold none of these" is as informative
         # as holding two.
         return tok, jnp.ones((B, self.NUM_HAND_TOKENS), jnp.float32)
 
-    def _meld_tokens(self, obs, B, D, tile_emb, type_emb, seat_emb):
+    def _meld_tokens(self, obs, B, D):
         melds = _batch(obs["melds"], base_ndim=3).astype(jnp.int32)  # (B,3,4,4)
         action, tile, src = melds[:, 0], melds[:, 1], melds[:, 2]
         valid = (action >= 0).astype(jnp.float32)
         tok = (
-            nn.Embed(self.NUM_ACTIONS + 1, D, embedding_init=orthogonal_init())(action + 1)
-            + tile_emb(jnp.clip(self.to_type(tile), -1, NUM_TILE_TYPE - 1) + 1)
-            + type_emb(jnp.full((1,), TOK_MELD))
-            + seat_emb(jnp.arange(NUM_PLAYERS))[None, :, None, :]
-            + nn.Dense(D, kernel_init=orthogonal_init())(
-                jax.nn.one_hot(src, NUM_PLAYERS, dtype=jnp.float32)
-            )
+            self.action_emb(action + 1)
+            + self.tile_emb(jnp.clip(self.to_type(tile), -1, NUM_TILE_TYPE - 1) + 1)
+            + self.type_emb(jnp.full((1,), TOK_MELD))
+            + self.seat_emb(jnp.arange(NUM_PLAYERS))[None, :, None, :]
+            + self.meld_src_proj(jax.nn.one_hot(src, NUM_PLAYERS, dtype=jnp.float32))
         )
         return tok.reshape(B, self.NUM_MELD_TOKENS, D), valid.reshape(B, self.NUM_MELD_TOKENS)
 
-    def _history_tokens(self, obs, B, D, type_emb):
+    def _history_tokens(self, obs, B, D):
         """One token per recorded action, in order.
 
         With ``river`` gone this is the only discard channel, so it carries the
@@ -241,14 +306,12 @@ class ObservationTokenizer(nn.Module):
         hist = _batch(obs["action_history"], base_ndim=2).astype(jnp.int32)  # (B,3,200)
         actor, act, tsumogiri = hist[:, 0], hist[:, 1], hist[:, 2]
         valid = (act >= 0).astype(jnp.float32)
-        pos = nn.Embed(MAX_HISTORY_LENGTH, D, embedding_init=orthogonal_init())(
-            jnp.arange(MAX_HISTORY_LENGTH)
-        )
+        pos = self.pos_emb(jnp.arange(MAX_HISTORY_LENGTH))
         tok = (
-            nn.Embed(self.NUM_ACTIONS + 1, D, embedding_init=orthogonal_init())(act + 1)
-            + nn.Embed(NUM_PLAYERS + 1, D, embedding_init=orthogonal_init())(actor + 1)
-            + nn.Embed(3, D, embedding_init=orthogonal_init())(tsumogiri + 1)
-            + type_emb(jnp.full((1,), TOK_HIST))[None]
+            self.action_emb(act + 1)
+            + self.actor_emb(actor + 1)
+            + self.tsumogiri_emb(tsumogiri + 1)
+            + self.type_emb(jnp.full((1,), TOK_HIST))[None]
             + pos[None]
         )
         return tok, valid
@@ -278,15 +341,15 @@ class ObservationTokenizer(nn.Module):
                 NUM_PLAYERS + 1, dtype=jnp.float32,
             ),
         ]
-        # Tiles the decision is literally about: last_draw grounds TSUMOGIRI, target
-        # grounds PON/CHI/RON/PASS.
-        ctx = jnp.stack(
-            [b(obs["last_draw"], base_ndim=0).astype(jnp.int32),
-             b(obs["target"], base_ndim=0).astype(jnp.int32)],
-            axis=1,
-        )
+        # ``target`` grounds PON/CHI/RON/PASS and is genuinely table state -- it is a
+        # tile someone else just let go. ``last_draw`` used to sit here too, but it is
+        # the observer's OWN tile and belongs on the hand tokens; see _hand_tokens.
         g.append(
-            jax.nn.one_hot(self.to_type(ctx) + 1, NUM_TILE_TYPE + 1, dtype=jnp.float32).reshape(B, -1)
+            jax.nn.one_hot(
+                self.to_type(b(obs["target"], base_ndim=0).astype(jnp.int32)) + 1,
+                NUM_TILE_TYPE + 1,
+                dtype=jnp.float32,
+            )
         )
         dora = b(obs["dora_indicators"], base_ndim=1).astype(jnp.int32)
         g.append(
