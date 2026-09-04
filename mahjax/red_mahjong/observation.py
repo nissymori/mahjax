@@ -366,7 +366,7 @@ def _observe_dict(state: State) -> Dict:
         "is_hand_concealed": is_hand_concealed,
         "wall_remaining": wall_remaining,
         "tiles_seen": tiles_seen,
-        "target": target,  # the tile the pending call/ron decision is about, -1 when
+        "target": target,  
         "last_player": last_player,
     }
 
