@@ -1,124 +1,134 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MahJax Simulator UI</title>
-  <link rel="stylesheet" href="/static/styles.css" />
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mahjax</title>
+<link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
-  <header>
-    <h1 data-i18n="index.title">MahJax Human vs AI</h1>
-    <div id="languageToggle" class="language-toggle" role="group" aria-label="Language toggle">
-      <button type="button" data-lang="ja" class="language-btn active">日本語</button>
-      <button type="button" data-lang="en" class="language-btn">English</button>
-      <button type="button" data-lang="zh-CN" class="language-btn">简体中文</button>
-    </div>
-    <div id="controls">
-      <label>
-        <span data-i18n="controls.env">Rules</span>
-        <select id="envSelect">
-          <option value="no_red_mahjong" data-i18n-env="no_red_mahjong">赤なし</option>
-          <option value="red_mahjong" data-i18n-env="red_mahjong">赤あり</option>
-        </select>
-      </label>
-      <label>
-        <span data-i18n="controls.agent">Agent</span>
-        <select id="agentSelect"></select>
-      </label>
-      <label>
-        <span data-i18n="controls.mode">Mode</span>
-        <select id="modeSelect">
-          <option value="half" data-i18n-mode="half">半荘戦</option>
-          <option value="east" data-i18n-mode="east">東風戦</option>
-          <option value="single" data-i18n-mode="single">一局戦</option>
-        </select>
-      </label>
-      <label>
-        <span data-i18n="controls.humanSeat">Human Seat</span>
-        <select id="seatSelect">
-          <option value="auto" data-i18n-seat="auto">ランダム</option>
-          <option value="0" data-i18n-seat="east">東</option>
-          <option value="1" data-i18n-seat="south">南</option>
-          <option value="2" data-i18n-seat="west">西</option>
-          <option value="3" data-i18n-seat="north">北</option>
-        </select>
-      </label>
-      <label>
-        <span data-i18n="controls.seed">Seed</span>
-        <input id="seedInput" type="number" placeholder="auto" />
-      </label>
-      <label>
-        <span data-i18n="controls.humanName">Human</span>
-        <input id="humanName" type="text" placeholder="You" />
-      </label>
-      <label>
-        <span data-i18n="controls.aiName">AI Base Name</span>
-        <input id="aiName" type="text" placeholder="Agent" />
-      </label>
-      <label>
-        <span data-i18n="controls.aiDelay">AI Delay(ms)</span>
-        <input id="aiDelay" type="number" value="800" min="0" max="4000" />
-      </label>
-      <label class="checkbox">
-        <input id="hideOpponents" type="checkbox" />
-        <span data-i18n="controls.hideOpponents">相手の手牌を隠す</span>
-      </label>
-      <label class="checkbox">
-        <input id="noCalls" type="checkbox" />
-        <span data-i18n="controls.noCalls">鳴きなし</span>
-      </label>
-      <button id="startBtn" data-i18n="controls.start">Start Game</button>
-      <button id="endBtn" class="secondary" data-i18n="controls.end">End Game</button>
-    </div>
-  </header>
 
-  <div id="layoutColumn" role="main">
-    <section class="card" id="boardPane">
-      <div id="statusBar"></div>
-      <div id="board"></div>
-      <div id="interactionArea">
-        <div id="handArea">
-          <h2 id="handTitle">手牌</h2>
-          <div id="handTiles"></div>
-        </div>
-        <div id="actionArea">
-          <h3 id="actionTitle">アクション</h3>
-          <div id="actionButtons"></div>
-          <div id="kanButtons"></div>
-          <div id="callButtons"></div>
-          <div id="advanceButtons"></div>
-        </div>
-      </div>
-    </section>
-
-    <section class="card" id="infoPane">
-      <div id="scoreboard">
-        <h2 id="scoreTitle">スコア</h2>
-        <table>
-          <thead>
-            <tr id="scoreHeaderRow"></tr>
-          </thead>
-          <tbody id="scoreRows"></tbody>
-        </table>
-      </div>
-      <div id="events">
-        <h2 id="eventsTitle">ログ</h2>
-        <ul id="eventList"></ul>
-      </div>
-    </section>
+<header class="topbar">
+  <button id="menuBtn" class="icon-btn" aria-label="メニュー" aria-expanded="false">☰</button>
+  <span class="brand">mahjax</span>
+  <span id="status" class="status" role="status"></span>
+  <span class="grow"></span>
+  <div id="replayTools" class="replay-tools" hidden>
+    <label>視点
+      <select id="viewpoint"></select>
+    </label>
+    <label>手牌
+      <select id="showAll">
+        <option value="1">全員</option>
+        <option value="0">視点のみ</option>
+      </select>
+    </label>
   </div>
+</header>
 
-  <div id="roundSummary">
-    <div class="dialog">
-      <h2 id="summaryTitle">局 結果</h2>
-      <div id="summaryBody"></div>
-      <div style="margin-top:16px; display:flex; gap:12px; justify-content:flex-end;">
-        <button id="summaryContinue">次の局へ</button>
-      </div>
+<main id="stage" class="stage">
+  <div id="table" class="table" hidden>
+    <div id="seats"></div>
+    <div id="center" class="centre-box"></div>
+    <div id="actions" class="actions"></div>
+  </div>
+  <div id="empty" class="empty">
+    <p>対局を始めるか、牌譜を開いてください。</p>
+    <button id="emptyStart" class="primary">対局を始める</button>
+  </div>
+</main>
+
+<footer id="replayBar" class="replay-bar" hidden>
+  <button data-jump="first" class="icon-btn" title="最初へ">|◀</button>
+  <button data-jump="prevRound" class="icon-btn" title="前の局へ">◀局</button>
+  <button data-jump="prev" class="icon-btn" title="1手戻す">◀</button>
+  <span id="replayLabel" class="replay-label"></span>
+  <button data-jump="next" class="icon-btn" title="1手進める">▶</button>
+  <button data-jump="nextRound" class="icon-btn" title="次の局へ">局▶</button>
+  <button data-jump="last" class="icon-btn" title="最後へ">▶|</button>
+</footer>
+
+<div id="scrim" class="scrim" hidden></div>
+
+<aside id="drawer" class="drawer" hidden aria-label="メニュー">
+  <section>
+    <h2>新規対局</h2>
+    <label>ルール
+      <select id="cfgEnv">
+        <option value="red_mahjong">赤あり</option>
+        <option value="no_red_mahjong">赤なし</option>
+      </select>
+    </label>
+    <label>長さ
+      <select id="cfgMode">
+        <option value="half">半荘</option>
+        <option value="east">東風</option>
+        <option value="single">一局</option>
+      </select>
+    </label>
+    <label>相手
+      <select id="cfgAgent"></select>
+    </label>
+    <label>自席
+      <select id="cfgSeat">
+        <option value="random">ランダム</option>
+        <option value="0">東</option>
+        <option value="1">南</option>
+        <option value="2">西</option>
+        <option value="3">北</option>
+        <option value="none">なし（エージェント同士）</option>
+      </select>
+    </label>
+    <label>シード
+      <input id="cfgSeed" type="number" min="0" placeholder="空欄でランダム">
+    </label>
+    <label>名前
+      <input id="cfgName" type="text" value="You">
+    </label>
+    <label class="check">
+      <input id="cfgSave" type="checkbox" checked> 対局記録を保存
+    </label>
+    <button id="startBtn" class="primary">開始</button>
+  </section>
+
+  <section>
+    <h2>対局中の設定</h2>
+    <label class="check">
+      <input id="optHide" type="checkbox" checked> 相手の手牌を隠す
+    </label>
+    <label class="check">
+      <input id="optNoCalls" type="checkbox"> 鳴きなし
+    </label>
+    <label>手の間隔
+      <input id="optDelay" type="range" min="0" max="1600" step="100" value="700">
+      <span id="optDelayValue" class="hint">700ms</span>
+    </label>
+    <label>言語
+      <select id="optLang">
+        <option value="ja">日本語</option>
+        <option value="en">English</option>
+      </select>
+    </label>
+    <button id="endBtn" class="danger">対局を終了</button>
+  </section>
+
+  <section>
+    <h2>牌譜</h2>
+    <div id="recordList" class="record-list"></div>
+    <button id="refreshRecords" class="ghost">再読み込み</button>
+  </section>
+</aside>
+
+<div id="overlay" class="overlay" hidden>
+  <div class="result" role="dialog" aria-modal="true">
+    <h2 id="resultTitle"></h2>
+    <div id="resultBody"></div>
+    <div class="result-actions">
+      <button id="resultNext" class="primary"></button>
     </div>
   </div>
+</div>
 
-  <script src="/static/app.js" type="module"></script>
+<script type="module" src="/static/app.js"></script>
 </body>
 </html>

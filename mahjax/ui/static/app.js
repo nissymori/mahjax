@@ -1,1511 +1,964 @@
-const envSelect = document.getElementById('envSelect');
-const agentSelect = document.getElementById('agentSelect');
-const modeSelect = document.getElementById('modeSelect');
-const seatSelect = document.getElementById('seatSelect');
-const seedInput = document.getElementById('seedInput');
-const humanNameInput = document.getElementById('humanName');
-const aiNameInput = document.getElementById('aiName');
-const aiDelayInput = document.getElementById('aiDelay');
-const hideOpponentsInput = document.getElementById('hideOpponents');
-const noCallsInput = document.getElementById('noCalls');
-const startBtn = document.getElementById('startBtn');
-const endBtn = document.getElementById('endBtn');
+// Play and replay share one board. The server sends a list of positions and the
+// browser plays through them, so nothing here decides what is legal -- it only
+// draws what arrived and sends back the action the player picked.
 
-const boardEl = document.getElementById('board');
-const handTilesEl = document.getElementById('handTiles');
-const actionButtonsEl = document.getElementById('actionButtons');
-const callButtonsEl = document.getElementById('callButtons');
-const kanButtonsEl = document.getElementById('kanButtons');
-const advanceButtonsEl = document.getElementById('advanceButtons');
-const scoreRowsEl = document.getElementById('scoreRows');
-const eventListEl = document.getElementById('eventList');
-const statusBarEl = document.getElementById('statusBar');
-const summaryOverlay = document.getElementById('roundSummary');
-const summaryTitle = document.getElementById('summaryTitle');
-const summaryBody = document.getElementById('summaryBody');
-const summaryContinueBtn = document.getElementById('summaryContinue');
+const $ = (id) => document.getElementById(id);
+const el = {
+  stage: $("stage"),
+  table: $("table"),
+  seats: $("seats"),
+  center: $("center"),
+  actions: $("actions"),
+  empty: $("empty"),
+  status: $("status"),
+  drawer: $("drawer"),
+  scrim: $("scrim"),
+  overlay: $("overlay"),
+  resultTitle: $("resultTitle"),
+  resultBody: $("resultBody"),
+  resultNext: $("resultNext"),
+  replayBar: $("replayBar"),
+  replayLabel: $("replayLabel"),
+  replayTools: $("replayTools"),
+  viewpoint: $("viewpoint"),
+  showAll: $("showAll"),
+  recordList: $("recordList"),
+};
 
-const handTitleEl = document.getElementById('handTitle');
-const actionTitleEl = document.getElementById('actionTitle');
-const scoreTitleEl = document.getElementById('scoreTitle');
-const eventsTitleEl = document.getElementById('eventsTitle');
-const scoreHeaderRow = document.getElementById('scoreHeaderRow');
-const pageTitleEl = document.querySelector('[data-i18n="index.title"]');
-const controlTextRefs = {
-  env: document.querySelector('[data-i18n="controls.env"]'),
-  agent: document.querySelector('[data-i18n="controls.agent"]'),
-  mode: document.querySelector('[data-i18n="controls.mode"]'),
-  humanSeat: document.querySelector('[data-i18n="controls.humanSeat"]'),
-  seed: document.querySelector('[data-i18n="controls.seed"]'),
-  humanName: document.querySelector('[data-i18n="controls.humanName"]'),
-  aiName: document.querySelector('[data-i18n="controls.aiName"]'),
-  aiDelay: document.querySelector('[data-i18n="controls.aiDelay"]'),
-  hideOpponents: document.querySelector('[data-i18n="controls.hideOpponents"]'),
-  noCalls: document.querySelector('[data-i18n="controls.noCalls"]'),
-  start: document.querySelector('[data-i18n="controls.start"]'),
-  end: document.querySelector('[data-i18n="controls.end"]'),
+const WINDS = ["東", "南", "西", "北"];
+const HONOURS = ["east", "south", "west", "north", "white", "gd", "rd"];
+const ACTION_LABEL = {
+  ron: "ロン",
+  tsumo: "ツモ",
+  kan: "カン",
+  pon: "ポン",
+  chi: "チー",
+  riichi: "リーチ",
+  kyuushu: "九種九牌",
+  pass: "パス",
 };
-const envOptionRefs = {
-  no_red_mahjong: document.querySelector('[data-i18n-env="no_red_mahjong"]'),
-  red_mahjong: document.querySelector('[data-i18n-env="red_mahjong"]'),
+const ACTION_ORDER = ["ron", "tsumo", "kan", "pon", "chi", "riichi", "kyuushu"];
+const RESULT_TITLE = {
+  tsumo: "ツモ",
+  ron: "ロン",
+  draw: "流局",
+  abortive: "途中流局",
 };
-const modeOptionRefs = {
-  half: document.querySelector('[data-i18n-mode="half"]'),
-  east: document.querySelector('[data-i18n-mode="east"]'),
-  single: document.querySelector('[data-i18n-mode="single"]'),
+const ABORTIVE_REASON = {
+  kyuushu: "九種九牌",
+  four_winds: "四風連打",
+  four_riichi: "四家立直",
+  four_kans: "四槓散了",
+  triple_ron: "三家和",
 };
-const seatOptionRefs = {
-  auto: document.querySelector('[data-i18n-seat="auto"]'),
-  east: document.querySelector('[data-i18n-seat="east"]'),
-  south: document.querySelector('[data-i18n-seat="south"]'),
-  west: document.querySelector('[data-i18n-seat="west"]'),
-  north: document.querySelector('[data-i18n-seat="north"]'),
-};
-const LANGUAGE_BUTTON_SELECTOR = '#languageToggle .language-btn[data-lang]';
 
-const Languages = { JA: 'ja', EN: 'en', ZH_CN: 'zh-CN' };
-const I18N = {
-  ja: {
-    code: 'ja',
-    title: 'MahJax Human vs AI',
-    you: 'あなた',
-    relativeSeats: ['あなた', '下家', '対面', '上家'],
-    honors: ['東', '南', '西', '北', '白', '發', '中'],
-    winds: {
-      東: '東',
-      南: '南',
-      西: '西',
-      北: '北',
-      白: '白',
-      發: '發',
-      中: '中',
-    },
-    sections: {
-      hand: '手牌',
-      actions: 'アクション',
-      score: 'スコア',
-      events: 'ログ',
-    },
-    controls: {
-      env: 'ルール',
-      agent: 'Agent',
-      mode: 'Mode',
-      humanSeat: 'Human Seat',
-      seed: 'Seed',
-      humanName: 'Human',
-      aiName: 'Agent Base Name',
-      aiDelay: 'Agent Delay(ms)',
-      hideOpponents: '相手の手牌を隠す',
-      noCalls: '鳴きなし',
-      start: 'Start Game',
-      end: 'End Game',
-      modes: {
-        half: '半荘戦',
-        east: '東風戦',
-        single: '一局戦',
-      },
-      seats: {
-        auto: 'ランダム',
-        east: '東',
-        south: '南',
-        west: '西',
-        north: '北',
-      },
-      envs: {
-        no_red_mahjong: '赤なし',
-        red_mahjong: '赤あり',
-      },
-    },
-    scoreboardHeaders: ['席', '名前', '点数', '直近'],
-    actions: {
-      tsumogiri: 'ツモ切り',
-      riichi: '立直',
-      tsumo: '自摸',
-      ron: 'ロン',
-      pass: 'パス',
-      pon: 'ポン',
-      chi: 'チー',
-      openKan: '明槓',
-      closedKan: '暗槓',
-      addedKan: '加槓',
-      advanceFinal: '終局',
-      advanceNext: '次の局へ',
-    },
-    statuses: {
-      idle: 'Choose settings and start a game.',
-      sending: '送信中…',
-      gameStarted: 'Game started.',
-      noGame: 'No active game.',
-      gameEnded: 'Game ended.',
-      awaitingHuman: 'あなたの手番です。',
-      awaitingAI: 'Agent 思考中…',
-      roundSummaryPending: '結果を確認して「次の局へ」を押してください。',
-      roundSummaryPrompt: (label) => `「${label}」を押して結果を表示してください。`,
-      finished: 'Game finished.',
-    },
-    summaryReasons: {
-      tsumo: '自摸',
-      ron: 'ロン',
-      abortive_draw_normal: '流局',
-    },
-    summary: {
-      defaultTitle: (reason) => `局結果 (${reason})`,
-      finalTitle: '終局',
-      winnersHeader: '和了詳細',
-      yakuLabel: '役',
-      yakuman: (count) => `${count}倍役満`,
-      fanFu: (fan, fu) => `${fan}翻 ${fu}符`,
-      dora: (dora, uraDora, includeUra = true) => {
-        if (includeUra && typeof uraDora === 'number') {
-          if (dora > 0 && uraDora > 0) {
-            return `ドラ: ${dora}　裏ドラ: ${uraDora}`;
-          }
-          if (uraDora > 0) {
-            return `裏ドラ: ${uraDora}`;
-          }
-          return `ドラ: ${dora}　裏ドラ: 0`;
+const S = {
+  mode: "idle",
+  gameId: null,
+  replay: null,
+  frames: [],
+  index: 0,
+  current: null,
+  queue: [],
+  timer: null,
+  viewpoint: 0,
+  showAll: true,
+  lang: "ja",
+  delay: 700,
+  busy: false,
+};
+
+// ------------------------------------------------------------------- network
+
+async function call(method, url, body) {
+  const init = { method, headers: {} };
+  if (body !== undefined) {
+    init.headers["Content-Type"] = "application/json";
+    init.body = JSON.stringify(body);
+  }
+  const res = await fetch(url, init);
+  if (!res.ok) {
+    let detail = res.statusText;
+    try {
+      detail = (await res.json()).detail || detail;
+    } catch (_) {
+      /* the body was not JSON; the status line will have to do */
+    }
+    throw new Error(detail);
+  }
+  return res.status === 204 ? null : res.json();
+}
+
+const api = {
+  agents: (env) => call("GET", `/api/agents?env=${encodeURIComponent(env)}`),
+  createGame: (body) => call("POST", "/api/games", body),
+  getGame: (id) => call("GET", `/api/games/${id}`),
+  act: (id, action) => call("POST", `/api/games/${id}/act`, { action }),
+  nextRound: (id) => call("POST", `/api/games/${id}/next`, {}),
+  options: (id, body) => call("PATCH", `/api/games/${id}`, body),
+  endGame: (id) => call("DELETE", `/api/games/${id}`),
+  records: () => call("GET", "/api/records"),
+  openReplay: (recordId) => call("POST", "/api/replays", { record_id: recordId }),
+  frames: (id, from, to, viewpoint, showAll) =>
+    call(
+      "GET",
+      `/api/replays/${id}/frames?from=${from}&to=${to}` +
+        (viewpoint === null ? "" : `&viewpoint=${viewpoint}`) +
+        `&showAll=${showAll ? "true" : "false"}`
+    ),
+};
+
+// -------------------------------------------------------------------- pieces
+
+function div(cls, text) {
+  const node = document.createElement("div");
+  if (cls) node.className = cls;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+function tileFile(tile) {
+  if (tile === 34) return "5mr.svg";
+  if (tile === 35) return "5pr.svg";
+  if (tile === 36) return "5sr.svg";
+  if (tile < 9) return `${tile + 1}m.svg`;
+  if (tile < 18) return `${tile - 8}p.svg`;
+  if (tile < 27) return `${tile - 17}s.svg`;
+  return `${HONOURS[tile - 27]}.svg`;
+}
+
+function tileImg(tile, cls) {
+  const img = document.createElement("img");
+  img.className = cls ? `tile ${cls}` : "tile";
+  const file = tile === null || tile === undefined ? "back.svg" : tileFile(tile);
+  img.src = `/tiles/${S.lang}/${file}`;
+  img.alt = "";
+  img.draggable = false;
+  return img;
+}
+
+function sideways(tile) {
+  const slot = div("sideways");
+  slot.append(tileImg(tile));
+  return slot;
+}
+
+function roundLabel(round) {
+  return `${WINDS[Math.floor(round.index / 4)] || "東"}${(round.index % 4) + 1}局`;
+}
+
+// ------------------------------------------------------------------ the board
+
+function viewpointSeat(v) {
+  if (S.mode === "replay") return S.viewpoint;
+  const human = v.seats.findIndex((s) => s.kind === "human");
+  return human < 0 ? 0 : human;
+}
+
+function fit() {
+  const box = el.stage.getBoundingClientRect();
+  const side = Math.max(260, Math.floor(Math.min(box.width, box.height)) - 8);
+  el.table.style.setProperty("--t", `${side}px`);
+  el.table.style.setProperty("--u", `${side / 100}px`);
+}
+
+function render(v) {
+  S.current = v;
+  el.table.hidden = false;
+  el.empty.hidden = true;
+  fit();
+  const vp = viewpointSeat(v);
+  renderSeats(v, vp);
+  renderCenter(v, vp);
+  renderActions(v);
+  renderStatus(v);
+  renderResult(v);
+  if (S.mode === "replay") renderReplayBar(v);
+}
+
+function renderSeats(v, vp) {
+  el.seats.textContent = "";
+  v.seats.forEach((seat, abs) => {
+    const rel = (abs - vp + 4) % 4;
+    const layer = div(rel === 0 ? "seat" : "seat other");
+    layer.style.transform = `rotate(${-90 * rel}deg)`;
+    const metrics = handMetrics(seat, rel === 0);
+    layer.append(
+      riverEl(v, seat, abs),
+      nameplateEl(seat, metrics),
+      handEl(v, seat, abs, rel === 0, metrics)
+    );
+    const melds = meldsEl(seat, abs, metrics);
+    if (melds) layer.append(melds);
+    el.seats.append(layer);
+  });
+}
+
+/** Sits just above the left end of the hand, so it follows the hand's width
+ *  instead of drifting off to the corner of the table. */
+function nameplateEl(seat, metrics) {
+  const box = div("nameplate");
+  box.style.left = `${metrics.left}%`;
+  box.append(div("badge", seat.kind === "human" ? "人" : "AI"));
+  box.append(div("pname", seat.name));
+  return box;
+}
+
+function riverEl(v, seat, abs) {
+  const box = div("river");
+  seat.river.forEach((d, i) => {
+    const classes = ["cell"];
+    if (d.tsumogiri) classes.push("tsumogiri");
+    if (d.called) classes.push("taken");
+    if (v.lastDiscard && v.lastDiscard.seat === abs && v.lastDiscard.index === i) {
+      classes.push("last");
+    }
+    const cell = div(classes.join(" "));
+    cell.append(d.riichi ? sideways(d.tile) : tileImg(d.tile));
+    box.append(cell);
+  });
+  return box;
+}
+
+/** Lay a meld out the way it is set down: the called tile turned sideways, and
+ *  placed on the side of the player it was taken from. */
+function meldTiles(meld, ownerSeat) {
+  const tiles = meld.tiles.map((t) => ({ tile: t, turned: false, hidden: false }));
+  if (meld.kind === "kan_closed") {
+    tiles[0].hidden = true;
+    tiles[tiles.length - 1].hidden = true;
+    return tiles;
+  }
+  if (meld.called === null || meld.called === undefined) return tiles;
+  const called = tiles[meld.called];
+  called.turned = true;
+  if (meld.kind === "chi") {
+    return [called, ...tiles.filter((_, i) => i !== meld.called)];
+  }
+  const rest = tiles.filter((_, i) => i !== meld.called);
+  const rel = meld.from === null ? 2 : (meld.from - ownerSeat + 4) % 4;
+  const position = rel === 3 ? 0 : rel === 2 ? 1 : 2;
+  rest.splice(Math.min(position, rest.length), 0, called);
+  return rest;
+}
+
+/** Melds are laid down at the edge of your side of the table: the first one
+ *  called ends up furthest out, later ones stack back towards the hand. */
+function meldsEl(seat, ownerSeat, metrics) {
+  if (!seat.melds.length) return null;
+  const box = div("melds");
+  box.style.setProperty("--meld-scale", metrics.meldScale);
+  for (const meld of [...seat.melds].reverse()) box.append(meldEl(meld, ownerSeat));
+  return box;
+}
+
+function meldEl(meld, ownerSeat) {
+  const box = div("meld");
+  for (const piece of meldTiles(meld, ownerSeat)) {
+    const tile = piece.hidden ? null : piece.tile;
+    box.append(piece.turned ? sideways(tile) : tileImg(tile));
+  }
+  return box;
+}
+
+function handEl(v, seat, abs, isSelf, metrics) {
+  const anchor = div("hand-anchor");
+  const row = div("hand-row");
+  const canAct = isSelf && S.mode === "play" && v.prompt && !S.busy;
+  const discardable = new Set(v.prompt ? v.prompt.discardable : []);
+  const tsumogiri = v.prompt ? v.prompt.tsumogiri : null;
+
+  const concealed = seat.hand ? seat.hand.slice() : null;
+  let drawn = null;
+  if (concealed && seat.drawn !== null && seat.drawn !== undefined) {
+    const at = concealed.lastIndexOf(seat.drawn);
+    if (at >= 0) {
+      concealed.splice(at, 1);
+      drawn = seat.drawn;
+    }
+  }
+
+  const attach = (img, action) => {
+    if (!canAct) return img;
+    if (action === null) {
+      img.classList.add("muted");
+      return img;
+    }
+    img.classList.add("playable");
+    img.addEventListener("click", () => sendAction(action, img));
+    return img;
+  };
+
+  if (concealed) {
+    for (const tile of concealed) {
+      row.append(attach(tileImg(tile), discardable.has(tile) ? tile : null));
+    }
+    if (drawn !== null) {
+      const action = tsumogiri !== null ? tsumogiri : discardable.has(drawn) ? drawn : null;
+      row.append(attach(tileImg(drawn, "drawn"), action));
+    }
+  } else {
+    // A hidden hand still has to show that its owner is holding a fresh tile.
+    const total = seat.handCount;
+    const separate = abs === v.current && total % 3 === 2;
+    const backs = separate ? total - 1 : total;
+    for (let i = 0; i < backs; i += 1) row.append(tileImg(null));
+    if (separate) row.append(tileImg(null, "drawn"));
+  }
+  anchor.append(row);
+
+  anchor.style.setProperty("--hand-scale", metrics.scale);
+  anchor.style.right = `${metrics.right}%`;
+  return anchor;
+}
+
+/** Where the hand and the melds sit on one side of the table.
+ *
+ *  The melds are pinned to the edge, and the hand is centred in whatever room
+ *  is left of them. Space for the drawn tile is reserved whether or not one is
+ *  held, so picking a tile up never nudges the tiles you were about to click.
+ */
+function handMetrics(seat, isSelf) {
+  const ratio = 29 / 41.5;
+  const tileW = (isSelf ? 7.2 : 5.6) * ratio;
+  const meldTileW = 5.2 * ratio;
+  const hasDrawn =
+    Boolean(seat.hand) && seat.drawn !== null && seat.drawn !== undefined
+      ? seat.hand.lastIndexOf(seat.drawn) >= 0
+      : false;
+  const concealed = (seat.hand ? seat.hand.length : seat.handCount) - (hasDrawn ? 1 : 0);
+
+  let meldWidth = 0;
+  if (seat.melds.length) {
+    meldWidth = (seat.melds.length - 1) * 1.1;
+    for (const meld of seat.melds) {
+      for (const piece of meldTiles(meld, 0)) meldWidth += piece.turned ? 5.2 : meldTileW;
+    }
+  }
+  const meldScale = Math.min(1, 56 / Math.max(meldWidth, 1));
+  const meldSpan = seat.melds.length ? meldWidth * meldScale + 5 : 0;
+
+  const room = 100 - meldSpan;
+  const width = concealed * tileW;
+  const reserved = width + 1.7 + tileW; // the drawn tile hangs off the right
+  const scale = Math.min(1, (room - 3) / Math.max(reserved, 1));
+  return {
+    scale,
+    meldScale,
+    right: meldSpan,
+    left: (room - reserved * scale) / 2,
+  };
+}
+
+function renderCenter(v, vp) {
+  el.center.textContent = "";
+  const info = div("info");
+  info.append(div("round", roundLabel(v.round)));
+  info.append(div("sticks", `${v.round.honba}本場 ・ 供託 ${v.round.kyotaku}`));
+  info.append(div("sticks", `残り ${v.round.remaining}`));
+
+  const dora = div("dora");
+  for (const marker of v.round.dora) {
+    dora.append(marker === null ? tileImg(null, "face-down") : tileImg(marker));
+  }
+  info.append(dora);
+  el.center.append(info);
+
+  v.seats.forEach((seat, abs) => {
+    const rel = (abs - vp + 4) % 4;
+    const layer = div("plate-layer");
+    layer.style.transform = `rotate(${-90 * rel}deg)`;
+    layer.append(div("seat-wind", WINDS[seat.wind]));
+    const plate = div("plate");
+    if (abs === v.current) plate.classList.add("turn");
+    plate.append(div("score", seat.score.toLocaleString()));
+    if (seat.riichi !== "none") plate.append(div("stick"));
+    layer.append(plate);
+    el.center.append(layer);
+  });
+}
+
+// ------------------------------------------------------------------- actions
+
+function renderActions(v) {
+  el.actions.textContent = "";
+  if (S.mode !== "play" || !v.prompt || S.busy) return;
+  const options = v.prompt.options;
+  const byKind = new Map();
+  for (const option of options) {
+    if (!byKind.has(option.kind)) byKind.set(option.kind, []);
+    byKind.get(option.kind).push(option);
+  }
+  for (const kind of ACTION_ORDER) {
+    const list = byKind.get(kind);
+    if (!list) continue;
+    el.actions.append(
+      list.length === 1 ? simpleButton(kind, list[0]) : choiceButton(kind, list)
+    );
+  }
+  const pass = byKind.get("pass");
+  if (pass) el.actions.append(simpleButton("pass", pass[0]));
+}
+
+function buttonFor(kind, label) {
+  const button = document.createElement("button");
+  button.textContent = label;
+  if (kind === "ron" || kind === "tsumo") button.classList.add("win");
+  if (kind === "pass") button.classList.add("pass");
+  return button;
+}
+
+function simpleButton(kind, option) {
+  const button = buttonFor(kind, option.label || ACTION_LABEL[kind] || kind);
+  button.addEventListener("click", () => sendAction(option.action, button));
+  return button;
+}
+
+/** Several ways to make the same call: show the tile groups and let the player
+ *  pick the one they meant. */
+function choiceButton(kind, list) {
+  const wrap = div("choices");
+  const button = buttonFor(kind, ACTION_LABEL[kind] || kind);
+  wrap.append(button);
+  let open = false;
+  button.addEventListener("click", () => {
+    open = !open;
+    for (const node of Array.from(wrap.querySelectorAll(".choice"))) node.remove();
+    if (!open) return;
+    for (const option of list) {
+      const choice = div("choice");
+      choice.setAttribute("role", "button");
+      choice.tabIndex = 0;
+      for (const tile of option.tiles || []) choice.append(tileImg(tile));
+      const pick = () => sendAction(option.action, choice);
+      choice.addEventListener("click", pick);
+      choice.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          pick();
         }
-        if (dora > 0) {
-          return `ドラ: ${dora}　裏ドラ: ${uraDora}`;
-        }
-        return `ドラ: ${dora}`;
-      },
-      doraTiles: (labels) => `ドラ表示: ${labels.join(' ')}`,
-      uraDoraTiles: (labels) => `裏ドラ表示: ${labels.join(' ')}`,
-      winningTile: '和了牌',
-      winningTileFrom: (tile, rel, name) => `和了牌: ${tile} ← ${rel}(${name})`,
-      meta: (honba, kyotaku) => `本場: ${honba}　供託: ${kyotaku}`,
-      tableHeaders: ['順位', '席', '名前', '点数', '増減'],
-      continue: '次の局へ',
-      endCta: '終局',
-    },
-    advance: {
-      next: '次の局へ',
-      final: '終局',
-    },
-    kanKinds: {
-      加槓: '加槓',
-      暗槓: '暗槓',
-    },
-  },
-  en: {
-    code: 'en',
-    title: 'MahJax Human vs AI',
-    you: 'You',
-    relativeSeats: ['You', 'Right Player', 'Across', 'Left Player'],
-    honors: ['East', 'South', 'West', 'North', 'White', 'Green', 'Red'],
-    winds: {
-      東: 'East',
-      南: 'South',
-      西: 'West',
-      北: 'North',
-      白: 'White',
-      發: 'Green',
-      中: 'Red',
-    },
-    sections: {
-      hand: 'Hand',
-      actions: 'Actions',
-      score: 'Score',
-      events: 'Log',
-    },
-    controls: {
-      env: 'Rules',
-      agent: 'Agent',
-      mode: 'Mode',
-      humanSeat: 'Seat',
-      seed: 'Seed',
-      humanName: 'Human',
-      aiName: 'Agent Base Name',
-      aiDelay: 'Agent Delay (ms)',
-      hideOpponents: 'Hide opponent hands',
-      noCalls: 'Auto-pass calls',
-      start: 'Start Game',
-      end: 'End Game',
-      modes: {
-        half: 'Hanchan match',
-        east: 'East-only match',
-        single: 'Single round',
-      },
-      seats: {
-        auto: 'Random',
-        east: 'East',
-        south: 'South',
-        west: 'West',
-        north: 'North',
-      },
-      envs: {
-        no_red_mahjong: 'No red fives',
-        red_mahjong: 'With red fives',
-      },
-    },
-    scoreboardHeaders: ['Seat', 'Name', 'Points', 'Delta'],
-    actions: {
-      tsumogiri: 'Tsumogiri',
-      riichi: 'Riichi',
-      tsumo: 'Tsumo',
-      ron: 'Ron',
-      pass: 'Pass',
-      pon: 'Pon',
-      chi: 'Chi',
-      openKan: 'Open Kan',
-      closedKan: 'Concealed Kan',
-      addedKan: 'Added Kan',
-      advanceFinal: 'End Game',
-      advanceNext: 'Next Round',
-    },
-    statuses: {
-      idle: 'Choose settings and start a game.',
-      sending: 'Sending...',
-      gameStarted: 'Game started.',
-      noGame: 'No active game.',
-      gameEnded: 'Game ended.',
-      awaitingHuman: 'Your turn.',
-      awaitingAI: 'Agent is thinking...',
-      roundSummaryPending: 'Review the result and press "Next Round".',
-      roundSummaryPrompt: (label) => `Press "${label}" to view the result.`,
-      finished: 'Game finished.',
-    },
-    summaryReasons: {
-      tsumo: 'Tsumo',
-      ron: 'Ron',
-      abortive_draw_normal: 'Draw',
-    },
-    summary: {
-      defaultTitle: (reason) => `Round Result (${reason})`,
-      finalTitle: 'Game End',
-      winnersHeader: 'Winning Details',
-      yakuLabel: 'Yaku',
-      yakuman: (count) => `${count}x Yakuman`,
-      fanFu: (fan, fu) => `${fan} han ${fu} fu`,
-      dora: (dora, uraDora, includeUra = true) => {
-        if (includeUra && typeof uraDora === 'number') {
-          if (dora > 0 && uraDora > 0) {
-            return `Dora: ${dora}, Ura Dora: ${uraDora}`;
-          }
-          if (uraDora > 0) {
-            return `Ura Dora: ${uraDora}`;
-          }
-          return `Dora: ${dora}, Ura Dora: 0`;
-        }
-        return `Dora: ${dora}`;
-      },
-      doraTiles: (labels) => `Dora Indicators: ${labels.join(', ')}`,
-      uraDoraTiles: (labels) => `Ura Dora Indicators: ${labels.join(', ')}`,
-      winningTile: 'Winning Tile',
-      winningTileFrom: (tile, rel, name) => `Winning Tile: ${tile} ← ${rel} (${name})`,
-      meta: (honba, kyotaku) => `Honba: ${honba}    Riichi Sticks: ${kyotaku}`,
-      tableHeaders: ['Rank', 'Seat', 'Name', 'Points', 'Delta'],
-      continue: 'Next Round',
-      endCta: 'End Game',
-    },
-    advance: {
-      next: 'Next Round',
-      final: 'End Game',
-    },
-    kanKinds: {
-      加槓: 'Added Kan',
-      暗槓: 'Concealed Kan',
-    },
-  },
-  'zh-CN': {
-    code: 'zh-CN',
-    title: 'MahJax 人机对局',
-    you: '你',
-    relativeSeats: ['自家', '下家', '对家', '上家'],
-    honors: ['東', '南', '西', '北', '白', '發', '中'],
-    winds: {
-      東: '東',
-      南: '南',
-      西: '西',
-      北: '北',
-      白: '白',
-      發: '發',
-      中: '中',
-    },
-    sections: {
-      hand: '手牌',
-      actions: '行动',
-      score: '分数',
-      events: '日志',
-    },
-    controls: {
-      env: '规则',
-      agent: 'AI/代理',
-      mode: '模式',
-      humanSeat: '玩家位置',
-      seed: '随机种子',
-      humanName: '真人名称',
-      aiName: 'AI 名称前缀',
-      aiDelay: 'AI 思考延迟（毫秒）',
-      hideOpponents: '隐藏他家手牌',
-      noCalls: '自动跳过鸣牌',
-      start: '开始对局',
-      end: '结束对局',
-      modes: {
-        half: '半庄战',
-        east: '东风战',
-        single: '单局战',
-      },
-      seats: {
-        auto: '随机',
-        east: '东家',
-        south: '南家',
-        west: '西家',
-        north: '北家',
-      },
-      envs: {
-        no_red_mahjong: '无赤牌',
-        red_mahjong: '有赤牌',
-      },
-    },
-    scoreboardHeaders: ['座位', '名称', '点数', '增减'],
-    actions: {
-      tsumogiri: '摸切',
-      riichi: '立直',
-      tsumo: '自摸',
-      ron: '荣和',
-      pass: '跳过',
-      pon: '碰',
-      chi: '吃',
-      openKan: '明杠',
-      closedKan: '暗杠',
-      addedKan: '加杠',
-      advanceFinal: '终局',
-      advanceNext: '下一局',
-    },
-    statuses: {
-      idle: '请选择设置并开始游戏',
-      sending: '发送中…',
-      gameStarted: '对局已开始。',
-      noGame: '当前无对局',
-      gameEnded: '对局已结束',
-      awaitingHuman: '你的回合',
-      awaitingAI: 'AI 正在思考…',
-      roundSummaryPending: '请先查看结果并点击“下一局”',
-      roundSummaryPrompt: (label) => `请点击“${label}”查看结果`,
-      finished: '对局结束',
-    },
-    summaryReasons: {
-      tsumo: '自摸',
-      ron: '荣和',
-      abortive_draw_normal: '流局',
-    },
-    summary: {
-      defaultTitle: (reason) => `本局结果（${reason}）`,
-      finalTitle: '游戏结束',
-      winnersHeader: '和了详情',
-      yakuLabel: '役',
-      yakuman: (count) => `${count}倍役满`,
-      fanFu: (fan, fu) => `${fan}番 ${fu}符`,
-      dora: (dora, uraDora, includeUra = true) => {
-        if (includeUra && typeof uraDora === 'number') {
-          if (dora > 0 && uraDora > 0) {
-            return `宝牌：${dora}，里宝牌：${uraDora}`;
-          }
-          if (uraDora > 0) {
-            return `里宝牌：${uraDora}`;
-          }
-          return `宝牌：${dora}，里宝牌：0`;
-        }
-        return `宝牌：${dora}`;
-      },
-      doraTiles: (labels) => `宝牌指示牌：${labels.join(', ')}`,
-      uraDoraTiles: (labels) => `里宝牌指示牌：${labels.join(', ')}`,
-      winningTile: '和了牌',
-      winningTileFrom: (tile, rel, name) => `和了牌：${tile} ← ${rel}（${name}）`,
-      meta: (honba, kyotaku) => `本场：${honba} 立直棒：${kyotaku}`,
-      tableHeaders: ['位次', '座位', '名称', '点数', '增减'],
-      continue: '下一局',
-      endCta: '结束游戏',
-    },
-    advance: {
-      next: '下一局',
-      final: '结束游戏',
-    },
-    kanKinds: {
-      加槓: '加杠',
-      暗槓: '暗杠',
-    },
-  },
-};
+      });
+      wrap.append(choice);
+    }
+  });
+  return wrap;
+}
 
-let currentLanguage = Languages.JA;
-let currentGameId = null;
-let eventHistory = [];
-let aiTimer = null;
-let latestState = null;
-let isPendingAction = false;
-let isUpdatingHideOpponents = false;
-let isUpdatingNoCalls = false;
-const pendingButtons = new Set();
-let pendingDiscardVisual = null;
-let pendingSummaryData = null;
-let summaryRevealRequested = false;
-let agentCache = [];
-let currentStatusKey = null;
-let currentStatusParams = {};
-
-humanNameInput.dataset.autoFilled = 'false';
-aiNameInput.dataset.autoFilled = 'false';
-
-applyLocaleToStaticElements();
-setStatus('idle');
-
-document.addEventListener('click', (event) => {
-  const target = event.target;
-  if (!(target instanceof Element)) {
+function renderStatus(v) {
+  if (S.mode === "replay") {
+    el.status.textContent = "";
     return;
   }
-  const btn = target.closest(LANGUAGE_BUTTON_SELECTOR);
-  if (!btn) return;
-  event.preventDefault();
-  const { lang } = btn.dataset;
-  if (lang) {
-    setLanguage(lang);
+  if (v.gameOver) el.status.textContent = "終局";
+  else if (v.result) el.status.textContent = "";
+  else if (v.prompt) el.status.textContent = v.prompt.kind === "claim" ? "鳴きますか" : "あなたの番";
+  else el.status.textContent = "";
+}
+
+// ------------------------------------------------------------------ playback
+
+function play(frames) {
+  if (!frames || !frames.length) return;
+  S.queue.push(...frames);
+  if (S.timer === null) pump();
+}
+
+function pump() {
+  const frame = S.queue.shift();
+  if (!frame) {
+    S.timer = null;
+    return;
+  }
+  render(frame);
+  if (!S.queue.length) {
+    S.timer = null;
+    return;
+  }
+  S.timer = window.setTimeout(pump, S.delay);
+}
+
+function flush() {
+  if (!S.queue.length) return;
+  if (S.timer !== null) window.clearTimeout(S.timer);
+  S.timer = null;
+  const last = S.queue[S.queue.length - 1];
+  S.queue.length = 0;
+  render(last);
+}
+
+async function sendAction(action, node) {
+  if (S.busy || !S.gameId) return;
+  S.busy = true;
+  if (node) node.classList.add("pending");
+  el.actions.textContent = "";
+  try {
+    const data = await api.act(S.gameId, action);
+    S.busy = false;
+    play(data.frames);
+  } catch (err) {
+    S.busy = false;
+    el.status.textContent = err.message;
+    if (S.current) render(S.current);
+  }
+}
+
+// -------------------------------------------------------------------- result
+
+function renderResult(v) {
+  if (!v.result) {
+    el.overlay.hidden = true;
+    return;
+  }
+  const r = v.result;
+  let title = RESULT_TITLE[r.type] || r.type;
+  if (r.type === "abortive" && r.reason) title = ABORTIVE_REASON[r.reason] || title;
+  if (r.gameOver) title += " ・ 終局";
+  el.resultTitle.textContent = title;
+
+  const body = document.createElement("div");
+  body.append(standingsTable(v, r));
+  for (const winner of r.winners) body.append(winnerBlock(v, winner));
+  if (r.type === "draw" && r.tenpai) {
+    const line = r.tenpai
+      .map((t, i) => `${v.seats[i].name}: ${t ? "聴牌" : "不聴"}`)
+      .join(" ・ ");
+    body.append(div("meta", line));
+  }
+  body.append(div("meta", `${r.round.honba}本場 ・ 供託 ${r.round.kyotaku}`));
+  el.resultBody.textContent = "";
+  el.resultBody.append(body);
+
+  el.resultNext.textContent = r.gameOver ? "閉じる" : "次の局へ";
+  el.overlay.hidden = false;
+}
+
+function standingsTable(v, r) {
+  const table = document.createElement("table");
+  const head = document.createElement("tr");
+  for (const label of ["", "点数", "増減"]) {
+    const th = document.createElement("th");
+    th.textContent = label;
+    head.append(th);
+  }
+  table.append(head);
+  const order = r.final
+    ? r.final.map((entry) => entry.seat)
+    : v.seats.map((_, i) => i);
+  for (const seat of order) {
+    const row = document.createElement("tr");
+    const who = document.createElement("td");
+    who.textContent = `${WINDS[v.seats[seat].wind]} ${v.seats[seat].name}`;
+    const score = document.createElement("td");
+    score.textContent = r.scores[seat].toLocaleString();
+    const delta = document.createElement("td");
+    const value = r.deltas[seat];
+    delta.textContent = (value > 0 ? "+" : "") + value.toLocaleString();
+    delta.className = value > 0 ? "plus" : value < 0 ? "minus" : "";
+    row.append(who, score, delta);
+    table.append(row);
+  }
+  return table;
+}
+
+function winnerBlock(v, w) {
+  const box = div("winner");
+  const from = w.from === null ? "ツモ" : `${v.seats[w.from].name} から`;
+  box.append(div(null, `${v.seats[w.seat].name} ・ ${from} ・ ${w.points.toLocaleString()}点`));
+
+  const tiles = div("tiles");
+  for (const tile of w.hand) tiles.append(tileImg(tile));
+  for (const meld of w.melds) {
+    for (const piece of meldTiles(meld, w.seat)) {
+      tiles.append(piece.turned ? sideways(piece.tile) : tileImg(piece.tile));
+    }
+  }
+  if (w.winningTile !== null && w.winningTile !== undefined) {
+    tiles.append(tileImg(w.winningTile, "winning-tile"));
+  }
+  box.append(tiles);
+
+  const yaku = div("yaku");
+  for (const entry of w.yaku) {
+    yaku.append(div(null, entry.name), div("han", `${entry.han}翻`));
+  }
+  const extras = [
+    ["ドラ", w.doraHan],
+    ["赤ドラ", w.akaHan],
+    ["裏ドラ", w.uraHan],
+  ];
+  for (const [name, han] of extras) {
+    if (han) yaku.append(div(null, name), div("han", `${han}翻`));
+  }
+  box.append(yaku);
+  box.append(
+    div("total", w.yakuman ? `役満 ${w.yakuman}倍` : `${w.han}翻 ${w.fu}符`)
+  );
+
+  const markers = div("tiles");
+  for (const tile of w.dora) markers.append(tileImg(tile));
+  for (const tile of w.uraDora) markers.append(tileImg(tile));
+  if (markers.childElementCount) {
+    box.append(div("meta", "ドラ表示"), markers);
+  }
+  return box;
+}
+
+el.resultNext.addEventListener("click", async () => {
+  if (S.mode === "replay") {
+    el.overlay.hidden = true;
+    if (S.index < S.replay.total - 1) await goto(S.index + 1);
+    return;
+  }
+  if (S.current && S.current.gameOver) {
+    el.overlay.hidden = true;
+    return;
+  }
+  el.overlay.hidden = true;
+  try {
+    const data = await api.nextRound(S.gameId);
+    play(data.frames);
+  } catch (err) {
+    el.status.textContent = err.message;
   }
 });
 
-if (hideOpponentsInput) {
-  hideOpponentsInput.addEventListener('change', () => {
-    if (!currentGameId) {
-      return;
-    }
-    const desired = Boolean(hideOpponentsInput.checked);
-    updateHideOpponentsSetting(desired);
-  });
-}
+// --------------------------------------------------------------------- replay
 
-if (noCallsInput) {
-  noCallsInput.addEventListener('change', () => {
-    if (!currentGameId) {
-      return;
-    }
-    const desired = Boolean(noCallsInput.checked);
-    updateAutoPassCallsSetting(desired);
-  });
-}
-
-function getLocale(lang = currentLanguage) {
-  return I18N[lang] || I18N.ja;
-}
-
-function getTileFaceLanguage(lang = currentLanguage) {
-  return lang === Languages.EN ? Languages.EN : Languages.JA;
-}
-
-function updateLanguageButtons() {
-  const buttons = document.querySelectorAll(LANGUAGE_BUTTON_SELECTOR);
-  buttons.forEach((btn) => {
-    const lang = btn.dataset.lang;
-    if (!lang) return;
-    if (lang === currentLanguage) {
-      btn.classList.add('active');
-    } else {
-      btn.classList.remove('active');
-    }
-    btn.disabled = lang === currentLanguage;
-  });
-}
-
-function syncHideOpponentsControl(state) {
-  if (!hideOpponentsInput) return;
-  if (state && typeof state.hideOpponentHands === 'boolean') {
-    hideOpponentsInput.checked = Boolean(state.hideOpponentHands);
-  }
-  hideOpponentsInput.disabled = isUpdatingHideOpponents;
-}
-
-function syncNoCallsControl(state) {
-  if (!noCallsInput) return;
-  if (state && typeof state.autoPassCalls === 'boolean') {
-    noCallsInput.checked = Boolean(state.autoPassCalls);
-  }
-  noCallsInput.disabled = isUpdatingNoCalls;
-}
-
-function applyLocaleToStaticElements() {
-  const locale = getLocale();
-  if (pageTitleEl) pageTitleEl.textContent = locale.title;
-  document.title = locale.title;
-  if (handTitleEl) handTitleEl.textContent = locale.sections.hand;
-  if (actionTitleEl) actionTitleEl.textContent = locale.sections.actions;
-  if (scoreTitleEl) scoreTitleEl.textContent = locale.sections.score;
-  if (eventsTitleEl) eventsTitleEl.textContent = locale.sections.events;
-  Object.entries(controlTextRefs).forEach(([key, el]) => {
-    setTextContent(el, locale.controls?.[key]);
-  });
-  Object.entries(modeOptionRefs).forEach(([key, el]) => {
-    setTextContent(el, locale.controls?.modes?.[key]);
-  });
-  Object.entries(envOptionRefs).forEach(([key, el]) => {
-    setTextContent(el, locale.controls?.envs?.[key]);
-  });
-  Object.entries(seatOptionRefs).forEach(([key, el]) => {
-    setTextContent(el, locale.controls?.seats?.[key]);
-  });
-  if (scoreHeaderRow) {
-    scoreHeaderRow.innerHTML = '';
-    locale.scoreboardHeaders.forEach((header) => {
-      const th = document.createElement('th');
-      th.textContent = header;
-      scoreHeaderRow.appendChild(th);
-    });
-  }
-  if (summaryContinueBtn) {
-    summaryContinueBtn.textContent = locale.summary.continue;
-  }
-  if (currentStatusKey) {
-    setStatus(currentStatusKey, currentStatusParams);
-  } else if (!statusBarEl.textContent) {
-    setStatus('idle');
-  }
-  document.documentElement.lang = locale.code;
-  updateLanguageButtons();
-  renderEventList();
-}
-
-function setTextContent(element, text) {
-  if (!element || typeof text !== 'string') return;
-  element.textContent = text;
-}
-
-function setLanguage(lang) {
-  if (!Object.values(Languages).includes(lang)) return;
-  if (lang === currentLanguage) return;
-  currentLanguage = lang;
-  applyLocaleToStaticElements();
-  if (latestState) {
-    renderState(latestState, {
-      preservePending: true,
-      skipEvents: true,
-      skipAutoTimerReset: true,
-    });
-    updateBoardLanguageOnly();
-  }
-  if (pendingSummaryData && summaryOverlay.classList.contains('active')) {
-    updateSummaryOverlay(pendingSummaryData);
-  }
-}
-
-function setStatus(key, params = {}) {
-  if (!statusBarEl) return;
-  if (!key) {
-    statusBarEl.textContent = params.message || params.fallback || '';
-    return;
-  }
-  currentStatusKey = key;
-  currentStatusParams = params;
-  const locale = getLocale();
-  const template = locale.statuses[key];
-  if (typeof template === 'function') {
-    statusBarEl.textContent = template(params);
-  } else if (typeof template === 'string') {
-    statusBarEl.textContent = template;
-  } else if (params.message) {
-    statusBarEl.textContent = params.message;
-  }
-}
-
-function markPendingButton(button, actionType) {
-  if (!button) return;
-  pendingButtons.add(button);
-  button.disabled = true;
-  button.classList.add('pending');
-  if (actionType === 'discard') {
-    pendingDiscardVisual = {
-      button,
-      display: button.style.display,
-    };
-    button.style.display = 'none';
-  }
-}
-
-function restorePendingVisuals() {
-  pendingButtons.forEach((btn) => {
-    btn.disabled = false;
-    btn.classList.remove('pending');
-  });
-  pendingButtons.clear();
-  if (pendingDiscardVisual) {
-    const { button, display } = pendingDiscardVisual;
-    if (button) {
-      button.style.display = display || '';
-      button.disabled = false;
-      button.classList.remove('pending');
-    }
-  }
-  pendingDiscardVisual = null;
-}
-
-function attachSendAction(button, action, actionType = 'generic') {
-  if (!button) return;
-  button.addEventListener('click', () => sendAction(action, { button, actionType }));
-}
-
-function playerOrder(state) {
-  const total = state?.playerNames?.length || 0;
-  const start = Number.isInteger(state?.humanSeat) ? state.humanSeat : 0;
-  return Array.from({ length: total }, (_, i) => (start + i) % total);
-}
-
-function relativeIndex(state, absoluteSeat) {
-  const total = state?.playerNames?.length || 0;
-  if (!total) return 0;
-  const base = Number.isInteger(state?.humanSeat) ? state.humanSeat : 0;
-  return (absoluteSeat - base + total) % total;
-}
-
-function relativeSeatLabel(idx) {
-  const locale = getLocale();
-  return locale.relativeSeats[idx] || `Player ${idx}`;
-}
-
-async function fetchAgents() {
-  const res = await fetch('/api/agents');
-  if (!res.ok) {
-    throw new Error('Failed to fetch agents');
-  }
-  return res.json();
-}
-
-function populateAgents(agents) {
-  agentCache = [...agents];
-  if (!agentSelect) return;
-  agentSelect.innerHTML = '';
-  agents.forEach((agent) => {
-    const option = document.createElement('option');
-    option.value = agent.id;
-    option.textContent = agent.name;
-    agentSelect.appendChild(option);
-  });
-  if (agentSelect.options.length > 0) {
-    agentSelect.value = agentSelect.options[0].value;
-    if (!aiNameInput.value) {
-      const firstAgent = agents.find((agent) => agent.id === agentSelect.value) || agents[0];
-      aiNameInput.value = firstAgent?.name ?? 'Agent';
-      aiNameInput.dataset.autoFilled = 'true';
-    }
-  }
-  if (!humanNameInput.value) {
-    humanNameInput.value = 'You';
-    humanNameInput.dataset.autoFilled = 'true';
-  }
-}
-
-function collectGameRequest() {
-  const agentId = agentSelect?.value;
-  if (!agentId) {
-    throw new Error('Agent is required');
-  }
-  const mode = modeSelect.value;
-  const seatValue = seatSelect.value;
-  const body = {
-    env_id: envSelect?.value || 'no_red_mahjong',
-    agent_id: agentId,
-    mode,
-    random_seat: seatValue === 'auto',
-    human_seat: seatValue === 'auto' ? null : Number(seatValue),
-    human_name: humanNameInput.value.trim() || undefined,
-    ai_name: aiNameInput.value.trim() || undefined,
-    ai_delay_ms: Number(aiDelayInput.value) || 800,
-    hide_opponent_hands: hideOpponentsInput ? Boolean(hideOpponentsInput.checked) : false,
-    auto_pass_calls: noCallsInput ? Boolean(noCallsInput.checked) : false,
+async function ensureLoaded(index) {
+  if (S.frames[index]) return;
+  const span = S.replay.rounds.find((r) => index >= r.start && index <= r.end) || {
+    start: index,
+    end: index,
   };
-  if (seedInput.value) {
-    body.seed = Number(seedInput.value);
-  }
-  return body;
-}
-
-async function startGame() {
-  try {
-    const body = collectGameRequest();
-    const res = await fetch('/api/game', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      throw new Error(data.detail || 'Failed to start game');
-    }
-    const state = await res.json();
-    currentGameId = state.gameId;
-    eventHistory = [];
-    renderState(state);
-    setStatus('gameStarted');
-  } catch (err) {
-    setStatus(null, { message: `Error: ${err.message}` });
-  }
-}
-
-async function endGame() {
-  if (!currentGameId) {
-    setStatus('noGame');
-    return;
-  }
-  await fetch(`/api/game/${currentGameId}`, { method: 'DELETE' });
-  currentGameId = null;
-  clearBoard();
-  setStatus('gameEnded');
-}
-
-function clearBoard() {
-  boardEl.innerHTML = '';
-  handTilesEl.innerHTML = '';
-  actionButtonsEl.innerHTML = '';
-  callButtonsEl.innerHTML = '';
-  kanButtonsEl.innerHTML = '';
-  advanceButtonsEl.innerHTML = '';
-  scoreRowsEl.innerHTML = '';
-  eventListEl.innerHTML = '';
-  summaryOverlay.classList.remove('active');
-  if (aiTimer) {
-    clearTimeout(aiTimer);
-    aiTimer = null;
-  }
-  latestState = null;
-  isPendingAction = false;
-  pendingButtons.clear();
-  pendingDiscardVisual = null;
-  pendingSummaryData = null;
-  summaryRevealRequested = false;
-  renderEventList();
-  updateLanguageButtons();
-  isUpdatingHideOpponents = false;
-  if (hideOpponentsInput) {
-    hideOpponentsInput.disabled = false;
-  }
-  isUpdatingNoCalls = false;
-  if (noCallsInput) {
-    noCallsInput.disabled = false;
-  }
-}
-
-async function sendAction(action, options = {}) {
-  if (!currentGameId || isPendingAction) return;
-  const { button = null, actionType = 'generic' } = options;
-  isPendingAction = true;
-  updateLanguageButtons();
-  markPendingButton(button, actionType);
-  setStatus('sending');
-  try {
-    const res = await fetch(`/api/game/${currentGameId}/action`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action }),
-    });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      setStatus(null, { message: data.detail || 'Failed to submit action' });
-      restorePendingVisuals();
-      if (actionType === 'advance') {
-        summaryRevealRequested = false;
-      }
-      isPendingAction = false;
-      updateLanguageButtons();
-      return;
-    }
-    const state = await res.json();
-    renderState(state);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    setStatus(null, { message: `Error: ${message}` });
-    restorePendingVisuals();
-    if (actionType === 'advance') {
-      summaryRevealRequested = false;
-    }
-    isPendingAction = false;
-    updateLanguageButtons();
-  }
-}
-
-async function requestAutoStep() {
-  if (!currentGameId || isPendingAction) return;
-  const res = await fetch(`/api/game/${currentGameId}/auto`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ steps: 1 }),
-  });
-  if (!res.ok) {
-    return;
-  }
-  const state = await res.json();
-  renderState(state);
-}
-
-async function continueRound() {
-  if (!currentGameId) return;
-  const res = await fetch(`/api/game/${currentGameId}/continue`, { method: 'POST' });
-  if (!res.ok) return;
-  const state = await res.json();
-  summaryOverlay.classList.remove('active');
-  renderState(state);
-}
-
-async function updateHideOpponentsSetting(hide) {
-  if (!currentGameId || isUpdatingHideOpponents) return;
-  const previousValue = latestState?.hideOpponentHands ?? !hide;
-  isUpdatingHideOpponents = true;
-  if (hideOpponentsInput) {
-    hideOpponentsInput.disabled = true;
-  }
-  try {
-    const res = await fetch(`/api/game/${currentGameId}/visibility`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ hide_opponent_hands: hide }),
-    });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      throw new Error(data.detail || 'Failed to update visibility');
-    }
-    const state = await res.json();
-    renderState(state, {
-      preservePending: true,
-      skipEvents: true,
-      skipAutoTimerReset: true,
-    });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    setStatus(null, { message });
-    if (hideOpponentsInput) {
-      hideOpponentsInput.checked = previousValue;
-    }
-  } finally {
-    isUpdatingHideOpponents = false;
-    if (hideOpponentsInput) {
-      hideOpponentsInput.disabled = false;
-    }
-  }
-}
-
-async function updateAutoPassCallsSetting(enabled) {
-  if (!currentGameId || isUpdatingNoCalls) return;
-  const previousValue = latestState?.autoPassCalls ?? !enabled;
-  isUpdatingNoCalls = true;
-  if (noCallsInput) {
-    noCallsInput.disabled = true;
-  }
-  try {
-    const res = await fetch(`/api/game/${currentGameId}/visibility`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ auto_pass_calls: enabled }),
-    });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      throw new Error(data.detail || 'Failed to update call settings');
-    }
-    const state = await res.json();
-    renderState(state, {
-      preservePending: true,
-      skipEvents: true,
-      skipAutoTimerReset: true,
-    });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    setStatus(null, { message });
-    if (noCallsInput) {
-      noCallsInput.checked = previousValue;
-    }
-  } finally {
-    isUpdatingNoCalls = false;
-    if (noCallsInput) {
-      noCallsInput.disabled = false;
-    }
-  }
-}
-
-function renderState(state, options = {}) {
-  if (!state) return;
-  const { preservePending = false, skipEvents = false, skipAutoTimerReset = false } = options;
-  latestState = state;
-  if (!preservePending) {
-    isPendingAction = false;
-    pendingButtons.clear();
-    pendingDiscardVisual = null;
-  }
-  if (!skipAutoTimerReset && aiTimer) {
-    clearTimeout(aiTimer);
-    aiTimer = null;
-  }
-  boardEl.innerHTML = getBoardSvg(state);
-  normalizeBoardSvg();
-  renderHand(state);
-  renderActions(state);
-  renderRoundSummary(state);
-  renderAdvance(state);
-  renderScoreboard(state);
-  syncHideOpponentsControl(state);
-  syncNoCallsControl(state);
-  if (skipEvents) {
-    renderEventList();
-  } else {
-    appendEvents(state, state.events || []);
-  }
-  updateStatus(state);
-  updateLanguageButtons();
-  if (!skipAutoTimerReset && state.phase === 'awaiting_ai' && !state.roundSummary && !state.terminated) {
-    aiTimer = setTimeout(requestAutoStep, state.aiDelayMs ?? 800);
-  }
-}
-
-function getBoardSvg(state) {
-  if (!state) return '';
-  if (getTileFaceLanguage() === Languages.EN) {
-    return state.svgEnglish || state.svg || '';
-  }
-  return state.svgJapanese || state.svg || '';
-}
-
-function updateBoardLanguageOnly() {
-  if (!latestState) return;
-  boardEl.innerHTML = getBoardSvg(latestState);
-  normalizeBoardSvg();
-}
-
-function normalizeBoardSvg() {
-  const svg = boardEl.querySelector('svg');
-  if (!svg) return;
-  const viewBox = svg.getAttribute('viewBox');
-  const widthAttr = svg.getAttribute('width');
-  const heightAttr = svg.getAttribute('height');
-  if (!viewBox && widthAttr && heightAttr) {
-    const width = parseFloat(widthAttr);
-    const height = parseFloat(heightAttr);
-    if (!Number.isNaN(width) && !Number.isNaN(height)) {
-      svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
-    }
-  }
-  if (!svg.getAttribute('preserveAspectRatio')) {
-    svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
-  }
-  svg.removeAttribute('width');
-  svg.removeAttribute('height');
-  svg.style.width = '100%';
-  svg.style.height = 'auto';
-  svg.style.display = 'block';
-}
-
-function renderHand(state) {
-  handTilesEl.innerHTML = '';
-  if (!state.hand || !state.hand.sequence) return;
-  const discardMap = new Map();
-  if (state.legalActions && state.legalActions.discardTiles) {
-    state.legalActions.discardTiles.forEach((item) => {
-      discardMap.set(item.tile, item.enabled);
-    });
-  }
-  const baseSequence = state.hand.sequence;
-  const separateLastDraw = Boolean(state.hand.separateLastDraw);
-  const drawTile = separateLastDraw ? state.hand.drawTile : null;
-  const lastDrawValue = state.hand.lastDraw;
-  const lastIndex = separateLastDraw ? -1 : baseSequence.lastIndexOf(lastDrawValue);
-  baseSequence.forEach((tile, idx) => {
-    const btn = document.createElement('button');
-    btn.className = 'tile-btn';
-    btn.textContent = `${tileLabel(tile)}`;
-    const enabled = discardMap.get(tile);
-    if (!enabled) {
-      btn.classList.add('disabled');
-      btn.disabled = true;
-    } else {
-      attachSendAction(btn, tile, 'discard');
-    }
-    if (!separateLastDraw && lastIndex >= 0 && tile === lastDrawValue && idx === lastIndex) {
-      btn.classList.add('last-draw');
-    }
-    handTilesEl.appendChild(btn);
-  });
-  if (separateLastDraw && drawTile !== null && drawTile !== undefined) {
-    const btn = document.createElement('button');
-    btn.className = 'tile-btn draw-separated last-draw';
-    btn.textContent = `${tileLabel(drawTile)}`;
-    const enabled = discardMap.get(drawTile);
-    if (!enabled) {
-      btn.classList.add('disabled');
-      btn.disabled = true;
-    } else {
-      attachSendAction(btn, drawTile, 'discard');
-    }
-    handTilesEl.appendChild(btn);
-  }
-}
-
-function renderActions(state) {
-  actionButtonsEl.innerHTML = '';
-  callButtonsEl.innerHTML = '';
-  kanButtonsEl.innerHTML = '';
-  if (!state.legalActions) return;
-
-  const locale = getLocale();
-  const { riichi, tsumogiri, tsumo, ron, pass: passAct } = state.legalActions;
-
-  if (tsumogiri) {
-    const btn = createActionButton(locale.actions.tsumogiri, tsumogiri.enabled);
-    if (tsumogiri.enabled) attachSendAction(btn, tsumogiri.action, 'special');
-    actionButtonsEl.appendChild(btn);
-  }
-  if (riichi) {
-    const btn = createActionButton(locale.actions.riichi, riichi.enabled);
-    if (riichi.enabled) attachSendAction(btn, riichi.action, 'special');
-    actionButtonsEl.appendChild(btn);
-  }
-  if (tsumo) {
-    const btn = createActionButton(locale.actions.tsumo, tsumo.enabled);
-    if (tsumo.enabled) attachSendAction(btn, tsumo.action, 'special');
-    actionButtonsEl.appendChild(btn);
-  }
-  if (ron) {
-    const tileText = typeof ron.target === 'number' ? tileLabel(ron.target) : ron.targetLabel;
-    const label = tileText ? `${locale.actions.ron} ${tileText}` : locale.actions.ron;
-    const btn = createActionButton(label, ron.enabled);
-    if (ron.enabled) attachSendAction(btn, ron.action, 'special');
-    actionButtonsEl.appendChild(btn);
-  }
-  if (passAct) {
-    const btn = createActionButton(locale.actions.pass, passAct.enabled);
-    if (passAct.enabled) attachSendAction(btn, passAct.action, 'special');
-    actionButtonsEl.appendChild(btn);
-  }
-
-  if (state.legalActions.kan && state.legalActions.kan.length) {
-    state.legalActions.kan.forEach((item) => {
-      const kindLabel = translateKanKind(item.kind);
-      const label = `${kindLabel} ${tileLabel(item.tile)}`;
-      const btn = createActionButton(label, true);
-      attachSendAction(btn, item.action, 'special');
-      kanButtonsEl.appendChild(btn);
-    });
-  }
-
-  const call = state.legalActions.call || {};
-  if (call.pon) {
-    const label = `${locale.actions.pon} ${formatTileSequence(call.pon.tiles || [])}`;
-    const btn = createActionButton(label || locale.actions.pon, true);
-    attachSendAction(btn, call.pon.action, 'special');
-    callButtonsEl.appendChild(btn);
-  }
-  if (call.open_kan) {
-    const label = `${locale.actions.openKan} ${formatTileSequence(call.open_kan.tiles || [])}`;
-    const btn = createActionButton(label || locale.actions.openKan, true);
-    attachSendAction(btn, call.open_kan.action, 'special');
-    callButtonsEl.appendChild(btn);
-  }
-  if (Array.isArray(call.chi)) {
-    call.chi.forEach((item) => {
-      const label = `${locale.actions.chi} ${formatTileSequence(item.tiles || [])}`;
-      const btn = createActionButton(label || locale.actions.chi, true);
-      attachSendAction(btn, item.action, 'special');
-      callButtonsEl.appendChild(btn);
-    });
-  }
-}
-
-function renderAdvance(state) {
-  advanceButtonsEl.innerHTML = '';
-  if (!pendingSummaryData || summaryOverlay.classList.contains('active')) return;
-  const advanceInfo = state.advanceAction || state.legalActions?.advance;
-  if (!advanceInfo || advanceInfo.enabled === false) return;
-  const label = localizeAdvanceLabel(advanceInfo.label, advanceInfo.isFinal);
-  const btn = createActionButton(label, true);
-  btn.addEventListener('click', () => {
-    if (typeof advanceInfo.action === 'number') {
-      summaryRevealRequested = true;
-      sendAction(advanceInfo.action, { button: btn, actionType: 'advance' });
-    } else {
-      showRoundSummary();
-    }
-  });
-  advanceButtonsEl.appendChild(btn);
-}
-
-function createActionButton(label, enabled) {
-  const btn = document.createElement('button');
-  btn.textContent = label;
-  if (!enabled) {
-    btn.classList.add('secondary');
-    btn.disabled = true;
-  }
-  return btn;
-}
-
-function renderScoreboard(state) {
-  scoreRowsEl.innerHTML = '';
-  if (!state.scores) return;
-  const locale = getLocale();
-  const order = playerOrder(state);
-  order.forEach((seatIdx, relativeIdx) => {
-    const score = state.scores[seatIdx];
-    const tr = document.createElement('tr');
-    if (relativeIdx === 0) {
-      tr.style.fontWeight = '700';
-    }
-    const seatCell = document.createElement('td');
-    const relLabel = relativeSeatLabel(relativeIdx);
-    const wind = translateWindName(state.winds[seatIdx]);
-    seatCell.textContent = `${relLabel} (${wind})`;
-    const nameCell = document.createElement('td');
-    nameCell.textContent = state.playerNames[seatIdx];
-    const scoreCell = document.createElement('td');
-    scoreCell.textContent = Number(score).toLocaleString();
-    const deltaCell = document.createElement('td');
-    const delta = state.rewards[seatIdx];
-    deltaCell.textContent = delta === 0 ? '-' : (delta > 0 ? `+${delta}` : `${delta}`);
-    tr.appendChild(seatCell);
-    tr.appendChild(nameCell);
-    tr.appendChild(scoreCell);
-    tr.appendChild(deltaCell);
-    scoreRowsEl.appendChild(tr);
+  const data = await api.frames(
+    S.replay.replayId,
+    span.start,
+    span.end + 1,
+    S.viewpoint,
+    S.showAll
+  );
+  data.frames.forEach((frame, offset) => {
+    S.frames[span.start + offset] = frame;
   });
 }
 
-function appendEvents(state, events) {
-  if (events && events.length) {
-    events.forEach((evt) => {
-      const relIdx = relativeIndex(state, evt.player);
-      eventHistory.unshift({
-        ...evt,
-        relativeIndex: relIdx,
-      });
-    });
-    eventHistory = eventHistory.slice(0, 50);
-  }
-  renderEventList();
+async function goto(index) {
+  if (!S.replay) return;
+  const clamped = Math.max(0, Math.min(S.replay.total - 1, index));
+  await ensureLoaded(clamped);
+  S.index = clamped;
+  render(S.frames[clamped]);
 }
 
-function renderEventList() {
-  eventListEl.innerHTML = '';
-  const locale = getLocale();
-  eventHistory.forEach((evt) => {
-    const li = document.createElement('li');
-    const time = new Date(evt.timestamp * 1000).toLocaleTimeString();
-    const relLabel = relativeSeatLabel(evt.relativeIndex);
-    const name = evt.relativeIndex === 0 ? locale.you : evt.playerName;
-    const description = translateEventDescription(evt.description);
-    li.textContent = `[${time}] ${relLabel}(${name}) ${description}`;
-    eventListEl.appendChild(li);
-  });
+function roundOf(index) {
+  return (
+    S.replay.rounds.find((r) => index >= r.start && index <= r.end) || S.replay.rounds[0]
+  );
 }
 
-function renderRoundSummary(state) {
-  const summary = state.roundSummary;
-  if (!summary) {
-    summaryOverlay.classList.remove('active');
-    pendingSummaryData = null;
-    summaryRevealRequested = false;
-    return;
-  }
-  pendingSummaryData = {
-    summary,
-    playerNames: Array.isArray(state.playerNames) ? [...state.playerNames] : [],
-    winds: Array.isArray(state.winds) ? [...state.winds] : [],
-    scores: Array.isArray(state.scores) ? [...state.scores] : [],
-    rewards: Array.isArray(state.rewards) ? [...state.rewards] : [],
-    rankOrder: Array.isArray(state.rankOrder) ? [...state.rankOrder] : [],
-    humanSeat: Number.isInteger(state.humanSeat) ? state.humanSeat : 0,
-  };
-  if (summaryOverlay.classList.contains('active')) {
-    updateSummaryOverlay(pendingSummaryData);
-  }
+function renderReplayBar(v) {
+  const span = roundOf(S.index);
+  const within = S.index - span.start + 1;
+  const total = span.end - span.start + 1;
+  const event = v.step && v.step.event ? describeEvent(v, v.step.event) : "配牌";
+  el.replayLabel.textContent = `${span.label}  ${within}/${total}  ${event}`;
 }
 
-function showRoundSummary() {
-  if (!pendingSummaryData) return;
-  updateSummaryOverlay(pendingSummaryData);
-  summaryOverlay.classList.add('active');
+function describeEvent(v, event) {
+  const who = v.seats[event.seat] ? `${WINDS[v.seats[event.seat].wind]}家` : "";
+  const tiles = (event.tiles || []).length ? ` ${event.tiles.map(tileName).join("")}` : "";
+  return `${who} ${event.kind}${tiles}`.trim();
 }
 
-function updateSummaryOverlay(data) {
-  const { summary, playerNames, winds, scores, rewards, rankOrder, humanSeat } = data;
-  const locale = getLocale();
-  const reasonLabel = summaryReasonLabel(summary.reason);
-  summaryTitle.textContent = summary.isGameEnd
-    ? locale.summary.finalTitle
-    : locale.summary.defaultTitle(reasonLabel);
-
-  const body = document.createElement('div');
-  const order = Array.isArray(rankOrder) && rankOrder.length
-    ? rankOrder
-    : playerNames.map((_, idx) => idx);
-  if (order.length) {
-    const table = document.createElement('table');
-    table.className = 'summary-table';
-    const thead = document.createElement('thead');
-    const headerRow = document.createElement('tr');
-    locale.summary.tableHeaders.forEach((label) => {
-      const th = document.createElement('th');
-      th.textContent = label;
-      headerRow.appendChild(th);
-    });
-    thead.appendChild(headerRow);
-    table.appendChild(thead);
-    const tbody = document.createElement('tbody');
-    order.forEach((seatIdx, rankIdx) => {
-      const tr = document.createElement('tr');
-      if (seatIdx === humanSeat) {
-        tr.style.fontWeight = '700';
-      }
-      const rankCell = document.createElement('td');
-      rankCell.textContent = `${rankIdx + 1}`;
-      const seatCell = document.createElement('td');
-      const wind = translateWindName(winds[seatIdx]);
-      seatCell.textContent = wind ? `${wind}` : `Seat ${seatIdx + 1}`;
-      const nameCell = document.createElement('td');
-      nameCell.textContent = playerNames[seatIdx] || `Player ${seatIdx + 1}`;
-      const scoreCell = document.createElement('td');
-      const scoreVal = scores[seatIdx] ?? 0;
-      scoreCell.textContent = Number(scoreVal).toLocaleString();
-      const deltaCell = document.createElement('td');
-      const delta = rewards[seatIdx] ?? 0;
-      deltaCell.textContent = delta === 0 ? '-' : (delta > 0 ? `+${delta}` : `${delta}`);
-      [rankCell, seatCell, nameCell, scoreCell, deltaCell].forEach((cell) => {
-        tr.appendChild(cell);
-      });
-      tbody.appendChild(tr);
-    });
-    table.appendChild(tbody);
-    body.appendChild(table);
-  }
-
-  if (Array.isArray(summary.winners) && summary.winners.length) {
-    const winnersHeader = document.createElement('h3');
-    winnersHeader.textContent = locale.summary.winnersHeader;
-    body.appendChild(winnersHeader);
-    summary.winners.forEach((winner) => {
-      const section = document.createElement('div');
-      section.className = 'winner-section';
-      const name = document.createElement('div');
-      name.innerHTML = `<strong>${winner.name}</strong> (+${winner.pointsDelta})`;
-      section.appendChild(name);
-      const localeCode = locale.code || currentLanguage;
-      const yakuList = (() => {
-        if (winner.yakuLocalized && typeof winner.yakuLocalized === 'object') {
-          const localized = winner.yakuLocalized[localeCode];
-          if (Array.isArray(localized) && localized.length) {
-            return localized;
-          }
-        }
-        if (localeCode === Languages.JA) {
-          if (Array.isArray(winner.yakuJapanese) && winner.yakuJapanese.length) {
-            return winner.yakuJapanese;
-          }
-        } else if (Array.isArray(winner.yakuEnglish) && winner.yakuEnglish.length) {
-          return winner.yakuEnglish;
-        }
-        if (Array.isArray(winner.yaku) && winner.yaku.length) {
-          return winner.yaku;
-        }
-        return [];
-      })();
-      if (yakuList.length) {
-        const yaku = document.createElement('div');
-        yaku.textContent = `${locale.summary.yakuLabel}: ${yakuList.join(', ')}`;
-        section.appendChild(yaku);
-      }
-      if (winner.dora !== undefined || winner.uraDora !== undefined) {
-        const doraCount = Number.isFinite(winner.dora) ? winner.dora : 0;
-        const uraDoraCount = Number.isFinite(winner.uraDora) ? winner.uraDora : 0;
-        const doraLine = document.createElement('div');
-        const showUra = Boolean(winner.isRiichi);
-        doraLine.textContent = locale.summary.dora(doraCount, uraDoraCount, showUra);
-        section.appendChild(doraLine);
-        if (Array.isArray(winner.doraTileLabels) && winner.doraTileLabels.length) {
-          const doraTilesLine = document.createElement('div');
-          doraTilesLine.textContent = locale.summary.doraTiles(winner.doraTileLabels);
-          section.appendChild(doraTilesLine);
-        }
-        if (
-          showUra
-          && Array.isArray(winner.uraDoraTileLabels)
-          && winner.uraDoraTileLabels.length
-        ) {
-          const uraDoraTilesLine = document.createElement('div');
-          uraDoraTilesLine.textContent = locale.summary.uraDoraTiles(winner.uraDoraTileLabels);
-          section.appendChild(uraDoraTilesLine);
-        }
-      }
-      const detail = document.createElement('div');
-      if (winner.yakuman > 0) {
-        detail.textContent = locale.summary.yakuman(winner.yakuman);
-      } else {
-        detail.textContent = locale.summary.fanFu(winner.fan, winner.fu);
-      }
-      section.appendChild(detail);
-      if (winner.winningTile !== undefined && winner.winningTile !== null) {
-        const tileInfo = document.createElement('div');
-        const tileText = tileLabel(winner.winningTile);
-        if (typeof winner.fromPlayer === 'number') {
-          const relIdx = relativeIndexFromSeat(humanSeat, winner.fromPlayer);
-          const relLabel = relativeSeatLabel(relIdx);
-          const fromName = playerNames[winner.fromPlayer] || `Player ${winner.fromPlayer + 1}`;
-          tileInfo.textContent = locale.summary.winningTileFrom(tileText, relLabel, fromName);
-        } else {
-          tileInfo.textContent = `${locale.summary.winningTile}: ${tileText}`;
-        }
-        section.appendChild(tileInfo);
-      }
-      body.appendChild(section);
-    });
-  }
-
-  const meta = document.createElement('div');
-  meta.textContent = locale.summary.meta(summary.honba, summary.kyotaku);
-  body.appendChild(meta);
-
-  summaryBody.innerHTML = '';
-  summaryBody.appendChild(body);
-  summaryContinueBtn.textContent = summary.isGameEnd
-    ? locale.summary.endCta
-    : locale.summary.continue;
+function tileName(tile) {
+  if (tile >= 34) return ["赤5m", "赤5p", "赤5s"][tile - 34];
+  if (tile < 9) return `${tile + 1}m`;
+  if (tile < 18) return `${tile - 8}p`;
+  if (tile < 27) return `${tile - 17}s`;
+  return ["東", "南", "西", "北", "白", "發", "中"][tile - 27];
 }
 
-function summaryReasonLabel(reason) {
-  const locale = getLocale();
-  return locale.summaryReasons[reason] || reason;
-}
-
-function relativeIndexFromSeat(humanSeat, absoluteSeat) {
-  const total = 4;
-  return (absoluteSeat - humanSeat + total) % total;
-}
-
-function updateStatus(state) {
-  if (state.terminated) {
-    setStatus('finished');
-    return;
-  }
-  const locale = getLocale();
-  switch (state.phase) {
-    case 'awaiting_human':
-      setStatus('awaitingHuman');
+el.replayBar.addEventListener("click", async (e) => {
+  const button = e.target.closest("[data-jump]");
+  if (!button || !S.replay) return;
+  const span = roundOf(S.index);
+  const at = S.replay.rounds.indexOf(span);
+  switch (button.dataset.jump) {
+    case "first":
+      await goto(0);
       break;
-    case 'awaiting_ai':
-      setStatus('awaitingAI');
+    case "prev":
+      await goto(S.index - 1);
       break;
-    case 'round_end':
-      if (summaryOverlay.classList.contains('active')) {
-        setStatus('roundSummaryPending');
-      } else {
-        const label = pendingSummaryData?.summary?.isGameEnd
-          ? locale.advance.final
-          : locale.advance.next;
-        setStatus('roundSummaryPrompt', { label });
-      }
+    case "next":
+      await goto(S.index + 1);
+      break;
+    case "last":
+      await goto(S.replay.total - 1);
+      break;
+    case "prevRound":
+      await goto(S.index === span.start && at > 0 ? S.replay.rounds[at - 1].start : span.start);
+      break;
+    case "nextRound":
+      await goto(at + 1 < S.replay.rounds.length ? S.replay.rounds[at + 1].start : S.replay.total - 1);
       break;
     default:
       break;
   }
-}
-
-function tileLabel(tile, lang = currentLanguage) {
-  const locale = getLocale(getTileFaceLanguage(lang));
-  if (tile < 0) return '';
-  if (tile === 34) return '5mr';
-  if (tile === 35) return '5pr';
-  if (tile === 36) return '5sr';
-  if (tile < 9) return `${tile + 1}m`;
-  if (tile < 18) return `${tile - 8}p`;
-  if (tile < 27) return `${tile - 17}s`;
-  return locale.honors[tile - 27] || `${tile}`;
-}
-
-function formatTileSequence(tiles) {
-  if (!Array.isArray(tiles) || !tiles.length) return '';
-  const joiner = getTileFaceLanguage() === Languages.JA ? '' : ' ';
-  return tiles.map((tile) => tileLabel(tile)).join(joiner);
-}
-
-function translateKanKind(kind) {
-  const locale = getLocale();
-  return locale.kanKinds[kind] || kind || locale.actions.openKan;
-}
-
-function translateWindName(wind) {
-  const locale = getLocale();
-  return locale.winds[wind] || wind;
-}
-
-function translateEventDescription(description) {
-  if (currentLanguage === Languages.JA) return description;
-  if (!description) return '';
-  if (currentLanguage === Languages.ZH_CN) {
-    if (description.startsWith('打 ')) {
-      return `打 ${description.slice(2)}`;
-    }
-    if (description.startsWith('カン ')) {
-      return `杠 ${description.slice(3)}`;
-    }
-    if (description === 'ツモ切り') return '摸切';
-    if (description === '立直宣言') return '立直宣言';
-    if (description === '自摸') return '自摸';
-    if (description.startsWith('ロン')) return description.replace('ロン', '荣和');
-    if (description.startsWith('ポン')) return description.replace('ポン', '碰');
-    if (description.startsWith('明槓')) return description.replace('明槓', '明杠');
-    if (description.startsWith('チー')) return description.replace('チー', '吃');
-    if (description === 'パス') return '跳过';
-    if (description === '進行') return '进行';
-    if (description.startsWith('アクション')) return description.replace('アクション', '行动');
-    return description;
-  }
-  if (description.startsWith('打 ')) {
-    return `Discard ${description.slice(2)}`;
-  }
-  if (description.startsWith('カン ')) {
-    return `Kan ${description.slice(3)}`;
-  }
-  if (description === 'ツモ切り') return 'Tsumogiri';
-  if (description === '立直宣言') return 'Riichi declaration';
-  if (description === '自摸') return 'Tsumo';
-  if (description.startsWith('ロン')) return description.replace('ロン', 'Ron');
-  if (description.startsWith('ポン')) return description.replace('ポン', 'Pon');
-  if (description.startsWith('明槓')) return description.replace('明槓', 'Open Kan');
-  if (description.startsWith('チー')) return description.replace('チー', 'Chi');
-  if (description === 'パス') return 'Pass';
-  if (description === '進行') return 'Advance';
-  if (description.startsWith('アクション')) return description.replace('アクション', 'Action');
-  return description;
-}
-
-function localizeAdvanceLabel(label, isFinal) {
-  const locale = getLocale();
-  if (currentLanguage === Languages.JA) {
-    return label || (isFinal ? locale.advance.final : locale.advance.next);
-  }
-  if (!label) {
-    return isFinal ? locale.advance.final : locale.advance.next;
-  }
-  if (label === '終局') return locale.advance.final;
-  if (label === '次の局へ') return locale.advance.next;
-  return label;
-}
-
-summaryContinueBtn.addEventListener('click', continueRound);
-startBtn.addEventListener('click', startGame);
-endBtn.addEventListener('click', endGame);
-aiNameInput.addEventListener('input', () => {
-  aiNameInput.dataset.autoFilled = 'false';
 });
-humanNameInput.addEventListener('input', () => {
-  humanNameInput.dataset.autoFilled = 'false';
+
+document.addEventListener("keydown", async (e) => {
+  if (S.mode !== "replay") return;
+  if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
+  const span = roundOf(S.index);
+  const at = S.replay.rounds.indexOf(span);
+  if (e.key === "ArrowRight") {
+    e.preventDefault();
+    if (e.shiftKey) {
+      await goto(at + 1 < S.replay.rounds.length ? S.replay.rounds[at + 1].start : S.replay.total - 1);
+    } else {
+      await goto(S.index + 1);
+    }
+  } else if (e.key === "ArrowLeft") {
+    e.preventDefault();
+    if (e.shiftKey) {
+      await goto(S.index === span.start && at > 0 ? S.replay.rounds[at - 1].start : span.start);
+    } else {
+      await goto(S.index - 1);
+    }
+  }
 });
-if (agentSelect) {
-  agentSelect.addEventListener('change', () => {
-    if (aiNameInput.dataset.autoFilled === 'false') return;
-    const selected = agentCache.find((agent) => agent.id === agentSelect.value);
-    if (selected) {
-      aiNameInput.value = selected.name;
-      aiNameInput.dataset.autoFilled = 'true';
+
+el.viewpoint.addEventListener("change", async () => {
+  S.viewpoint = Number(el.viewpoint.value);
+  S.frames = [];
+  await goto(S.index);
+});
+
+el.showAll.addEventListener("change", async () => {
+  S.showAll = el.showAll.value === "1";
+  S.frames = [];
+  await goto(S.index);
+});
+
+// --------------------------------------------------------------------- drawer
+
+function openDrawer(open) {
+  el.drawer.hidden = !open;
+  el.scrim.hidden = !open;
+  $("menuBtn").setAttribute("aria-expanded", String(open));
+  if (open) refreshRecords();
+}
+
+$("menuBtn").addEventListener("click", () => openDrawer(el.drawer.hidden));
+el.scrim.addEventListener("click", () => openDrawer(false));
+$("emptyStart").addEventListener("click", () => openDrawer(true));
+
+async function refreshAgents() {
+  const env = $("cfgEnv").value;
+  try {
+    const agents = await api.agents(env);
+    const select = $("cfgAgent");
+    select.textContent = "";
+    for (const agent of agents) {
+      const option = document.createElement("option");
+      option.value = agent.id;
+      option.textContent = agent.name;
+      select.append(option);
+    }
+  } catch (err) {
+    el.status.textContent = err.message;
+  }
+}
+
+$("cfgEnv").addEventListener("change", refreshAgents);
+
+async function refreshRecords() {
+  try {
+    const records = await api.records();
+    el.recordList.textContent = "";
+    if (!records.length) {
+      el.recordList.append(div("hint", "保存された牌譜はありません。"));
+      return;
+    }
+    for (const record of records) {
+      const button = document.createElement("button");
+      button.className = "record";
+      const when = new Date(record.createdAt).toLocaleString();
+      const mode = { half: "半荘", east: "東風", single: "一局" }[record.roundMode] || record.roundMode;
+      const rule = record.env === "red_mahjong" ? "赤あり" : "赤なし";
+      button.append(div("when", `${when} ・ ${rule} ${mode}${record.complete ? "" : " ・ 中断"}`));
+      button.append(div("who", record.players.map((p) => p.name).join(" / ")));
+      button.addEventListener("click", () => openReplay(record));
+      el.recordList.append(button);
+    }
+  } catch (err) {
+    el.recordList.textContent = err.message;
+  }
+}
+
+$("refreshRecords").addEventListener("click", refreshRecords);
+
+// ----------------------------------------------------------------- lifecycle
+
+$("startBtn").addEventListener("click", async () => {
+  const seatValue = $("cfgSeat").value;
+  const seed = $("cfgSeed").value;
+  const body = {
+    env_id: $("cfgEnv").value,
+    round_mode: $("cfgMode").value,
+    agent_id: $("cfgAgent").value || null,
+    human_seat: seatValue === "none" ? null : seatValue === "random" ? 0 : Number(seatValue),
+    random_seat: seatValue === "random",
+    human_name: $("cfgName").value || "You",
+    hide_hands: $("optHide").checked,
+    no_calls: $("optNoCalls").checked,
+    save_record: $("cfgSave").checked,
+  };
+  if (seed !== "") body.seed = Number(seed);
+  openDrawer(false);
+  el.status.textContent = "準備中…";
+  try {
+    const data = await api.createGame(body);
+    if (data.gameId === null) {
+      el.status.textContent = "";
+      if (data.recordId) {
+        await openReplay({ id: data.recordId });
+      }
+      return;
+    }
+    S.mode = "play";
+    S.gameId = data.gameId;
+    remember(data.gameId);
+    S.replay = null;
+    S.frames = [];
+    S.queue.length = 0;
+    el.replayBar.hidden = true;
+    el.replayTools.hidden = true;
+    el.status.textContent = "";
+    play(data.frames);
+  } catch (err) {
+    el.status.textContent = err.message;
+  }
+});
+
+$("endBtn").addEventListener("click", async () => {
+  if (!S.gameId) return;
+  await api.endGame(S.gameId).catch(() => {});
+  S.gameId = null;
+  remember(null);
+  S.mode = "idle";
+  S.queue.length = 0;
+  el.table.hidden = true;
+  el.empty.hidden = false;
+  el.overlay.hidden = true;
+  openDrawer(false);
+  refreshRecords();
+});
+
+async function openReplay(record) {
+  openDrawer(false);
+  el.status.textContent = "牌譜を読み込み中…";
+  try {
+    const replay = await api.openReplay(record.id);
+    S.mode = "replay";
+    S.replay = replay;
+    S.frames = [];
+    S.gameId = null;
+    S.queue.length = 0;
+    S.viewpoint = replay.humanSeat === null || replay.humanSeat === undefined ? 0 : replay.humanSeat;
+    S.showAll = true;
+    el.viewpoint.textContent = "";
+    replay.seats.forEach((seat, i) => {
+      const option = document.createElement("option");
+      option.value = String(i);
+      option.textContent = `${i + 1}. ${seat.name}`;
+      el.viewpoint.append(option);
+    });
+    el.viewpoint.value = String(S.viewpoint);
+    el.showAll.value = "1";
+    el.replayTools.hidden = false;
+    el.replayBar.hidden = false;
+    el.status.textContent = "";
+    await goto(0);
+  } catch (err) {
+    el.status.textContent = err.message;
+  }
+}
+
+// ------------------------------------------------------------------ settings
+
+$("optDelay").addEventListener("input", (e) => {
+  S.delay = Number(e.target.value);
+  $("optDelayValue").textContent = `${S.delay}ms`;
+});
+
+$("optLang").addEventListener("change", (e) => {
+  S.lang = e.target.value;
+  if (S.current) render(S.current);
+});
+
+for (const [id, key] of [["optHide", "hide_hands"], ["optNoCalls", "no_calls"]]) {
+  $(id).addEventListener("change", async (e) => {
+    if (!S.gameId) return;
+    try {
+      const data = await api.options(S.gameId, { [key]: e.target.checked });
+      if (!S.queue.length) render(data.frames[0]);
+    } catch (err) {
+      el.status.textContent = err.message;
     }
   });
 }
-(async function init() {
+
+el.table.addEventListener("click", (e) => {
+  if (e.target.closest(".playable, .choice, button")) return;
+  flush();
+});
+
+window.addEventListener("resize", () => {
+  if (S.current) fit();
+});
+
+/** Reloading the page should land you back in the game you were playing. */
+function remember(gameId) {
   try {
-    const agents = await fetchAgents();
-    populateAgents(agents);
-  } catch (err) {
-    setStatus(null, { message: `Failed to load agents: ${err.message}` });
+    if (gameId) window.localStorage.setItem("mahjax.game", gameId);
+    else window.localStorage.removeItem("mahjax.game");
+  } catch (_) {
+    /* private windows and blocked site data are fine; the link still works */
   }
-})();
+}
+
+function remembered() {
+  try {
+    return window.localStorage.getItem("mahjax.game");
+  } catch (_) {
+    return null;
+  }
+}
+
+async function restore() {
+  const params = new URLSearchParams(window.location.search);
+  const replayId = params.get("replay");
+  if (replayId) {
+    await openReplay({ id: replayId });
+    const at = Number(params.get("frame"));
+    if (Number.isInteger(at) && at > 0) await goto(at);
+    return;
+  }
+  const gameId = params.get("game") || remembered();
+  if (!gameId) return;
+  try {
+    const data = await api.getGame(gameId);
+    S.mode = "play";
+    S.gameId = gameId;
+    remember(gameId);
+    render(data.frames[0]);
+  } catch (_) {
+    remember(null);
+  }
+}
+
+refreshAgents();
+refreshRecords();
+restore();
