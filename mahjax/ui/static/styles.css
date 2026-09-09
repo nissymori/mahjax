@@ -285,7 +285,7 @@ img.tile {
 }
 
 .centre-box .round { font-size: calc(var(--u) * 2.6); font-weight: 700; white-space: nowrap; }
-.centre-box .sticks { font-size: calc(var(--u) * 1.4); color: var(--ink-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.centre-box .sticks { font-size: calc(var(--u) * 1.4); color: #3c4247; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .centre-box .dora { display: flex; justify-content: center; gap: calc(var(--u) * 0.3); --h: calc(var(--u) * 2.8); }
 .centre-box .dora img.face-down { opacity: 0.4; }
 
@@ -309,21 +309,9 @@ img.tile {
   line-height: 1.2;
   font-size: calc(var(--u) * 1.5);
 }
-.plate .score { font-weight: 700; font-variant-numeric: tabular-nums; font-size: calc(var(--u) * 2.2); color: var(--ink-dim); }
-.plate.turn .score { color: var(--ink); }
+.plate .score { font-weight: 700; font-variant-numeric: tabular-nums; font-size: calc(var(--u) * 2.2); }
 
-/* Each seat's wind sits in the corner of the middle box next to that seat.
-   Placed inside the rotated layer, so one rule puts all four in their own
-   corner, turned to face their owner. */
-.seat-wind {
-  position: absolute;
-  left: calc(var(--u) * 1.2);
-  bottom: calc(var(--u) * 0.6);
-  font-size: calc(var(--u) * 4);
-  font-weight: 700;
-  line-height: 1;
-  color: #5b6266;
-}
+/* The marker points out of the box towards whoever is to move. */
 .plate.turn::after {
   content: "";
   width: 0;
@@ -331,7 +319,31 @@ img.tile {
   margin-top: calc(var(--u) * 0.3);
   border-left: calc(var(--u) * 0.8) solid transparent;
   border-right: calc(var(--u) * 0.8) solid transparent;
-  border-top: calc(var(--u) * 1) solid var(--accent);
+  border-top: calc(var(--u) * 1) solid var(--ink);
+}
+
+/* Each seat's wind sits in the corner of the middle box next to that seat.
+   Placed inside the rotated layer, so one rule puts all four in their own
+   corner, turned to face their owner. The dealer's is the red one. */
+.seat-wind {
+  position: absolute;
+  left: calc(var(--u) * 1);
+  bottom: calc(var(--u) * 0.8);
+  width: calc(var(--u) * 4.8);
+  height: calc(var(--u) * 4.8);
+  border-radius: calc(var(--u) * 0.5);
+  display: grid;
+  place-items: center;
+  font-size: calc(var(--u) * 3.1);
+  font-weight: 700;
+  line-height: 1;
+  background: var(--ink);
+  color: #fff;
+}
+
+.seat-wind.dealer {
+  background: var(--riichi);
+  color: var(--ink);
 }
 
 /* A riichi stick: white, thin, with the red spot in the middle. */

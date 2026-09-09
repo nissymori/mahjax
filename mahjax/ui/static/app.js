@@ -368,7 +368,11 @@ function renderCenter(v, vp) {
     const rel = (abs - vp + 4) % 4;
     const layer = div("plate-layer");
     layer.style.transform = `rotate(${-90 * rel}deg)`;
-    layer.append(div("seat-wind", WINDS[seat.wind]));
+    const windBadge = div(
+      abs === v.dealer ? "seat-wind dealer" : "seat-wind",
+      WINDS[seat.wind]
+    );
+    layer.append(windBadge);
     const plate = div("plate");
     if (abs === v.current) plate.classList.add("turn");
     plate.append(div("score", seat.score.toLocaleString()));
