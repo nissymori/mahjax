@@ -126,6 +126,23 @@ class Match:
 
         self.events.append(self._start_game_event())
         self.events.append(mjai.start_kyoku_event(self.rules, self.state))
+        self._warm_up()
+
+    def _warm_up(self) -> None:
+        """Compile the step function and the agent before anyone has to wait.
+
+        Whoever moves first decides where that cost lands: when the human is
+        the dealer nothing has been stepped yet, so without this the player's
+        very first discard pays for the whole compile. Both calls are thrown
+        away -- they exist only to fill the jit caches, which are shared by
+        every later game of the same shape.
+        """
+        legal = self.rules.legal_actions(self.state)
+        if not legal:
+            return
+        key = _fold(self._root, 0)
+        jax.block_until_ready(self._step_fn(self.state, jnp.int32(legal[0]), key))
+        jax.block_until_ready(self.agent.act(self.state, key))
 
     # ------------------------------------------------------------------ setup
 

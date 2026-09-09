@@ -21,6 +21,7 @@ consistent, instead of blocking the event loop.
 
 from __future__ import annotations
 
+import logging
 import random
 import threading
 from dataclasses import dataclass, field
@@ -34,8 +35,11 @@ from pydantic import BaseModel, Field
 
 from . import record as record_mod
 from .agents import ENV_IDS, AgentRegistry
-from .match import Match, MatchConfig, new_seed
+from .match import Match, MatchConfig, new_seed, shared_env, shared_step_fn
 from .record import RecordError, Replay
+from .rules import rules_for
+
+log = logging.getLogger(__name__)
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 TILE_DIR = Path(__file__).resolve().parents[1] / "_src" / "assets" / "tiles"
@@ -108,6 +112,31 @@ class _Sessions:
     def evict(table: Dict[str, Any], limit: int) -> None:
         while len(table) > limit:
             table.pop(next(iter(table)))
+
+
+#: Compiled ahead of the first game so nobody waits on it. Everything else
+#: compiles when it is first asked for, which lands on the "starting" screen.
+WARM_ENV = ("red_mahjong", "half")
+
+
+def _warm_in_background() -> None:
+    """Compile the env step for the default rules while the player reads the menu."""
+
+    def run() -> None:
+        import jax
+        import jax.numpy as jnp
+
+        try:
+            env_id, round_mode = WARM_ENV
+            rules = rules_for(env_id)
+            state = jax.device_get(shared_env(env_id, round_mode).init(jax.random.PRNGKey(0)))
+            legal = rules.legal_actions(state)
+            step = shared_step_fn(env_id, round_mode)
+            jax.block_until_ready(step(state, jnp.int32(legal[0]), jax.random.PRNGKey(1)))
+        except Exception:  # a failed warm-up must never take the server with it
+            log.warning("env warm-up failed; the first game will compile instead", exc_info=True)
+
+    threading.Thread(target=run, name="mahjax-warmup", daemon=True).start()
 
 
 def _register_pages(app: FastAPI, sessions: _Sessions) -> None:
@@ -262,6 +291,7 @@ def create_app() -> FastAPI:
     if TILE_DIR.exists():
         app.mount("/tiles", StaticFiles(directory=TILE_DIR), name="tiles")
 
+    _warm_in_background()
     _register_pages(app, sessions)
     _register_games(app, sessions)
     _register_records(app, sessions)
