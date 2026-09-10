@@ -51,9 +51,9 @@ MAX_REPLAYS = 8
 class _RevalidatedFiles(StaticFiles):
     """Static files a browser must check with the server on every load.
 
-    Without a Cache-Control header a browser may reuse the page's script and
-    stylesheet for a while without asking, which after an edit leaves the player
-    looking at a half-updated UI with no clue why.
+    Without a Cache-Control header a browser may reuse the page's script,
+    stylesheet or tile art for a while without asking, which after an edit
+    leaves the player looking at a half-updated UI with no clue why.
     """
 
     def file_response(self, *args: Any, **kwargs: Any) -> Any:
@@ -291,7 +291,7 @@ def create_app() -> FastAPI:
     if STATIC_DIR.exists():
         app.mount("/static", _RevalidatedFiles(directory=STATIC_DIR), name="static")
     if TILE_DIR.exists():
-        app.mount("/tiles", StaticFiles(directory=TILE_DIR), name="tiles")
+        app.mount("/tiles", _RevalidatedFiles(directory=TILE_DIR), name="tiles")
 
     _warm_in_background()
     _register_pages(app, sessions)

@@ -238,6 +238,7 @@ function riverEl(v, seat, abs) {
     const classes = ["cell"];
     if (d.tsumogiri) classes.push("tsumogiri");
     if (d.called) classes.push("taken");
+    if (d.riichi) classes.push("declared");
     if (v.lastDiscard && v.lastDiscard.seat === abs && v.lastDiscard.index === i) {
       classes.push("last");
     }
@@ -525,6 +526,18 @@ function play(frames) {
   if (S.timer === null) pump();
 }
 
+/** Seats that have just called riichi, comparing one frame with the last.
+
+ *  The frames a live game sends do not say which action produced them, but a
+ *  declaration is visible in the board itself: the seat's riichi goes from
+ *  none to declared and stays there for the rest of the hand. */
+function newRiichiSeats(before, after) {
+  if (!before || S.mode !== "play") return [];
+  return after.seats
+    .map((seat, i) => (seat.riichi !== "none" && before.seats[i].riichi === "none" ? i : -1))
+    .filter((i) => i >= 0);
+}
+
 function pump() {
   const frame = S.queue.shift();
   if (!frame) {
@@ -538,7 +551,13 @@ function pump() {
     presentResult(frame);
     return;
   }
+  const declared = newRiichiSeats(S.current, frame);
   render(frame);
+  // Called out beside the player, like a win. The next frame's render clears
+  // it, which gives it exactly one beat on screen.
+  if (declared.length) {
+    showCallouts(frame, declared.map((seat) => ({ seat, text: "リーチ" })));
+  }
   if (!S.queue.length) {
     S.timer = null;
     return;
@@ -576,18 +595,33 @@ function calloutsFor(r) {
   return [];
 }
 
+/** True when the result puts a hand on the table that was face down a moment
+ *  ago. Your own hand was already there, so winning yourself reveals nothing
+ *  new and needs no extra pause. */
+function revealsAnotherHand(before, after) {
+  if (!before) return false;
+  const vp = viewpointSeat(after);
+  return after.seats.some(
+    (seat, i) => i !== vp && seat.hand && !(before.seats[i] && before.seats[i].hand)
+  );
+}
+
+/** Long enough to read somebody else's hand before a dialog covers it. */
+const LOOK_AT_HANDS = 1000;
+
 /** Call it, turn the hands over, then offer the next round -- in that order,
  *  so the player sees what happened before a dialog covers the table. */
 async function presentResult(frame) {
   const beat = Math.max(350, S.delay);
   const r = frame.result;
   const calls = calloutsFor(r);
+  const reveal = revealsAnotherHand(S.current, frame);
   if (calls.length) {
     showCallouts(S.current || frame, calls);
     await wait(beat);
   }
   render(frame, { overlay: false });
-  await wait(beat + 400);
+  await wait(beat + 400 + (reveal ? LOOK_AT_HANDS : 0));
   clearCallouts();
   renderResult(frame);
 }
@@ -627,6 +661,15 @@ function renderResult(v) {
   const body = document.createElement("div");
   body.append(standingsTable(v, r));
   for (const winner of r.winners) body.append(winnerBlock(v, winner));
+  // A nagashi mangan pays like a win but reads like a draw, so say so: without
+  // it the player sees a big swing on a 流局 with nothing to explain it.
+  if (r.type === "draw" && r.nagashiMangan) {
+    const who = r.nagashiMangan
+      .map((got, i) => (got ? v.seats[i].name : null))
+      .filter(Boolean)
+      .join(" ・ ");
+    body.append(div("meta", `流し満貫 ${who}`));
+  }
   if (r.type === "draw" && r.tenpai) {
     const line = r.tenpai
       .map((t, i) => `${v.seats[i].name}: ${t ? "聴牌" : "不聴"}`)
@@ -639,6 +682,30 @@ function renderResult(v) {
 
   el.resultNext.textContent = r.gameOver ? "終局へ" : "次の局へ";
   el.overlay.hidden = false;
+  fitPanel(el.resultPanel, el.resultBody);
+}
+
+/** Turn the summary down until it is all on screen at once.
+ *
+ *  A double ron with a long list of yaku is taller than a short window, and a
+ *  scoreboard the player has to scroll is a scoreboard they will misread. The
+ *  panel's own chrome keeps its size; everything inside the body is sized off
+ *  --rs, so one number settles the whole block. Largest value that fits wins.
+ */
+const RS_FLOOR = 0.45;
+
+function fitPanel(panel, body) {
+  panel.style.setProperty("--rs", "1");
+  if (body.scrollHeight <= body.clientHeight) return;
+  let fits = RS_FLOOR;
+  let tooBig = 1;
+  for (let i = 0; i < 7; i += 1) {
+    const mid = (fits + tooBig) / 2;
+    panel.style.setProperty("--rs", mid.toFixed(3));
+    if (body.scrollHeight <= body.clientHeight) fits = mid;
+    else tooBig = mid;
+  }
+  panel.style.setProperty("--rs", fits.toFixed(3));
 }
 
 function standingsTable(v, r) {
@@ -710,6 +777,8 @@ function winnerBlock(v, w) {
   for (const [name, han] of extras) {
     if (han) yaku.append(div(null, name), div("han", `${han}翻`));
   }
+  // Folding a long list in two costs half its height and no legibility.
+  if (yaku.children.length > 10) yaku.classList.add("two-col");
   box.append(yaku);
   box.append(
     div("total", w.yakuman ? `役満 ${w.yakuman}倍` : `${w.han}翻 ${w.fu}符`)
@@ -756,6 +825,7 @@ function showFinal(v) {
   el.resultPanel.hidden = true;
   el.finalPanel.hidden = false;
   el.overlay.hidden = false;
+  fitPanel(el.finalPanel, el.finalBody);
 }
 
 $("finalQuit").addEventListener("click", async () => {
@@ -1168,6 +1238,9 @@ el.table.addEventListener("click", (e) => {
 
 window.addEventListener("resize", () => {
   if (S.current) fit();
+  if (el.overlay.hidden) return;
+  if (!el.resultPanel.hidden) fitPanel(el.resultPanel, el.resultBody);
+  if (!el.finalPanel.hidden) fitPanel(el.finalPanel, el.finalBody);
 });
 
 /** Reloading the page should land you back in the game you were playing. */

@@ -15,6 +15,8 @@
   --accent: #16181a;
   --riichi: #cf3030;
   --key: #2f6b4e;
+  /* Whose turn it is. Muted on purpose: red already means dealer and riichi. */
+  --turn: #d9b25c;
   color-scheme: light;
 }
 
@@ -273,6 +275,10 @@ img.tile {
 .stacked img.tile:last-child { top: 75%; }
 
 .river .cell { position: relative; }
+/* The declaration tile lies on its side and so is shallower than the tiles
+   beside it. On a table it is pushed up against the row in front, which leaves
+   the gap behind it, not in front. */
+.river .declared { align-self: flex-start; }
 .river .tsumogiri img.tile { filter: brightness(0.9) saturate(0.7); }
 .river .taken { opacity: 0.4; }
 .river .last img.tile { box-shadow: 0 0 0 calc(var(--u) * 0.45) var(--accent); }
@@ -335,15 +341,17 @@ img.tile {
 }
 .plate .score { font-weight: 700; font-variant-numeric: tabular-nums; font-size: calc(var(--u) * 2.2); }
 
-/* The marker points out of the box towards whoever is to move. */
+/* Whose turn it is, as a rail along that player's own edge of the middle box.
+   It sits in the plate's column, so it takes the space the arrow it replaced
+   used to take and nothing above it moves. Kept clear of the wind badge in the
+   corner: the box is 27.4u across and the badge ends 5.9u in. */
 .plate.turn::after {
   content: "";
-  width: 0;
-  height: 0;
-  margin-top: calc(var(--u) * 0.3);
-  border-left: calc(var(--u) * 0.8) solid transparent;
-  border-right: calc(var(--u) * 0.8) solid transparent;
-  border-top: calc(var(--u) * 1) solid var(--ink);
+  width: calc(var(--u) * 12);
+  height: calc(var(--u) * 1.1);
+  margin-top: calc(var(--u) * 0.25);
+  border-radius: calc(var(--u) * 0.55);
+  background: var(--turn);
 }
 
 /* Each seat's wind sits in the corner of the middle box next to that seat.
@@ -511,11 +519,14 @@ img.tile {
   padding: 16px;
 }
 
-/* Title and buttons stay put; only the middle scrolls, so a hand with a long
-   list of yaku can never push the button out of reach. */
+/* Title and buttons are the panel's fixed chrome; everything the hand is read
+   from lives in the middle and is sized off --rs, which the page turns down
+   until the whole summary is on screen at once. A player should never have to
+   scroll a scoreboard. */
 .result {
+  --rs: 1;
   width: min(560px, 94vw);
-  max-height: 88vh;
+  max-height: 92vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -526,30 +537,34 @@ img.tile {
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.22);
 }
 
-#resultBody, #finalBody { overflow-y: auto; flex: 1 1 auto; }
+/* auto, not hidden: if a window is so short that even the smallest --rs will
+   not do, reaching the content beats losing it. */
+#resultBody, #finalBody { overflow-y: auto; flex: 1 1 auto; font-size: calc(14px * var(--rs)); }
 
 .result h2 { margin: 0 0 12px; font-size: 20px; }
 .result table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-.result th, .result td { text-align: right; padding: 5px 6px; border-bottom: 1px solid var(--line); font-size: 13px; }
+.result th, .result td { text-align: right; padding: calc(5px * var(--rs)) calc(6px * var(--rs)); border-bottom: 1px solid var(--line); font-size: calc(13px * var(--rs)); }
 .result th { color: var(--ink-dim); font-weight: 600; }
 .result th:first-child, .result td:first-child { text-align: left; }
 .result td.plus { color: #1f7a4d; }
 .result td.minus { color: #b23b3b; }
-.result .winner { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 12px; }
-.result .tiles { --h: 34px; display: flex; gap: 2px; flex-wrap: wrap; align-items: flex-end; margin: 6px 0; }
+.result .winner { border-top: 1px solid var(--line); padding-top: calc(12px * var(--rs)); margin-top: calc(12px * var(--rs)); }
+.result .tiles { --h: calc(34px * var(--rs)); display: flex; gap: 2px; flex-wrap: wrap; align-items: flex-end; margin: calc(6px * var(--rs)) 0; }
 /* The overlay has no board unit to scale from, so the size is fixed here. The
    hand is being read tile by tile, so the melds match it rather than shrinking
    the way they do on the table. */
-.result .meld { --h: 34px; margin-left: 10px; }
-.result .markers { --h: 26px; display: flex; align-items: flex-end; gap: 3px; margin-left: 20px; }
-.result .marker-label { font-size: 11px; color: var(--ink-dim); padding-bottom: 3px; margin-right: 1px; }
+.result .meld { --h: calc(34px * var(--rs)); margin-left: calc(10px * var(--rs)); }
+.result .markers { --h: calc(26px * var(--rs)); display: flex; align-items: flex-end; gap: 3px; margin-left: calc(20px * var(--rs)); }
+.result .marker-label { font-size: calc(11px * var(--rs)); color: var(--ink-dim); padding-bottom: 3px; margin-right: 1px; }
 /* The standings put the name in the second column, next to the rank. */
 #finalBody th:nth-child(2), #finalBody td:nth-child(2) { text-align: left; padding-left: 14px; }
 .result .tiles .winning-tile { margin-left: 10px; box-shadow: 0 0 0 2px var(--accent); }
-.result .yaku { display: grid; grid-template-columns: 1fr auto; gap: 0 12px; font-size: 13px; max-width: 320px; }
+.result .yaku { display: grid; grid-template-columns: 1fr auto; gap: 0 calc(12px * var(--rs)); font-size: calc(13px * var(--rs)); max-width: 320px; }
+/* A long list reads better folded into two columns than shrunk to fit. */
+.result .yaku.two-col { grid-template-columns: 1fr auto 1fr auto; max-width: none; column-gap: calc(18px * var(--rs)); }
 .result .yaku .han { color: var(--ink-dim); font-variant-numeric: tabular-nums; }
-.result .total { margin-top: 6px; font-weight: 700; }
-.result .meta { color: var(--ink-dim); font-size: 12px; margin-top: 10px; }
+.result .total { margin-top: calc(6px * var(--rs)); font-weight: 700; font-size: calc(14px * var(--rs)); }
+.result .meta { color: var(--ink-dim); font-size: calc(12px * var(--rs)); margin-top: calc(10px * var(--rs)); }
 .result-actions { flex: none; display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
 
 @media (prefers-reduced-motion: reduce) {

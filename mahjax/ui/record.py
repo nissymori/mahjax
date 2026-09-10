@@ -352,6 +352,10 @@ class Replay:
         abort_seat = None
         if abortive is not None:
             result_type, (reason, abort_seat) = "abortive", abortive
+            # A triple ron is three declared wins that the round then voids, so
+            # the log carries three. The live board lists none for an abortive
+            # draw and the replay has to say the same thing.
+            wins = []
         elif wins:
             result_type = "ron" if any(w["from"] is not None for w in wins) else "tsumo"
             reason = None

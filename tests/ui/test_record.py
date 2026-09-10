@@ -158,3 +158,19 @@ def test_a_replay_keeps_the_name_of_the_abortive_draw(registry: AgentRegistry) -
             assert result["abortSeat"] is not None
         else:
             assert result["abortSeat"] is None
+
+
+def test_a_voided_round_lists_no_winners(registry: AgentRegistry) -> None:
+    """An abortive draw is a draw. The log still carries the wins that were
+    declared before the round was voided, and a replay must not put them up as
+    results the live board never showed."""
+    config = MatchConfig(
+        env_id="red_mahjong", round_mode="east", seed=30, human_seat=None, save_record=False
+    )
+    match = Match(config, registry.get("random"))
+    match.play_out()
+
+    replay = Replay(match.events)
+    for result in replay._results.values():  # noqa: SLF001 - the result map is the point
+        if result["type"] == "abortive":
+            assert result["winners"] == []
