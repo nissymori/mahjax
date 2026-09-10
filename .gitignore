@@ -35,3 +35,6 @@ params
 offline_data
 # Saved game records written by the web UI
 records/
+
+# Scratch screenshots and throwaway output
+tmp/
