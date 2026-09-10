@@ -46,6 +46,7 @@
   <button data-jump="next" class="icon-btn" title="1手進める">▶</button>
   <button data-jump="nextRound" class="icon-btn" title="次の局へ">局▶</button>
   <button data-jump="last" class="icon-btn" title="最後へ">▶|</button>
+  <button id="replayAuto" class="icon-btn auto" title="自動再生">再生</button>
 </footer>
 
 <div id="scrim" class="scrim" hidden></div>
@@ -120,11 +121,20 @@
 </aside>
 
 <div id="overlay" class="overlay" hidden>
-  <div class="result" role="dialog" aria-modal="true">
+  <div id="resultPanel" class="result" role="dialog" aria-modal="true">
     <h2 id="resultTitle"></h2>
     <div id="resultBody"></div>
     <div class="result-actions">
       <button id="resultNext" class="primary"></button>
+    </div>
+  </div>
+  <div id="finalPanel" class="result" role="dialog" aria-modal="true" hidden>
+    <h2>終局</h2>
+    <div id="finalBody"></div>
+    <div class="result-actions">
+      <button id="finalQuit" class="ghost">終了</button>
+      <button id="finalAgain" class="primary">もう一局</button>
+      <button id="finalReplay">解析</button>
     </div>
   </div>
 </div>

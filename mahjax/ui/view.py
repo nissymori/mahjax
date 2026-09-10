@@ -648,25 +648,65 @@ def build_win(
 
 
 def final_standings(rules: Rules, state: Any) -> List[Dict[str, int]]:
-    """Final scores in seat order: end-of-round points, uma, and the sticks.
+    """Final standings in seat order, with the points and the rank bonus apart.
 
-    Computed here rather than read from ``state.round_state.score`` because the
-    env only folds uma in on one of its two game-end paths (spec section 9.3).
+    ``uma`` keeps the env's own units (the +30 / +10 / -10 / -30 it carries) and
+    is deliberately not folded into ``score``: the two are read side by side, not
+    added. The scores themselves are recomputed here rather than read back from
+    the state because the env only folds uma in on one of its two game-end paths
+    (spec section 9.3).
     """
     rs = state.round_state
     scores = np.asarray(rs.score, dtype=np.int64)
     order_points = np.asarray(rs.order_points, dtype=np.int64)
     order = np.argsort(-scores, kind="stable")  # ties go to the earlier seat
-    ranked = scores.copy()
     rank_of = np.zeros(NUM_PLAYERS, dtype=np.int64)
+    uma_of = np.zeros(NUM_PLAYERS, dtype=np.int64)
     for rank, seat in enumerate(order):
-        ranked[seat] += order_points[rank]
         rank_of[seat] = rank + 1
-    ranked[int(np.argmax(ranked))] += 10 * int(rs.kyotaku)
+        uma_of[seat] = order_points[rank]
+    final = scores.copy()
+    final[int(order[0])] += 10 * int(rs.kyotaku)  # sticks left on the table
     return [
-        {"seat": seat, "rank": int(rank_of[seat]), "score": int(ranked[seat]) * 100}
+        {
+            "seat": seat,
+            "rank": int(rank_of[seat]),
+            "score": int(final[seat]) * 100,
+            "uma": int(uma_of[seat]),
+        }
         for seat in range(NUM_PLAYERS)
     ]
+
+
+def abortive_reason(rules: Rules, state: Any) -> str:
+    """Why the env forced an abortive draw on ``state``.
+
+    The env reports a table condition only as a ``KYUUSHU``-only mask, so the
+    condition itself has to be read back off the board. Play and replay both
+    call this, which is what keeps a saved game's overlay saying the same thing
+    the live one said.
+    """
+    players = state.players
+    if int(sum(bool(x) for x in players.has_won)) >= 2:
+        return "triple_ron"
+    if int(sum(int(x) for x in players.riichi)) == NUM_PLAYERS:
+        return "four_riichi"
+    if int(sum(int(x) for x in players.n_kan)) >= 4:
+        return "four_kans"
+    return "four_winds"
+
+
+def abortive_cause(rules: Rules, state: Any) -> Tuple[str, Optional[int]]:
+    """``(reason, seat)`` for the abortive draw about to be applied to ``state``.
+
+    Nine terminals is one player's call, so it names the seat that made it; a
+    table condition belongs to nobody and leaves the seat unset.
+    """
+    if rules.KYUUSHU is None:
+        raise ValueError(f"{rules.env_id} has no abortive draws")
+    if rules.legal_actions(state) != [rules.KYUUSHU]:
+        return "kyuushu", int(state.current_player)
+    return abortive_reason(rules, state), None
 
 
 def build_round_result(
@@ -679,6 +719,7 @@ def build_round_result(
     score_start: Sequence[int],
     game_over: bool,
     final: Optional[Sequence[Dict[str, int]]] = None,
+    abort_seat: Optional[int] = None,
 ) -> Dict[str, Any]:
     """The round-result overlay (spec section 6.2).
 
@@ -694,6 +735,8 @@ def build_round_result(
     return {
         "type": type,
         "reason": reason,
+        # Who declared it, for the abortive draw that one player calls.
+        "abortSeat": None if abort_seat is None else int(abort_seat),
         "round": {"index": int(rs.round), "honba": int(rs.honba), "kyotaku": int(rs.kyotaku)},
         "winners": list(winners),
         "tenpai": rules.tenpai(state) if is_draw else None,

@@ -98,6 +98,9 @@ button.ghost { background: transparent; }
   border-top: 1px solid var(--line);
 }
 
+.replay-bar .auto { min-width: 5ch; border-color: var(--line); background: #fff; }
+.replay-bar .auto.playing { background: var(--ink); color: #fff; border-color: transparent; }
+
 .replay-label { min-width: 22ch; text-align: center; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
 
 /* ------------------------------------------------------------------- table */
@@ -210,13 +213,17 @@ button.ghost { background: transparent; }
   align-items: flex-end;
 }
 
+/* Six tiles to a row, always. A riichi declaration lies on its side and is
+   wider than an upright tile, so the box has to allow for that or the row it
+   falls in would break after five. The extra width hangs off the right, which
+   is what the row looks like on a real table; the left edge still lines up with
+   the middle box. */
 .river {
   --h: var(--river-h);
   position: absolute;
-  left: 50%;
+  left: calc(50% - var(--centre) / 2);
   top: calc(50% + var(--centre) / 2 + var(--u) * 0.6);
-  width: var(--centre);
-  transform: translateX(-50%);
+  width: calc(var(--centre) + var(--u) * 2.6);
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
@@ -247,6 +254,23 @@ img.tile {
   top: 50%;
   transform: translate(-50%, -50%) rotate(-90deg);
 }
+
+/* An added kan: the fourth tile rides on the sideways one, so the meld keeps
+   the width of a pon and grows upwards, the way it does on a table. */
+.stacked {
+  position: relative;
+  width: var(--h);
+  height: calc(var(--h) * 29 / 41.5 * 2);
+}
+
+.stacked img.tile {
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-90deg);
+}
+
+.stacked img.tile:first-child { top: 25%; }
+.stacked img.tile:last-child { top: 75%; }
 
 .river .cell { position: relative; }
 .river .tsumogiri img.tile { filter: brightness(0.9) saturate(0.7); }
@@ -369,6 +393,26 @@ img.tile {
 
 
 
+.callout {
+  position: absolute;
+  z-index: 4;
+  padding: calc(var(--u) * 0.9) calc(var(--u) * 2.6);
+  border-radius: calc(var(--u) * 0.8);
+  background: var(--ink);
+  color: #fff;
+  font-size: calc(var(--u) * 4.2);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  box-shadow: 0 calc(var(--u) * 0.4) calc(var(--u) * 1.2) rgba(0, 0, 0, 0.35);
+}
+
+.callout[data-rel="0"] { left: 50%; bottom: calc(var(--u) * 30); transform: translateX(-50%); }
+.callout[data-rel="1"] { right: calc(var(--u) * 30); top: 50%; transform: translateY(-50%); }
+.callout[data-rel="2"] { left: 50%; top: calc(var(--u) * 30); transform: translateX(-50%); }
+.callout[data-rel="3"] { left: calc(var(--u) * 30); top: 50%; transform: translateY(-50%); }
+/* An abortive draw ends the round for everyone, so it is called in the middle. */
+.callout[data-rel="center"] { left: 50%; top: 50%; transform: translate(-50%, -50%); }
+
 /* ----------------------------------------------------------------- actions */
 
 .actions {
@@ -467,16 +511,22 @@ img.tile {
   padding: 16px;
 }
 
+/* Title and buttons stay put; only the middle scrolls, so a hand with a long
+   list of yaku can never push the button out of reach. */
 .result {
   width: min(560px, 94vw);
   max-height: 88vh;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   background: #fff;
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 18px 20px;
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.22);
 }
+
+#resultBody, #finalBody { overflow-y: auto; flex: 1 1 auto; }
 
 .result h2 { margin: 0 0 12px; font-size: 20px; }
 .result table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
@@ -487,12 +537,20 @@ img.tile {
 .result td.minus { color: #b23b3b; }
 .result .winner { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 12px; }
 .result .tiles { --h: 34px; display: flex; gap: 2px; flex-wrap: wrap; align-items: flex-end; margin: 6px 0; }
+/* The overlay has no board unit to scale from, so the size is fixed here. The
+   hand is being read tile by tile, so the melds match it rather than shrinking
+   the way they do on the table. */
+.result .meld { --h: 34px; margin-left: 10px; }
+.result .markers { --h: 26px; display: flex; align-items: flex-end; gap: 3px; margin-left: 20px; }
+.result .marker-label { font-size: 11px; color: var(--ink-dim); padding-bottom: 3px; margin-right: 1px; }
+/* The standings put the name in the second column, next to the rank. */
+#finalBody th:nth-child(2), #finalBody td:nth-child(2) { text-align: left; padding-left: 14px; }
 .result .tiles .winning-tile { margin-left: 10px; box-shadow: 0 0 0 2px var(--accent); }
 .result .yaku { display: grid; grid-template-columns: 1fr auto; gap: 0 12px; font-size: 13px; max-width: 320px; }
 .result .yaku .han { color: var(--ink-dim); font-variant-numeric: tabular-nums; }
 .result .total { margin-top: 6px; font-weight: 700; }
 .result .meta { color: var(--ink-dim); font-size: 12px; margin-top: 10px; }
-.result-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
+.result-actions { flex: none; display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
 
 @media (prefers-reduced-motion: reduce) {
   .hand-row .playable { transition: none; }

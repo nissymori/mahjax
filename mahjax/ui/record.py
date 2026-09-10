@@ -28,7 +28,7 @@ import os
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Sequence
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -300,12 +300,16 @@ class Replay:
 
             # A nine-terminals abortion deals the next round inside the same
             # step, so the board worth showing is the one from before it.
-            abortive = rules.KYUUSHU is not None and action == rules.KYUUSHU
-            self._push(pre if abortive else state, (pre, int(action)), round_index)
-            if abortive or rules.is_round_over(state):
+            is_abortive = rules.KYUUSHU is not None and action == rules.KYUUSHU
+            # Why it was abortive has to be read before the step is applied,
+            # exactly as the live game reads it, or a replay would label every
+            # abortive draw with the same generic title.
+            abortive = view.abortive_cause(rules, pre) if is_abortive else None
+            self._push(pre if is_abortive else state, (pre, int(action)), round_index)
+            if is_abortive or rules.is_round_over(state):
                 pending = (
                     len(self._states) - 1,
-                    pre if abortive else state,
+                    pre if is_abortive else state,
                     list(wins),
                     list(score_start),
                     abortive,
@@ -343,10 +347,11 @@ class Replay:
         wins: List[Dict[str, Any]],
         score_start: Sequence[int],
         game_over: bool,
-        abortive: bool,
+        abortive: Optional[Tuple[str, Optional[int]]],
     ) -> Dict[str, Any]:
-        if abortive:
-            result_type, reason = "abortive", None
+        abort_seat = None
+        if abortive is not None:
+            result_type, (reason, abort_seat) = "abortive", abortive
         elif wins:
             result_type = "ron" if any(w["from"] is not None for w in wins) else "tsumo"
             reason = None
@@ -360,6 +365,7 @@ class Replay:
             winners=wins,
             score_start=list(score_start),
             game_over=game_over,
+            abort_seat=abort_seat,
         )
 
     # ----------------------------------------------------------------- output

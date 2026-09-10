@@ -197,7 +197,9 @@ def _register_games(app: FastAPI, sessions: _Sessions) -> None:
     def get_game(game_id: str) -> Dict[str, Any]:
         with sessions.lock:
             match = sessions.game(game_id)
-            return {"gameId": match.id, "frames": [match.view]}
+            # The record id travels with the state so a reloaded page can still
+            # offer to open the finished game.
+            return {"gameId": match.id, "frames": [match.view], "recordId": match.record_id}
 
     @app.post("/api/games/{game_id}/act")
     def act(game_id: str, req: ActRequest) -> Dict[str, Any]:

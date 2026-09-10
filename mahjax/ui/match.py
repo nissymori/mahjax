@@ -200,9 +200,27 @@ class Match:
         return self.config.human_seat
 
     def _reveal(self) -> List[bool]:
-        if not self.config.hide_hands or self.result is not None or self.game_over:
+        """Which seats show their concealed hand.
+
+        At a result only the hands a real table would turn over are shown: the
+        winners after a win, the tenpai players after an exhaustive draw, and
+        nobody after an abortive one. Your own hand is always your own.
+        """
+        if not self.config.hide_hands:
             return [True] * NUM_PLAYERS
-        return [i == self.config.human_seat for i in range(NUM_PLAYERS)]
+        shown = [i == self.config.human_seat for i in range(NUM_PLAYERS)]
+        if self.result is None:
+            return shown
+        if self.result["type"] in ("ron", "tsumo"):
+            for winner in self.result["winners"]:
+                shown[int(winner["seat"])] = True
+        elif self.result["type"] == "draw":
+            for seat, tenpai in enumerate(self.result.get("tenpai") or []):
+                shown[seat] = shown[seat] or bool(tenpai)
+        elif self.result.get("abortSeat") is not None:
+            # Nine terminals is proved by turning the hand over.
+            shown[int(self.result["abortSeat"])] = True
+        return shown
 
     def _frame(
         self,
@@ -278,6 +296,9 @@ class Match:
             legal = ", ".join(str(a) for a in self.rules.legal_actions(self.state))
             raise ValueError(f"Illegal action {action}. Legal: [{legal}]")
         frames: List[Dict[str, Any]] = []
+        if self._is_abort(int(action)):
+            self._settle_abortive(frames)
+            return frames
         self._apply_and_frame(int(action), frames)
         return frames + self.advance()
 
@@ -348,6 +369,12 @@ class Match:
 
             key = _fold(self._root, self.step_index + 1)
             action = int(jax.device_get(self.agent.act(self.state, key)))
+            if self._is_abort(action):
+                # Nine terminals declared by choice ends the round just as the
+                # forced version does; without this the game would slide into
+                # the next hand with no result and no break in the record.
+                self._settle_abortive(frames)
+                return frames
             self._apply_and_frame(action, frames)
         raise RuntimeError("advance() exceeded its step budget; the env is looping")
 
@@ -395,15 +422,20 @@ class Match:
             result_type = "draw"
         self._emit_result(end_state, result_type, None, wins, game_over, frames)
 
+    def _is_abort(self, action: int) -> bool:
+        return self.rules.KYUUSHU is not None and action == self.rules.KYUUSHU
+
     def _settle_abortive(self, frames: List[Dict[str, Any]]) -> None:
-        """A forced abortive draw: one KYUUSHU action jumps straight to the next
-        round, so the board to show is the one from before that action."""
+        """An abortive draw: one KYUUSHU action jumps straight to the next round,
+        so the board to show is the one from before that action."""
         end_state = self.state
-        reason = self._abortive_reason(end_state)
         assert self.rules.KYUUSHU is not None
+        reason, seat = view.abortive_cause(self.rules, end_state)
         self._step(self.rules.KYUUSHU)
         game_over = bool(self.state.terminated)
-        self._emit_result(end_state, "abortive", reason, [], game_over, frames)
+        self._emit_result(
+            end_state, "abortive", reason, [], game_over, frames, abort_seat=seat
+        )
 
     def _emit_result(
         self,
@@ -413,6 +445,7 @@ class Match:
         wins: List[Dict[str, Any]],
         game_over: bool,
         frames: List[Dict[str, Any]],
+        abort_seat: Optional[int] = None,
     ) -> None:
         self.result = view.build_round_result(
             self.rules,
@@ -422,6 +455,7 @@ class Match:
             winners=wins,
             score_start=self._round.score_start,
             game_over=game_over,
+            abort_seat=abort_seat,
         )
         self._round_display_state = end_state
         self.events.append(mjai.end_kyoku_event())
@@ -429,16 +463,6 @@ class Match:
         if game_over:
             self._write_end_game(end_state)
         frames.append(self._frame(end_state, result=self.result))
-
-    def _abortive_reason(self, state: Any) -> str:
-        players = state.players
-        if int(sum(bool(x) for x in players.has_won)) >= 2:
-            return "triple_ron"
-        if int(sum(int(x) for x in players.riichi)) == NUM_PLAYERS:
-            return "four_riichi"
-        if int(sum(int(x) for x in players.n_kan)) >= 4:
-            return "four_kans"
-        return "four_winds"
 
     def _write_end_game(self, end_state: Any) -> None:
         final = view.final_standings(self.rules, end_state)

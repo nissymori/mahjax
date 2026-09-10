@@ -99,6 +99,28 @@ def test_listing_summarises_saved_records(registry: AgentRegistry) -> None:
     assert record_mod.list_records() == []
 
 
+def test_a_chosen_nine_terminals_still_breaks_the_record(registry: AgentRegistry) -> None:
+    """Nine terminals declared by choice ends the round, so the log has to carry
+    a boundary there; without one the replay drifts a round out of step.
+
+    Driven by the random agent: the bundled heuristic never declares it.
+    """
+    config = MatchConfig(
+        env_id="red_mahjong", round_mode="east", seed=30, human_seat=None, save_record=False
+    )
+    match = Match(config, registry.get("random"))
+    match.play_out()
+    kinds = [e["type"] for e in match.events]
+    assert kinds.count("start_kyoku") == kinds.count("end_kyoku")
+    reasons = [e.get("reason") for e in match.events if e["type"] == "ryukyoku"]
+    assert "kyushukyuhai" in reasons, "this seed no longer produces a chosen abort"
+    for i, event in enumerate(match.events):
+        if event["type"] in ("hora", "ryukyoku"):
+            rest = [e["type"] for e in match.events[i + 1 :]]
+            assert "end_kyoku" in rest, f"no round boundary after {event['type']}"
+    Replay(match.events)  # would raise if the two streams disagreed
+
+
 def test_a_tampered_log_is_refused(registry: AgentRegistry) -> None:
     """A record that no longer matches the env must fail loudly, not quietly."""
     match = _self_play(registry, "red_mahjong", seed=44, round_mode="single")
@@ -111,3 +133,28 @@ def test_a_tampered_log_is_refused(registry: AgentRegistry) -> None:
         pytest.skip("no tsumo event to tamper with")
     with pytest.raises(record_mod.RecordError):
         Replay(events)
+
+
+def test_a_replay_keeps_the_name_of_the_abortive_draw(registry: AgentRegistry) -> None:
+    """The overlay a replay shows must say what the live board said.
+
+    The env reports an abortive draw only as a mask, so the reason has to be
+    read off the board before the step is applied; the replay used to leave it
+    blank and label every abortive draw with the generic title.
+    """
+    config = MatchConfig(
+        env_id="red_mahjong", round_mode="east", seed=30, human_seat=None, save_record=False
+    )
+    match = Match(config, registry.get("random"))
+    match.play_out()
+
+    replay = Replay(match.events)
+    abortive = [r for r in replay._results.values() if r["type"] == "abortive"]  # noqa: SLF001
+    assert abortive, "this seed no longer produces an abortive draw"
+    assert any(r["reason"] == "kyuushu" for r in abortive)
+    for result in abortive:
+        assert result["reason"] is not None
+        if result["reason"] == "kyuushu":
+            assert result["abortSeat"] is not None
+        else:
+            assert result["abortSeat"] is None

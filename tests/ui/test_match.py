@@ -129,8 +129,6 @@ def test_no_calls_auto_passes_but_keeps_ron(registry: AgentRegistry) -> None:
         human_seat=0,
         no_calls=True,
     )
-    rules = match.rules
-
     import jax
 
     frames = match.start()
@@ -172,7 +170,18 @@ def test_hidden_hands_open_up_at_the_result(registry: AgentRegistry) -> None:
         key = jax.random.PRNGKey(match.step_index)
         frames = match.act(int(jax.device_get(match.agent.act(match.state, key))))
     assert match.result is not None
-    assert all(seat["hand"] is not None for seat in frames[-1]["seats"])
+    result = match.result
+    frame = frames[-1]
+    # Only the hands a real table would turn over: the winners, or everyone who
+    # was tenpai at an exhaustive draw. Your own hand is always visible.
+    if result["type"] in ("ron", "tsumo"):
+        expected = {w["seat"] for w in result["winners"]} | {1}
+    elif result["type"] == "draw":
+        expected = {i for i, t in enumerate(result["tenpai"]) if t} | {1}
+    else:
+        expected = {1}
+    shown = {i for i, seat in enumerate(frame["seats"]) if seat["hand"] is not None}
+    assert shown == expected, f"{result['type']}: showed {shown}, expected {expected}"
 
 
 def test_illegal_action_is_refused(registry: AgentRegistry) -> None:

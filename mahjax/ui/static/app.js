@@ -17,6 +17,9 @@ const el = {
   resultTitle: $("resultTitle"),
   resultBody: $("resultBody"),
   resultNext: $("resultNext"),
+  resultPanel: $("resultPanel"),
+  finalPanel: $("finalPanel"),
+  finalBody: $("finalBody"),
   replayBar: $("replayBar"),
   replayLabel: $("replayLabel"),
   replayTools: $("replayTools"),
@@ -66,6 +69,10 @@ const S = {
   lang: "ja",
   delay: 700,
   busy: false,
+  recordId: null,
+  lastGameRequest: null,
+  autoOn: false,
+  autoTimer: null,
 };
 
 // ------------------------------------------------------------------- network
@@ -162,7 +169,7 @@ function fit() {
   el.table.style.setProperty("--u", `${side / 100}px`);
 }
 
-function render(v) {
+function render(v, opts = {}) {
   S.current = v;
   el.table.hidden = false;
   el.empty.hidden = true;
@@ -172,8 +179,29 @@ function render(v) {
   renderCenter(v, vp);
   renderActions(v);
   renderStatus(v);
-  renderResult(v);
+  if (!v.result) clearCallouts();
+  if (opts.overlay === false) el.overlay.hidden = true;
+  else renderResult(v);
   if (S.mode === "replay") renderReplayBar(v);
+}
+
+/** A win is announced beside the player who made it, the way it is called out
+ *  at a table, before any hand is turned over. */
+function showCallouts(v, calls) {
+  clearCallouts();
+  const vp = viewpointSeat(v);
+  for (const call of calls) {
+    const node = div("callout", call.text);
+    node.dataset.rel =
+      call.seat === null || call.seat === undefined
+        ? "center"
+        : String((call.seat - vp + 4) % 4);
+    el.table.append(node);
+  }
+}
+
+function clearCallouts() {
+  for (const node of Array.from(el.table.querySelectorAll(".callout"))) node.remove();
 }
 
 function renderSeats(v, vp) {
@@ -221,23 +249,45 @@ function riverEl(v, seat, abs) {
 }
 
 /** Lay a meld out the way it is set down: the called tile turned sideways, and
- *  placed on the side of the player it was taken from. */
+ *  placed on the side of the player it was taken from.
+ *
+ *  Returns one entry per *slot*, which is not the same as per tile: an added kan
+ *  puts its fourth tile on top of the one already lying sideways, so three slots
+ *  hold four tiles. */
 function meldTiles(meld, ownerSeat) {
-  const tiles = meld.tiles.map((t) => ({ tile: t, turned: false, hidden: false }));
+  const tiles = meld.tiles.map((t) => ({ tile: t, turned: false, hidden: false, stacked: false }));
   if (meld.kind === "kan_closed") {
     tiles[0].hidden = true;
     tiles[tiles.length - 1].hidden = true;
     return tiles;
   }
   if (meld.called === null || meld.called === undefined) return tiles;
+
+  const rel = meld.from === null ? 2 : (meld.from - ownerSeat + 4) % 4;
+  const position = rel === 3 ? 0 : rel === 2 ? 1 : 2;
+
+  if (meld.kind === "kan_added") {
+    // The pon stays as it was and the added tile rides on its sideways tile.
+    const slots = [
+      { tile: meld.tiles[0], turned: false, hidden: false, stacked: false },
+      { tile: meld.tiles[1], turned: false, hidden: false, stacked: false },
+    ];
+    slots.splice(Math.min(position, slots.length), 0, {
+      tile: meld.tiles[2],
+      second: meld.tiles[3],
+      turned: false,
+      hidden: false,
+      stacked: true,
+    });
+    return slots;
+  }
+
   const called = tiles[meld.called];
   called.turned = true;
   if (meld.kind === "chi") {
     return [called, ...tiles.filter((_, i) => i !== meld.called)];
   }
   const rest = tiles.filter((_, i) => i !== meld.called);
-  const rel = meld.from === null ? 2 : (meld.from - ownerSeat + 4) % 4;
-  const position = rel === 3 ? 0 : rel === 2 ? 1 : 2;
   rest.splice(Math.min(position, rest.length), 0, called);
   return rest;
 }
@@ -255,6 +305,12 @@ function meldsEl(seat, ownerSeat, metrics) {
 function meldEl(meld, ownerSeat) {
   const box = div("meld");
   for (const piece of meldTiles(meld, ownerSeat)) {
+    if (piece.stacked) {
+      const slot = div("stacked");
+      slot.append(tileImg(piece.second), tileImg(piece.tile));
+      box.append(slot);
+      continue;
+    }
     const tile = piece.hidden ? null : piece.tile;
     box.append(piece.turned ? sideways(tile) : tileImg(tile));
   }
@@ -332,7 +388,9 @@ function handMetrics(seat, isSelf) {
   if (seat.melds.length) {
     meldWidth = (seat.melds.length - 1) * 1.1;
     for (const meld of seat.melds) {
-      for (const piece of meldTiles(meld, 0)) meldWidth += piece.turned ? 5.2 : meldTileW;
+      for (const piece of meldTiles(meld, 0)) {
+        meldWidth += piece.turned || piece.stacked ? 5.2 : meldTileW;
+      }
     }
   }
   const meldScale = Math.min(1, 56 / Math.max(meldWidth, 1));
@@ -473,6 +531,13 @@ function pump() {
     S.timer = null;
     return;
   }
+  if (frame.result && S.mode === "play") {
+    // A result is always the last frame, and it gets its own little sequence.
+    S.queue.length = 0;
+    S.timer = null;
+    presentResult(frame);
+    return;
+  }
   render(frame);
   if (!S.queue.length) {
     S.timer = null;
@@ -490,6 +555,43 @@ function flush() {
   render(last);
 }
 
+function wait(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+/** What gets announced before the hands turn over. A win belongs to the player
+ *  who made it; an abortive draw ends the round for everyone, so it is called
+ *  in the middle of the table whatever brought it about. Nine terminals still
+ *  turns the declarer's hand over -- that is what names them. */
+function calloutsFor(r) {
+  if (r.type === "tsumo" || r.type === "ron") {
+    return r.winners.map((w) => ({
+      seat: w.seat,
+      text: r.type === "tsumo" ? "ツモ" : "ロン",
+    }));
+  }
+  if (r.type === "abortive") {
+    return [{ seat: null, text: ABORTIVE_REASON[r.reason] || "途中流局" }];
+  }
+  return [];
+}
+
+/** Call it, turn the hands over, then offer the next round -- in that order,
+ *  so the player sees what happened before a dialog covers the table. */
+async function presentResult(frame) {
+  const beat = Math.max(350, S.delay);
+  const r = frame.result;
+  const calls = calloutsFor(r);
+  if (calls.length) {
+    showCallouts(S.current || frame, calls);
+    await wait(beat);
+  }
+  render(frame, { overlay: false });
+  await wait(beat + 400);
+  clearCallouts();
+  renderResult(frame);
+}
+
 async function sendAction(action, node) {
   if (S.busy || !S.gameId) return;
   S.busy = true;
@@ -498,6 +600,7 @@ async function sendAction(action, node) {
   try {
     const data = await api.act(S.gameId, action);
     S.busy = false;
+    if (data.recordId) S.recordId = data.recordId;
     play(data.frames);
   } catch (err) {
     S.busy = false;
@@ -513,6 +616,8 @@ function renderResult(v) {
     el.overlay.hidden = true;
     return;
   }
+  el.resultPanel.hidden = false;
+  el.finalPanel.hidden = true;
   const r = v.result;
   let title = RESULT_TITLE[r.type] || r.type;
   if (r.type === "abortive" && r.reason) title = ABORTIVE_REASON[r.reason] || title;
@@ -532,7 +637,7 @@ function renderResult(v) {
   el.resultBody.textContent = "";
   el.resultBody.append(body);
 
-  el.resultNext.textContent = r.gameOver ? "閉じる" : "次の局へ";
+  el.resultNext.textContent = r.gameOver ? "終局へ" : "次の局へ";
   el.overlay.hidden = false;
 }
 
@@ -571,13 +676,25 @@ function winnerBlock(v, w) {
 
   const tiles = div("tiles");
   for (const tile of w.hand) tiles.append(tileImg(tile));
-  for (const meld of w.melds) {
-    for (const piece of meldTiles(meld, w.seat)) {
-      tiles.append(piece.turned ? sideways(piece.tile) : tileImg(piece.tile));
-    }
-  }
   if (w.winningTile !== null && w.winningTile !== undefined) {
     tiles.append(tileImg(w.winningTile, "winning-tile"));
+  }
+  // Melds are drawn by the same code as on the table, so a concealed kan shows
+  // its two face-down tiles and an added kan its stacked fourth here too.
+  for (const meld of w.melds) tiles.append(meldEl(meld, w.seat));
+  // The indicators ride on the same row: a hand with many yaku is tall enough
+  // already without giving them a line of their own.
+  if (w.dora.length || w.uraDora.length) {
+    const markers = div("markers");
+    if (w.dora.length) {
+      markers.append(div("marker-label", "ドラ"));
+      for (const tile of w.dora) markers.append(tileImg(tile));
+    }
+    if (w.uraDora.length) {
+      markers.append(div("marker-label", "裏"));
+      for (const tile of w.uraDora) markers.append(tileImg(tile));
+    }
+    tiles.append(markers);
   }
   box.append(tiles);
 
@@ -598,14 +715,80 @@ function winnerBlock(v, w) {
     div("total", w.yakuman ? `役満 ${w.yakuman}倍` : `${w.han}翻 ${w.fu}符`)
   );
 
-  const markers = div("tiles");
-  for (const tile of w.dora) markers.append(tileImg(tile));
-  for (const tile of w.uraDora) markers.append(tileImg(tile));
-  if (markers.childElementCount) {
-    box.append(div("meta", "ドラ表示"), markers);
-  }
   return box;
 }
+
+/** The standings, once the last hand has been read. Points and rank bonus are
+ *  shown side by side rather than added: that is how they are read. */
+function showFinal(v) {
+  const r = v.result;
+  const rows = [...(r.final || [])].sort((a, b) => a.rank - b.rank);
+  const hasUma = rows.some((entry) => entry.uma !== 0);
+
+  const table = document.createElement("table");
+  const head = document.createElement("tr");
+  for (const label of hasUma ? ["順位", "", "点数", "順位点"] : ["順位", "", "点数"]) {
+    const th = document.createElement("th");
+    th.textContent = label;
+    head.append(th);
+  }
+  table.append(head);
+  for (const entry of rows) {
+    const row = document.createElement("tr");
+    const cells = [`${entry.rank}位`, v.seats[entry.seat].name, entry.score.toLocaleString()];
+    if (hasUma) cells.push((entry.uma > 0 ? "+" : "") + entry.uma);
+    cells.forEach((text, col) => {
+      const td = document.createElement("td");
+      td.textContent = text;
+      if (hasUma && col === 3) {
+        td.className = entry.uma > 0 ? "plus" : entry.uma < 0 ? "minus" : "";
+      }
+      row.append(td);
+    });
+    table.append(row);
+  }
+
+  el.finalBody.textContent = "";
+  el.finalBody.append(table);
+  const replayBtn = $("finalReplay");
+  replayBtn.disabled = !S.recordId;
+  replayBtn.title = S.recordId ? "" : "この対局は保存されていません";
+  el.resultPanel.hidden = true;
+  el.finalPanel.hidden = false;
+  el.overlay.hidden = false;
+}
+
+$("finalQuit").addEventListener("click", async () => {
+  el.overlay.hidden = true;
+  if (S.gameId) await api.endGame(S.gameId).catch(() => {});
+  S.gameId = null;
+  S.mode = "idle";
+  S.queue.length = 0;
+  remember(null);
+  el.table.hidden = true;
+  el.empty.hidden = false;
+  refreshRecords();
+});
+
+$("finalAgain").addEventListener("click", async () => {
+  const body = { ...(S.lastGameRequest || {}) };
+  delete body.seed; // a rematch should deal a new game, not repeat this one
+  el.overlay.hidden = true;
+  if (S.gameId) await api.endGame(S.gameId).catch(() => {});
+  await startGame(body);
+});
+
+$("finalReplay").addEventListener("click", async () => {
+  if (!S.recordId) {
+    el.status.textContent = "この対局は保存されていません";
+    return;
+  }
+  el.overlay.hidden = true;
+  if (S.gameId) await api.endGame(S.gameId).catch(() => {});
+  S.gameId = null;
+  remember(null);
+  await openReplay({ id: S.recordId });
+});
 
 el.resultNext.addEventListener("click", async () => {
   if (S.mode === "replay") {
@@ -614,12 +797,13 @@ el.resultNext.addEventListener("click", async () => {
     return;
   }
   if (S.current && S.current.gameOver) {
-    el.overlay.hidden = true;
+    showFinal(S.current);
     return;
   }
   el.overlay.hidden = true;
   try {
     const data = await api.nextRound(S.gameId);
+    if (data.recordId) S.recordId = data.recordId;
     play(data.frames);
   } catch (err) {
     el.status.textContent = err.message;
@@ -682,9 +866,59 @@ function tileName(tile) {
   return ["東", "南", "西", "北", "白", "發", "中"][tile - 27];
 }
 
+/** Auto-play walks the record one step at a time at the same pace a live game
+ *  is drawn, and stops on a round result so the overlay can be read. */
+function updateAutoButton() {
+  const button = $("replayAuto");
+  button.textContent = S.autoOn ? "停止" : "再生";
+  button.classList.toggle("playing", S.autoOn);
+}
+
+function stopAuto() {
+  S.autoOn = false;
+  if (S.autoTimer !== null) {
+    window.clearTimeout(S.autoTimer);
+    S.autoTimer = null;
+  }
+  updateAutoButton();
+}
+
+function scheduleAuto() {
+  S.autoTimer = window.setTimeout(autoTick, Math.max(150, S.delay));
+}
+
+async function autoTick() {
+  S.autoTimer = null;
+  if (!S.autoOn || !S.replay) return;
+  if (S.index >= S.replay.total - 1) {
+    stopAuto();
+    return;
+  }
+  await goto(S.index + 1);
+  if (!S.autoOn) return; // stopped while the frame was loading
+  const frame = S.frames[S.index];
+  if (frame && frame.result) {
+    stopAuto();
+    return;
+  }
+  scheduleAuto();
+}
+
+$("replayAuto").addEventListener("click", () => {
+  if (!S.replay) return;
+  if (S.autoOn) {
+    stopAuto();
+    return;
+  }
+  S.autoOn = true;
+  updateAutoButton();
+  scheduleAuto();
+});
+
 el.replayBar.addEventListener("click", async (e) => {
   const button = e.target.closest("[data-jump]");
   if (!button || !S.replay) return;
+  stopAuto(); // a jump means the viewer has taken over
   const span = roundOf(S.index);
   const at = S.replay.rounds.indexOf(span);
   switch (button.dataset.jump) {
@@ -713,6 +947,7 @@ el.replayBar.addEventListener("click", async (e) => {
 
 document.addEventListener("keydown", async (e) => {
   if (S.mode !== "replay") return;
+  if (e.key === "ArrowRight" || e.key === "ArrowLeft") stopAuto();
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
   const span = roundOf(S.index);
   const at = S.replay.rounds.indexOf(span);
@@ -805,7 +1040,7 @@ $("refreshRecords").addEventListener("click", refreshRecords);
 
 // ----------------------------------------------------------------- lifecycle
 
-$("startBtn").addEventListener("click", async () => {
+function collectGameRequest() {
   const seatValue = $("cfgSeat").value;
   const seed = $("cfgSeed").value;
   const body = {
@@ -820,15 +1055,20 @@ $("startBtn").addEventListener("click", async () => {
     save_record: $("cfgSave").checked,
   };
   if (seed !== "") body.seed = Number(seed);
-  openDrawer(false);
+  return body;
+}
+
+async function startGame(body) {
+  stopAuto();
+  S.lastGameRequest = body;
+  S.recordId = null;
+  clearCallouts();
   el.status.textContent = "準備中…";
   try {
     const data = await api.createGame(body);
     if (data.gameId === null) {
       el.status.textContent = "";
-      if (data.recordId) {
-        await openReplay({ id: data.recordId });
-      }
+      if (data.recordId) await openReplay({ id: data.recordId });
       return;
     }
     S.mode = "play";
@@ -844,6 +1084,11 @@ $("startBtn").addEventListener("click", async () => {
   } catch (err) {
     el.status.textContent = err.message;
   }
+}
+
+$("startBtn").addEventListener("click", async () => {
+  openDrawer(false);
+  await startGame(collectGameRequest());
 });
 
 $("endBtn").addEventListener("click", async () => {
@@ -862,6 +1107,7 @@ $("endBtn").addEventListener("click", async () => {
 
 async function openReplay(record) {
   openDrawer(false);
+  stopAuto();
   el.status.textContent = "牌譜を読み込み中…";
   try {
     const replay = await api.openReplay(record.id);
@@ -881,6 +1127,7 @@ async function openReplay(record) {
     });
     el.viewpoint.value = String(S.viewpoint);
     el.showAll.value = "1";
+    updateAutoButton();
     el.replayTools.hidden = false;
     el.replayBar.hidden = false;
     el.status.textContent = "";
@@ -952,15 +1199,20 @@ async function restore() {
   }
   const gameId = params.get("game") || remembered();
   if (!gameId) return;
+  let data;
   try {
-    const data = await api.getGame(gameId);
-    S.mode = "play";
-    S.gameId = gameId;
-    remember(gameId);
-    render(data.frames[0]);
+    data = await api.getGame(gameId);
   } catch (_) {
-    remember(null);
+    remember(null); // the game is gone; fall back to the start screen
+    return;
   }
+  // Deliberately outside the catch: a failure to draw is a bug, not a missing
+  // game, and swallowing it here would look like "nothing was saved".
+  S.mode = "play";
+  S.gameId = gameId;
+  S.recordId = data.recordId || null;
+  remember(gameId);
+  render(data.frames[0]);
 }
 
 refreshAgents();

@@ -333,6 +333,22 @@ def test_yaku_han_reconciles_with_the_env(roll: Rollout) -> None:
             assert win["uraDora"], where
 
 
+def test_ura_dora_is_only_shown_to_a_riichi_winner(roll: Rollout) -> None:
+    """The under-dora is face down unless the winner declared riichi, so a hand
+    that did not must not report a single ura tile or a single ura han."""
+    plain = 0
+    for record in roll.wins:
+        win = record["win"]
+        declared = {"立直", "ダブル立直"} & {y["name"] for y in win["yaku"]}
+        where = f"{roll.rules.env_id} seat {record['seat']} {win['yaku']}"
+        if declared:
+            continue
+        plain += 1
+        assert win["uraDora"] == [], where
+        assert win["uraHan"] == 0, where
+    assert plain > 0, "no win without riichi in this rollout"
+
+
 def test_win_han_and_fu_are_what_the_env_paid(roll: Rollout) -> None:
     for record in roll.wins:
         win = record["win"]
@@ -365,8 +381,8 @@ def test_views_and_results_are_json(roll: Rollout) -> None:
         result = record["result"]
         json.dumps(result, ensure_ascii=False)
         assert set(result) == {
-            "type", "reason", "round", "winners", "tenpai", "nagashiMangan",
-            "deltas", "scores", "gameOver", "final",
+            "type", "reason", "abortSeat", "round", "winners", "tenpai",
+            "nagashiMangan", "deltas", "scores", "gameOver", "final",
         }
         assert [s - d for s, d in zip(result["scores"], result["deltas"])] == record["start"]
 
@@ -454,15 +470,16 @@ def test_initial_and_first_discard_snapshot(roll: Rollout) -> None:
     assert view["round"]["remaining"] == rules.remaining_draws(after)
 
 
-def test_final_standings_add_uma_and_sticks(roll: Rollout) -> None:
+def test_final_standings_keep_points_and_uma_apart(roll: Rollout) -> None:
     rules = roll.rules
     state = jax.device_get(roll.init(jax.random.fold_in(jax.random.PRNGKey(11), 0)))
     standings = final_standings(rules, state)
     assert [s["seat"] for s in standings] == [0, 1, 2, 3]
     assert [s["rank"] for s in standings] == [1, 2, 3, 4]
-    # Everyone starts level, so seat order breaks the tie and uma is all there is.
-    assert [s["score"] for s in standings] == [25000 + p * 100 for p in
-                                               np.asarray(state.round_state.order_points).tolist()]
+    # Everyone starts level, so seat order breaks the tie and nothing moves the
+    # points; the rank bonus is reported on its own, in the env's own units.
+    assert [s["score"] for s in standings] == [25000] * 4
+    assert [s["uma"] for s in standings] == np.asarray(state.round_state.order_points).tolist()
 
     end = roll.uneven
     assert end is not None
@@ -472,9 +489,11 @@ def test_final_standings_add_uma_and_sticks(roll: Rollout) -> None:
     by_rank = sorted(standings, key=lambda s: s["rank"])
     assert [s["rank"] for s in by_rank] == [1, 2, 3, 4]
     assert [scores[s["seat"]] for s in by_rank] == sorted(scores, reverse=True)
-    uma = int(np.asarray(end.round_state.order_points).sum()) * 100
+    # Only the riichi sticks move the points; uma is never added into them.
     sticks = 1000 * int(end.round_state.kyotaku)
-    assert sum(s["score"] for s in standings) == sum(scores) + uma + sticks
+    assert sum(s["score"] for s in standings) == sum(scores) + sticks
+    assert sum(s["uma"] for s in standings) == 0
+    assert by_rank[0]["uma"] == max(s["uma"] for s in standings)
 
 
 def test_describe_action_names_the_tiles(roll: Rollout) -> None:
