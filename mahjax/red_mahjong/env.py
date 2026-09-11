@@ -2108,7 +2108,7 @@ def _is_game_end(round_state, will_dealer_continue: Array) -> Array:
     ``round`` is 0-based and ``round_limit`` is the index of the last regular
     kyoku, so a half game ends after South-4 (``round_limit == 7``). If nobody
     has reached ``TARGET_SCORE`` there, the deal runs on into the extra rounds
-    (西入り) and ends as soon as someone does, or unconditionally once the last
+    (西入) and ends as soon as someone does, or unconditionally once the last
     extra round has been played.
     """
     score = round_state.score
