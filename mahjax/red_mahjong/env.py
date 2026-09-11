@@ -960,7 +960,7 @@ def _make_legal_action_mask_after_draw(
     can_kyuushu = (
         config.enable_special_abortive_draw
         & Hand.can_kyuushu(hand[c_p])
-        & _is_first_turn(state.round_state.next_deck_ix)
+        & _is_first_turn(state.round_state.next_deck_ix - 1)
         & (state.players.meld_counts.sum() == 0)
     )
     mask = mask.at[Action.KYUUSHU].set(can_kyuushu)
@@ -977,14 +977,11 @@ def _make_legal_action_mask_after_draw_w_riichi(
     """
     new_tile_type = Tile.to_tile_type(new_tile)
     mask = ZERO_MASK_1D.at[Action.TSUMOGIRI].set(TRUE)
-    tile_types = jnp.arange(Tile.NUM_TILE_TYPE, dtype=jnp.int32)
-    can_closed_kan = jax.vmap(
-        lambda tile_type: (
-            Hand.can_closed_kan_after_riichi(hand[c_p], tile_type, state.players.can_win[c_p])
-            & ~state.round_state.is_haitei
-        )
-    )(tile_types)
-    mask = mask.at[Tile.NUM_TILE_TYPE_WITH_RED : Action.TSUMOGIRI].set(can_closed_kan)
+    can_closed_kan = (
+        Hand.can_closed_kan_after_riichi(hand[c_p], new_tile_type, state.players.can_win[c_p])
+        & ~state.round_state.is_haitei
+    )
+    mask = mask.at[Tile.NUM_TILE_TYPE_WITH_RED + new_tile_type].set(can_closed_kan)
     mask = mask.at[Action.TSUMO].set(state.players.can_win[c_p, new_tile_type])
     return mask
 
@@ -1717,6 +1714,8 @@ def _pass(state: State, game_config: Optional[GameConfig] = None):
             furiten_by_pass=state.players.furiten_by_pass.at[c_p].set(
                 is_ron_player & ~can_robbing_kan
             ),
+            score=jnp.int32(state.round_state.score + state.rewards),
+            kyotaku=jnp.int8(0),
             legal_action_mask=ZERO_MASK_2D.at[:, Action.DUMMY].set(TRUE),
             terminated_round=TRUE,
             kan_declared=FALSE,
@@ -1811,8 +1810,9 @@ def _ron(state: State, game_config: Optional[GameConfig] = None) -> State:
     score = jnp.where(state.round_state.dealer == c_p, basic_score * 6, basic_score * 4)
     # Round up the score to the nearest multiple of 100
     score = jnp.ceil(score / 100)
-    # In double-ron, honba is paid only once on the first ron.
-    honba = jnp.where(state.players.has_won.any(), 0, state.round_state.honba * 3)
+    # In double-ron, honba and kyotaku are paid only once on the first ron.
+    is_first_ron = ~state.players.has_won.any()
+    honba = jnp.where(is_first_ron, state.round_state.honba * 3, 0)
     # Build reward array more efficiently
     normal_reward = jnp.zeros(4, dtype=jnp.float32)
     normal_reward = normal_reward.at[c_p].set(score + honba)
@@ -1824,9 +1824,10 @@ def _ron(state: State, game_config: Optional[GameConfig] = None) -> State:
     pao_reward = pao_reward.at[state.round_state.last_player].add(-score / 2 - honba)
     reward = jnp.where(config.enable_pao & is_pao, pao_reward, normal_reward)
     # The Kyotaku is already paid when the RIICHI is declared, so we only need to add the Kyotaku to the winner
-    kyotaku_bonus = 10 * (state.round_state.kyotaku)
+    kyotaku_bonus = 10 * state.round_state.kyotaku * is_first_ron
     reward = reward.at[c_p].add(kyotaku_bonus)
-    score = state.round_state.score + jnp.float32(reward)
+    pending = jnp.where(is_first_ron, jnp.zeros_like(state.rewards), state.rewards) + reward
+    score = state.round_state.score + pending
     remaining_ron_mask = ZERO_MASK_2D.at[:, Action.RON].set(
         state.players.legal_action_mask[:, Action.RON]
     )
@@ -1834,17 +1835,19 @@ def _ron(state: State, game_config: Optional[GameConfig] = None) -> State:
     next_ron_player, can_any_ron = _next_ron_player(
         remaining_ron_mask, state.round_state.last_player
     )
-    # 三家和: this is the 3rd RON declared on the same discard. Trigger
-    # ``_trigger_special_abortive_draw`` instead of applying this RON's
-    # score / has_won — abortive draw means no one wins.
-    # (The prior two RONs' scores and has_won bits have already been written
-    # to ``state`` by previous ``_ron`` calls; we leave those as-is, a known
-    # small inaccuracy vs tenhou's "no payment, no winners" rule.)
+    # 三家和: this is the 3rd RON declared on the same discard. Nobody wins, so
+    # the pending payments and has_won bits of the prior two RONs are dropped.
     is_triple_ron = (
         config.enable_special_abortive_draw
         & ((state.players.has_won.sum() + 1) >= 3)
     )
-    triple_ron_state = _trigger_special_abortive_draw(state)
+    triple_ron_state = _trigger_special_abortive_draw(
+        _replace_state(
+            state,
+            rewards=jnp.zeros_like(state.rewards),
+            has_won=jnp.zeros_like(state.players.has_won),
+        )
+    )
     # ``continue_ron`` covers both 2nd-RON (double) and 3rd-RON (triple) cases:
     # we hand the turn to the next eligible RON candidate so they can choose
     # RON / PASS. ``allow_double_ron`` config flag gates the whole multi-RON
@@ -1853,9 +1856,7 @@ def _ron(state: State, game_config: Optional[GameConfig] = None) -> State:
     continue_state = _replace_state(
         state,
         current_player=jnp.int8(next_ron_player),
-        score=jnp.int32(score),
-        rewards=jnp.float32(reward),
-        kyotaku=jnp.int8(0),
+        rewards=jnp.float32(pending),
         has_won=state.players.has_won.at[c_p].set(TRUE),
         legal_action_mask=remaining_ron_mask.at[next_ron_player, Action.PASS].set(TRUE),
         draw_next=FALSE,

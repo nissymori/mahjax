@@ -9,6 +9,7 @@ from mahjax.red_mahjong.env import (
     _abortive_draw_normal,
     _draw,
     _make_legal_action_mask_after_draw,
+    _make_legal_action_mask_after_draw_w_riichi,
     _mangan_tsumo,
     _pao,
     _pass,
@@ -206,6 +207,23 @@ def test_kyuushu_action_is_enabled_on_first_turn() -> None:
     assert bool(mask[Action.KYUUSHU])
 
 
+def test_kyuushu_action_is_disabled_after_the_first_turn() -> None:
+    state = default_state()
+    hand_with_red = state.players.hand_with_red.at[0].set(
+        jnp.zeros((37,), dtype=jnp.int8)
+        .at[jnp.array([0, 8, 9, 17, 18, 26, 27, 28, 29, 30, 31, 32, 33, 0])]
+        .add(1)
+    )
+    state = state.replace(
+        players=state.players.replace(hand_with_red=hand_with_red),
+        round_state=state.round_state.replace(next_deck_ix=jnp.int32(FIRST_DRAW_IDX - 4)),
+    )
+
+    mask = _make_legal_action_mask_after_draw(state, hand_with_red, jnp.int8(0), jnp.int8(0))
+
+    assert not bool(mask[Action.KYUUSHU])
+
+
 def test_kyuushu_action_is_disabled_by_game_config() -> None:
     state = default_state()
     hand_with_red = state.players.hand_with_red.at[0].set(
@@ -225,6 +243,48 @@ def test_kyuushu_action_is_disabled_by_game_config() -> None:
     )
 
     assert not bool(mask[Action.KYUUSHU])
+
+
+def _riichi_draw_state(concealed: list[int], drawn: int):
+    hand_with_red = jnp.zeros((37,), dtype=jnp.int8)
+    for tile in concealed:
+        hand_with_red = hand_with_red.at[tile].add(1)
+    can_win = jax.vmap(Hand.can_ron, in_axes=(None, 0))(
+        Hand.to_34(hand_with_red), jnp.arange(34)
+    )
+    hand_with_red = hand_with_red.at[drawn].add(1)
+    state = default_state()
+    state = state.replace(
+        current_player=jnp.int8(0),
+        players=state.players.replace(
+            hand_with_red=state.players.hand_with_red.at[0].set(hand_with_red),
+            hand=state.players.hand.at[0].set(Hand.to_34(hand_with_red)),
+            riichi=state.players.riichi.at[0].set(True),
+            can_win=state.players.can_win.at[0].set(can_win),
+        ),
+    )
+    return state, state.players.hand_with_red
+
+
+def test_riichi_closed_kan_is_offered_only_for_the_drawn_tile() -> None:
+    # 1111m 23m 456p 789p 9s waiting on 9s, then draws 4m: the 1m quad was
+    # already complete at the riichi declaration, so it cannot be kanned.
+    state, hand = _riichi_draw_state([0, 0, 0, 0, 1, 2, 12, 13, 14, 15, 16, 17, 26], 3)
+
+    mask = _make_legal_action_mask_after_draw_w_riichi(state, hand, jnp.int8(0), jnp.int8(3))
+
+    assert not bool(mask[Tile.NUM_TILE_TYPE_WITH_RED : Action.TSUMOGIRI].any())
+
+
+def test_riichi_closed_kan_is_offered_for_the_drawn_tile() -> None:
+    # 111m 234m 456p 789p 9s waiting on 9s, then draws the 4th 1m.
+    state, hand = _riichi_draw_state([0, 0, 0, 1, 2, 3, 12, 13, 14, 15, 16, 17, 26], 0)
+
+    mask = _make_legal_action_mask_after_draw_w_riichi(state, hand, jnp.int8(0), jnp.int8(0))
+
+    kan_mask = mask[Tile.NUM_TILE_TYPE_WITH_RED : Action.TSUMOGIRI]
+    assert bool(kan_mask[0])
+    assert int(kan_mask.sum()) == 1
 
 
 def test_four_winds_abortive_draw_sets_kyuushu_mask() -> None:
@@ -347,12 +407,53 @@ def test_double_ron_config_chains_ron_and_pass_resolution() -> None:
     assert int(after_first_ron.current_player) == 1
     assert bool(after_first_ron.players.legal_action_mask[1, Action.RON])
     assert bool(after_first_ron.players.legal_action_mask[1, Action.PASS])
-    assert int(after_first_ron.round_state.kyotaku) == 0
+    assert int(after_first_ron.round_state.kyotaku) == 2
 
     after_pass = _pass(after_first_ron, config)
 
     assert bool(after_pass.round_state.terminated_round)
     assert bool(after_pass.players.legal_action_mask[:, Action.DUMMY].all())
+    assert int(after_pass.round_state.kyotaku) == 0
+    assert jnp.array_equal(
+        after_pass.round_state.score,
+        jnp.int32(ron_state.round_state.score + after_first_ron.rewards),
+    )
+
+
+def test_triple_ron_drops_the_pending_payments_of_the_first_two_rons() -> None:
+    base = default_state()
+    legal_action_mask = base.players.legal_action_mask
+    for player in range(3):
+        legal_action_mask = legal_action_mask.at[player, Action.RON].set(True)
+    ron_state = base.replace(
+        current_player=jnp.int8(0),
+        legal_action_mask=legal_action_mask[0],
+        players=base.players.replace(
+            legal_action_mask=legal_action_mask,
+            fan=base.players.fan.at[:, 0].set(jnp.int32(5)),
+            fu=base.players.fu.at[:, 0].set(jnp.int32(30)),
+        ),
+        round_state=base.round_state.replace(
+            dealer=jnp.int8(3),
+            last_player=jnp.int8(3),
+            honba=jnp.int8(1),
+            kyotaku=jnp.int8(2),
+            score=jnp.array([250, 250, 250, 250], dtype=jnp.int32),
+        ),
+    )
+    config = GameConfig(allow_double_ron=jnp.bool_(True))
+
+    after_first_ron = _ron(ron_state, config)
+    after_second_ron = _ron(after_first_ron.replace(current_player=jnp.int8(1)), config)
+    after_third_ron = _ron(after_second_ron.replace(current_player=jnp.int8(2)), config)
+
+    assert jnp.array_equal(after_first_ron.round_state.score, ron_state.round_state.score)
+    assert jnp.array_equal(after_second_ron.round_state.score, ron_state.round_state.score)
+    assert jnp.array_equal(after_third_ron.round_state.score, ron_state.round_state.score)
+    assert int(after_third_ron.round_state.kyotaku) == 2
+    assert not bool(after_third_ron.players.has_won.any())
+    assert not bool(after_third_ron.rewards.any())
+    assert bool(after_third_ron.players.legal_action_mask[:, Action.KYUUSHU].all())
 
 
 def test_single_ron_when_double_ron_is_disabled() -> None:
