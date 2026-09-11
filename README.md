@@ -155,7 +155,7 @@ You can configure the environment with:
 - `id`: the rule set, such as `red_mahjong` or `no_red_mahjong`
 - `round_mode`: `single` for a single round, `east` for tonpuusen (East-only), or `half` for hanchan (East-South)
 - `observe_type`: `dict` for transformer-style inputs or `2D` for CNN-style inputs
-- `order_points`: final placement bonuses (uma), for example `[30, 10, -10, -30]`
+- `order_points`: final placement bonuses (uma) in units of 1000 points, for example `[30, 10, -10, -30]`
 
 ```python
 env = mahjax.make(

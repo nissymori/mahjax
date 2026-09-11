@@ -13,6 +13,7 @@ from mahjax.red_mahjong.env import (
     _mask_for_chi,
     _next_meld_player,
     _next_ron_player,
+    _advance_to_next_round_auto,
     _replace_state,
     _step,
 )
@@ -378,7 +379,7 @@ def test_red_auto_game_end_sets_terminated_with_final_score() -> None:
     )
     next_state = env_auto.step(state, jnp.int32(Action.RON), STEP_KEY)
     assert bool(next_state.terminated)
-    expected = jnp.array([370, 320, 180, 160], dtype=jnp.int32)
+    expected = jnp.array([640, 410, 90, -110], dtype=jnp.int32)
     assert bool(jnp.all(next_state.round_state.score == expected)), (
         f"got {next_state.round_state.score}, expected {expected}"
     )
@@ -499,3 +500,111 @@ def test_calc_wind_assigns_east_to_dealer() -> None:
     # The invariant the four literals encode.
     for dealer in range(4):
         assert int(_calc_wind(jnp.int32(dealer))[dealer]) == 0
+
+
+def _end_of_round_state(env, **overrides):
+    state = env.init(jax.random.PRNGKey(7))
+    mask = jnp.zeros_like(state.players.legal_action_mask).at[:, Action.DUMMY].set(True)
+    fields = dict(
+        dealer=jnp.int8(0),
+        current_player=jnp.int8(0),
+        round=jnp.int8(7),
+        round_limit=jnp.int8(7),
+        honba=jnp.int8(0),
+        kyotaku=jnp.int8(0),
+        dummy_count=jnp.int8(0),
+        has_won=jnp.zeros(4, dtype=jnp.bool_),
+        can_win=jnp.zeros_like(state.players.can_win),
+        terminated_round=True,
+        draw_next=False,
+        legal_action_mask=mask,
+    )
+    fields.update(overrides)
+    return _replace_state(state, **fields)
+
+
+def test_red_half_game_is_eight_kyoku_long() -> None:
+    assert int(RedMahjong(round_mode="half").round_limit) == 7
+    assert int(RedMahjong(round_mode="east").round_limit) == 3
+
+
+def test_red_final_round_ends_the_game_once_someone_has_30000() -> None:
+    env = RedMahjong(round_mode="half", next_round_style="auto")
+    state = _end_of_round_state(env, score=jnp.array([300, 250, 240, 210], dtype=jnp.int32))
+
+    out = _advance_to_next_round_auto(state, jax.random.PRNGKey(0))
+
+    assert bool(out.terminated)
+
+
+def test_red_final_round_runs_on_when_nobody_has_30000() -> None:
+    env = RedMahjong(round_mode="half", next_round_style="auto")
+    state = _end_of_round_state(env, score=jnp.array([280, 250, 240, 230], dtype=jnp.int32))
+
+    out = _advance_to_next_round_auto(state, jax.random.PRNGKey(0))
+
+    assert not bool(out.terminated)
+    assert int(out.round_state.round) == 8
+
+
+def test_red_sudden_death_ends_at_the_last_extra_round() -> None:
+    env = RedMahjong(round_mode="half", next_round_style="auto")
+    state = _end_of_round_state(
+        env, round=jnp.int8(11), score=jnp.array([280, 250, 240, 230], dtype=jnp.int32)
+    )
+
+    out = _advance_to_next_round_auto(state, jax.random.PRNGKey(0))
+
+    assert bool(out.terminated)
+
+
+def test_red_sudden_death_runs_for_exactly_four_extra_rounds() -> None:
+    env = RedMahjong(round_mode="half", next_round_style="auto")
+    below = jnp.array([280, 250, 240, 230], dtype=jnp.int32)
+    terminated = [
+        bool(
+            _advance_to_next_round_auto(
+                _end_of_round_state(env, round=jnp.int8(r), score=below), jax.random.PRNGKey(0)
+            ).terminated
+        )
+        for r in range(7, 12)
+    ]
+
+    assert terminated == [False, False, False, False, True]
+
+
+def test_red_uma_is_applied_in_units_of_1000_points() -> None:
+    env = RedMahjong(round_mode="half", next_round_style="auto")
+    before = jnp.array([310, 300, 200, 190], dtype=jnp.int32)
+    state = _end_of_round_state(env, score=before)
+
+    out = _advance_to_next_round_auto(state, jax.random.PRNGKey(0))
+
+    assert bool(out.terminated)
+    assert jnp.array_equal(out.round_state.score - before, jnp.array([300, 100, -100, -300]))
+
+
+def test_red_dummy_share_applies_uma_when_a_non_dealer_won_the_final_round() -> None:
+    env = RedMahjong(round_mode="half", next_round_style="dummy_share")
+    state = _end_of_round_state(
+        env,
+        score=jnp.array([200, 300, 260, 240], dtype=jnp.int32),
+        kyotaku=jnp.int8(2),
+        has_won=jnp.zeros(4, dtype=jnp.bool_).at[1].set(True),
+        can_win=jnp.zeros_like(env.init(jax.random.PRNGKey(7)).players.can_win).at[0, 0].set(True),
+    )
+
+    out = env.step(state, jnp.int8(Action.DUMMY), jax.random.PRNGKey(0))
+
+    assert bool(out.terminated)
+    assert jnp.array_equal(out.round_state.score, jnp.array([-100, 620, 360, 140]))
+
+
+def test_red_uma_scales_a_custom_order_points() -> None:
+    env = RedMahjong(round_mode="half", next_round_style="auto", order_points=[20, 5, -5, -20])
+    before = jnp.array([310, 300, 200, 190], dtype=jnp.int32)
+    state = _end_of_round_state(env, score=before)
+
+    out = _advance_to_next_round_auto(state, jax.random.PRNGKey(0))
+
+    assert jnp.array_equal(out.round_state.score - before, jnp.array([200, 50, -50, -200]))

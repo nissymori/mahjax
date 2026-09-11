@@ -36,6 +36,11 @@ from mahjax.no_red_mahjong.observation import (
 FALSE = jnp.bool_(False)
 TRUE = jnp.bool_(True)
 
+# Score is in units of 100 points: the game only ends at the last kyoku once
+# someone has reached 30000, otherwise it runs on into the extra rounds.
+TARGET_SCORE = 300
+SUDDEN_DEATH_ROUNDS = 4
+
 TILE_RANGE = jnp.arange(Tile.NUM_TILE_TYPE)
 ZERO_MASK_1D = jnp.zeros(Action.NUM_ACTION, dtype=jnp.bool_)
 ZERO_MASK_2D = jnp.zeros((4, Action.NUM_ACTION), dtype=jnp.bool_)
@@ -226,7 +231,7 @@ class NoRedMahjong(Env):
             )
         self.round_mode = round_mode
         self.one_round = round_mode == "single"
-        self.round_limit = jnp.int8(4 if round_mode == "east" else 8)
+        self.round_limit = jnp.int8(3 if round_mode == "east" else 7)
         self.observe_func = _observe_dict if observe_type == "dict" else _observe_2D
         self.observe_privileged_func = _observe_privileged_dict if observe_type == "dict" else _observe_privileged_2D
         self.order_points = order_points
@@ -1742,6 +1747,39 @@ def _abortive_draw_normal(state: State) -> State:
     )
 
 
+def _final_score(round_state) -> Array:
+    """Score at game end: raw score plus uma, with the riichi sticks to the top.
+
+    ``order_points`` is expressed in units of 1000 points and ``score`` in units
+    of 100, hence the factor of 10.
+    """
+    order = jnp.argsort(-round_state.score)
+    rank_points = jnp.zeros_like(round_state.score).at[order].set(round_state.order_points * 10)
+    score = round_state.score + rank_points
+    return score.at[jnp.argmax(score)].add(10 * round_state.kyotaku)
+
+
+def _is_game_end(round_state, will_dealer_continue: Array) -> Array:
+    """Whether the hanchan/tonpuusen is over now that a kyoku has ended.
+
+    ``round`` is 0-based and ``round_limit`` is the index of the last regular
+    kyoku, so a half game ends after South-4 (``round_limit == 7``). If nobody
+    has reached ``TARGET_SCORE`` there, the deal runs on into the extra rounds
+    (西入り) and ends as soon as someone does, or unconditionally once the last
+    extra round has been played.
+    """
+    score = round_state.score
+    is_final_round = round_state.round >= round_state.round_limit
+    is_last_extra_round = round_state.round >= round_state.round_limit + SUDDEN_DEATH_ROUNDS
+    # The deal leaves the current dealer, or it stays but they are top and stop.
+    deal_passes = ~will_dealer_continue | (jnp.argmax(score) == round_state.dealer)
+    return (
+        (score < 0).any()
+        | is_last_extra_round
+        | (is_final_round & deal_passes & (score.max() >= TARGET_SCORE))
+    )
+
+
 def _next_round(state: State, key: PRNGKey) -> State:
     """
     Move to the next round (``key`` deals the new wall)
@@ -1758,39 +1796,21 @@ def _next_round(state: State, key: PRNGKey) -> State:
         is_tempai = s.players.can_win.any(axis=-1)  # (4,)
         dealer = s.round_state.dealer
         hora = s.players.has_won  # (4,)
+        has_other_than_dealer_won = hora.any() & ~hora[dealer]
         will_dealer_continue = jnp.logical_or(
-            is_tempai[dealer], hora[dealer]
-        )  # Check if the dealer continues (win or temporary win)
-        order = jnp.argsort(
-            -s.round_state.score
-        )  # Example: score=[10,20,30,40] -> order=[3,2,1,0]
-        rank_points = (
-            jnp.zeros_like(s.round_state.score).at[order].set(s.round_state.order_points)
-        )  # Assign the rank points
-        score = s.round_state.score + rank_points  # Add the rank points
-        top = jnp.argmax(score)
-        final_score = score.at[top].add(
-            10 * s.round_state.kyotaku
-        )  # Add the Kyotaku (10 points per Riichi stick × number of Honba) to the top
+            is_tempai[dealer] & ~has_other_than_dealer_won, hora[dealer]
+        ) & ~(s.round_state.honba >= 8)
+        final_score = _final_score(s.round_state)
 
-        # Check if the round is ended
-        is_final_round = s.round_state.round == s.round_state.round_limit
-        has_dealer_end = jnp.logical_not(will_dealer_continue)
-        is_dealer_top = jnp.arange(4)[top] == s.round_state.dealer
-        has_minus_score = (s.round_state.score < 0).any()
-        _is_game_end = (
-            (is_final_round & has_dealer_end)
-            | (has_minus_score)
-            | (is_final_round & is_dealer_top)
-        )
+        game_end = _is_game_end(s.round_state, will_dealer_continue)
         return _replace_state(s, 
             current_player=jnp.int8((s.current_player + 1) % 4),
-            terminated=(s.round_state.dummy_count == 0) & _is_game_end,
+            terminated=(s.round_state.dummy_count == 0) & game_end,
             dummy_count=jnp.int8(
                 s.round_state.dummy_count + jnp.int8(1)
             ),  # Strictly set the dtype
             score=jnp.where(
-                (s.round_state.dummy_count == 0) & _is_game_end, final_score, s.round_state.score
+                (s.round_state.dummy_count == 0) & game_end, final_score, s.round_state.score
             ),  # Reflect the final score in the first DUMMY sharing phase
         )
 
@@ -1843,26 +1863,10 @@ def _next_round(state: State, key: PRNGKey) -> State:
             terminated=TRUE,
         )
 
-        # Check if the round is ended
-        top = jnp.argmax(s.round_state.score)
-        is_final_round = s.round_state.round == s.round_state.round_limit
-        has_dealer_end = jnp.logical_not(
-            will_dealer_continue
-        )  # Check if the dealer continues (win or temporary win)
-        is_dealer_top = (
-            jnp.arange(4)[top] == s.round_state.dealer
-        )  # Check if the dealer is the top
-        has_minus_score = (
-            s.round_state.score < 0
-        ).any()  # Check if there is a player with negative score
-        _is_game_end = (
-            (is_final_round & has_dealer_end)
-            | (has_minus_score)
-            | (is_final_round & is_dealer_top)
-        )
+        game_end = _is_game_end(s.round_state, will_dealer_continue)
         # Determine the next round or end the game
         return jax.lax.cond(
-            _is_game_end,
+            game_end,
             lambda: _replace_state(terminated_state, 
                 current_player=jnp.int8(terminated_state.round_state.dealer),
                 dummy_count=jnp.int8(0),
@@ -1897,14 +1901,7 @@ def _advance_to_next_round_auto(state: State, key: PRNGKey) -> State:
     is_tempai = state.players.can_win.any(axis=-1)  # (4,)
     dealer = state.round_state.dealer
 
-    # Final score = score + rank_points + kyotaku bonus on top
-    order = jnp.argsort(-state.round_state.score)
-    rank_points = (
-        jnp.zeros_like(state.round_state.score).at[order].set(state.round_state.order_points)
-    )
-    score_with_rank = state.round_state.score + rank_points
-    top_after_rank = jnp.argmax(score_with_rank)
-    final_score = score_with_rank.at[top_after_rank].add(10 * state.round_state.kyotaku)
+    final_score = _final_score(state.round_state)
 
     # Round-end / game-end conditions (matches _rotate_once + _finalize_and_start_next)
     is_eight_consecutive_deals = state.round_state.honba >= 8
@@ -1913,16 +1910,7 @@ def _advance_to_next_round_auto(state: State, key: PRNGKey) -> State:
         is_tempai[dealer] & ~has_other_than_dealer_won, hora[dealer]
     ) & ~is_eight_consecutive_deals
 
-    top_pre_rank = jnp.argmax(state.round_state.score)
-    is_final_round = state.round_state.round == state.round_state.round_limit
-    has_dealer_end = jnp.logical_not(will_dealer_continue)
-    is_dealer_top = jnp.arange(4)[top_pre_rank] == state.round_state.dealer
-    has_minus_score = (state.round_state.score < 0).any()
-    _is_game_end = (
-        (is_final_round & has_dealer_end)
-        | has_minus_score
-        | (is_final_round & is_dealer_top)
-    )
+    game_end = _is_game_end(state.round_state, will_dealer_continue)
 
     # Next round details
     next_round = jnp.where(will_dealer_continue, state.round_state.round, state.round_state.round + 1)
@@ -1956,7 +1944,7 @@ def _advance_to_next_round_auto(state: State, key: PRNGKey) -> State:
     )
 
     return jax.lax.cond(
-        _is_game_end,
+        game_end,
         lambda: terminated_state,
         lambda: next_round_state,
     )

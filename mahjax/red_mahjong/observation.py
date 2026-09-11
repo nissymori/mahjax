@@ -126,16 +126,17 @@ def _observe_dict(state: State) -> Dict:
     GLOBAL -- table context that is not about any one tile or event.
     - scores: (4,) int32, scores ordered from the current player's seat
       (me, right, across, left)
-    - round: () int8, the kyoku counter in [0, round_limit]. ``RedMahjong`` sets
-      round_limit to 4 for 'east' and 8 for 'single'/'half', so the widest range is
-      [0, 8] -- not the [0, 12] an older docstring claimed.
-    - round_limit: () int8, last kyoku index of the game: 4 for 'east', 8 for
-      'single'/'half'. With ``round`` it gives how much game is left.
+    - round: () int8, the kyoku counter. ``RedMahjong`` sets round_limit to 3 for
+      'east' and 7 for 'single'/'half', and sudden death lets ``round`` run up to
+      ``round_limit + SUDDEN_DEATH_ROUNDS``, so the widest range is [0, 11].
+    - round_limit: () int8, last REGULAR kyoku index of the game: 3 for 'east', 7
+      for 'single'/'half'. With ``round`` it gives how much game is left, and
+      ``round > round_limit`` means the game is in sudden death.
     - honba: () int8
     - kyotaku: () int8
     - prevalent_wind: () int8, the round wind, round // 4. Reaches 2 (West), not
-      just {0 East, 1 South}: ``round`` runs to ``round_limit`` == 8 for
-      'single'/'half', and 8 // 4 == 2 on that last kyoku.
+      just {0 East, 1 South}: sudden death runs ``round`` past ``round_limit``,
+      and 8 // 4 == 2 on the first of those kyoku.
     - seat_wind: () int8, the current player's seat wind [0-3]; 0 is the dealer
     - dora_indicators: (MAX_DORA_INDICATORS,) int8, indicators [0-36] (red-aware),
       -1 for slots not yet revealed

@@ -53,8 +53,8 @@ The rule behavior is controlled through `GameConfig`. Advanced users can change 
 | `allow_open_tanyao` | `True` | Allow tanyao with open melds (`喰いタン`). |
 | `allow_kuikae` | `False` | Allow swap-calling (`喰い替え`). |
 | `seed_wall_from_key` | `True` | Use the env's PRNG key to shuffle the wall. |
-| `starting_points` | `250` | Starting score (hundreds of points). |
-| `target_points` | `300` | Target score for ending sudden death overtime. |
+| `starting_points` | `25000` | Starting score, in points. |
+| `target_points` | `30000` | Target score for ending sudden death overtime, in points. |
 | `honba_bonus` | `300` | Honba bonus payment. |
 | `riichi_bet` | `1000` | Riichi stick value. |
 
@@ -171,8 +171,10 @@ For how to consume these rewards in turn-based MARL training (per-player reward 
 ## Termination
 
 - `round_mode="single"` terminates after the first round ends.
-- `round_mode="east"` runs East-only progression with `round_limit=4`.
-- `round_mode="half"` runs East-South progression with `round_limit=8`.
+- `round_mode="east"` runs East-only progression with `round_limit=3` (East-1 to East-4).
+- `round_mode="half"` runs East-South progression with `round_limit=7` (East-1 to South-4).
+- If nobody holds 30000 points or more when the last kyoku ends, the deal runs on into the
+  extra rounds (西入り) and stops as soon as somebody does, or after four extra kyoku.
 
 In multi-round modes, the next-round transition behavior is controlled by `next_round_style` (see [API](api.md#round-transition-style-next_round_style)).
 
