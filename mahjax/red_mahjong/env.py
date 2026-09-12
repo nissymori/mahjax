@@ -117,6 +117,7 @@ _ROUND_FIELDS = {
     "kan_declared",
     "can_after_kan",
     "can_robbing_kan",
+    "use_red_fives",
 }
 
 
@@ -454,6 +455,7 @@ def _init(rng: PRNGKey, game_config: Optional[GameConfig] = None) -> State:
         ura_dora_indicators=ura_dora_indicators,
         hand=init_hand,
         hand_with_red=init_hand_with_red,
+        use_red_fives=_resolve_game_config(game_config).use_red_fives,
     )
     can_ron = v_can_win(state.players.hand, TILE_RANGE)
     c_p = state.current_player
@@ -531,6 +533,7 @@ def _init_for_next_round_from_prepared(
         ura_dora_indicators=ura_dora_indicators,
         hand=init_hand,
         hand_with_red=init_hand_with_red,
+        use_red_fives=_resolve_game_config(game_config).use_red_fives,
     )
     c_p = state.current_player
     new_tile = state.round_state.deck[state.round_state.next_deck_ix]
@@ -1417,10 +1420,19 @@ def _kan(state: State, action, game_config: Optional[GameConfig] = None):
     """
     c_p = state.current_player
     config = _resolve_game_config(game_config)
+    self_kan_tile_type = action - Tile.NUM_TILE_TYPE_WITH_RED
+    # An added kan of a five puts the red copy in the meld once the black ones are
+    # gone, and a chankan must score and report that red identity.
+    self_kan_tile = jnp.where(
+        Hand.has_red_of(state.players.hand_with_red[c_p], self_kan_tile_type)
+        & (state.players.hand_with_red[c_p, self_kan_tile_type] == 0),
+        Tile.to_red(self_kan_tile_type),
+        self_kan_tile_type,
+    )
     tile = jnp.where(
         action == Action.OPEN_KAN,
         state.round_state.target,
-        action - Tile.NUM_TILE_TYPE_WITH_RED,
+        self_kan_tile,
     )
     rinshan_tile = state.round_state.deck[
         jnp.int32(10 + state.players.n_kan.sum())

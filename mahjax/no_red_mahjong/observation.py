@@ -104,11 +104,6 @@ def _observe_dict(state: State) -> Dict:
       kyoku of a 'half' game, not just {0 East, 1 South}.
     - seat_wind: () int8, the current player's seat wind [0-3]; 0 is the dealer.
     - dora_indicators: (5,) int8, [0-33], -1 for unrevealed slots
-    - target: () int8, the tile the pending call/ron decision is about, -1 when
-      there is none. Without this a PON/CHI/RON/PASS choice is blind. Caveat: for a
-      call on a discard this is the red-aware id [0-36], but for a chankan (robbing
-      an added kan) the env stores the bare tile type [0-33] (``_selfkan`` derives it
-      as ``action - 37``), so redness is not reported in that one case.
     - target: () int8, the tile a pending call/ron decision is about, -1 if none
     - last_player: () int8, relative seat of whoever acted last, -1 if none
     """

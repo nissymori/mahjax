@@ -376,11 +376,17 @@ class Yaku:
         prevalent_wind: Array,
         seat_wind: Array,
         dora: Array,
+        use_red_fives: Array = jnp.bool_(True),
     ) -> Tuple[Array, Array, Array]:
         hand = Hand.add(hand, last_tile)
         red_fan = jnp.int32(0)
         if hand.shape[0] == Tile.NUM_TILE_TYPE_WITH_RED:
-            red_fan = jnp.sum(hand[Tile.NUM_TILE_TYPE:]).astype(jnp.int32) + jnp.sum(Meld.contains_red(melds)).astype(jnp.int32)
+            red_fan = jnp.where(
+                use_red_fives,
+                jnp.sum(hand[Tile.NUM_TILE_TYPE:]).astype(jnp.int32)
+                + jnp.sum(Meld.contains_red(melds)).astype(jnp.int32),
+                jnp.int32(0),
+            )
             hand = Hand.to_34(hand)
             last_tile_type = Tile.to_tile_type(last_tile)
         else:
@@ -597,6 +603,7 @@ class Yaku:
             prevalent_wind=prevalent_wind,
             seat_wind=seat_wind,
             dora=dora,
+            use_red_fives=rs.round_state.use_red_fives,
         )
 
     @staticmethod

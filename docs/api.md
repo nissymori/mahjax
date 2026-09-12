@@ -155,7 +155,7 @@ the right / across / left.
 | `melds` | `(3, 4, 4)` | `int8` | Melds per seat. Channels `[action, called_tile, src]`; `action == -1` is the mask. `src` is `(discarder - owner) mod 4` and `0` means a closed kan. |
 | `action_history` | `(3, 200)` | `int8` | This round's actions in order, `[player, action, tsumogiri]`. Row 0 is a seat **relative** to the observer (0 == me). Discards store the tile, other actions the raw action id, told apart by the tsumogiri channel. Per-round buffer, cleared at every round boundary. |
 | `scores` | `(4,)` | `int32` | Scores, seat-rotated. |
-| `target` | `()` | `int8` | Tile the pending call/ron decision is about, `-1` if none. Red-aware for calls on a discard; a bare tile type for chankan. |
+| `target` | `()` | `int8` | Tile the pending call/ron decision is about, `-1` if none. Red-aware (`[0-36]`), including for chankan. |
 | `last_player` | `()` | `int8` | Relative seat of whoever acted last, `-1` if none. Only refers to the pending call when `target >= 0`; otherwise read it as "who moved last". |
 | `tiles_seen` | `(34,)` | `int8` | Copies of each tile type already visible from this seat, `[0, 4]`: own concealed hand + every river + every meld + revealed dora indicators. Red fives fold into their type. Called tiles are counted once. |
 | `ippatsu` | `(4,)` | `bool` | Seat-rotated. Not derivable from anything else here. |
