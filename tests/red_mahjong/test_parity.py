@@ -407,20 +407,27 @@ def test_double_ron_config_chains_ron_and_pass_resolution() -> None:
     assert int(after_first_ron.current_player) == 1
     assert bool(after_first_ron.players.legal_action_mask[1, Action.RON])
     assert bool(after_first_ron.players.legal_action_mask[1, Action.PASS])
-    assert int(after_first_ron.round_state.kyotaku) == 2
+    # The head winner settles as they declare, the way tenhou books it: the sticks
+    # come off the table and the payment is already in ``score``.
+    assert int(after_first_ron.round_state.kyotaku) == 0
+    assert jnp.array_equal(
+        after_first_ron.round_state.score,
+        jnp.int32(ron_state.round_state.score + after_first_ron.rewards),
+    )
 
     after_pass = _pass(after_first_ron, config)
 
     assert bool(after_pass.round_state.terminated_round)
     assert bool(after_pass.players.legal_action_mask[:, Action.DUMMY].all())
     assert int(after_pass.round_state.kyotaku) == 0
+    # Declining the second ron only closes the round; it moves no more points.
     assert jnp.array_equal(
-        after_pass.round_state.score,
-        jnp.int32(ron_state.round_state.score + after_first_ron.pending_rewards),
+        after_pass.round_state.score, after_first_ron.round_state.score
     )
+    assert not bool(after_pass.pending_rewards.any())
 
 
-def test_triple_ron_drops_the_pending_payments_of_the_first_two_rons() -> None:
+def test_triple_ron_rolls_back_the_payments_of_the_first_two_rons() -> None:
     base = default_state()
     legal_action_mask = base.players.legal_action_mask
     for player in range(3):
@@ -447,12 +454,18 @@ def test_triple_ron_drops_the_pending_payments_of_the_first_two_rons() -> None:
     after_second_ron = _ron(after_first_ron.replace(current_player=jnp.int8(1)), config)
     after_third_ron = _ron(after_second_ron.replace(current_player=jnp.int8(2)), config)
 
-    assert jnp.array_equal(after_first_ron.round_state.score, ron_state.round_state.score)
-    assert jnp.array_equal(after_second_ron.round_state.score, ron_state.round_state.score)
+    # The first two rons settle as they are declared ...
+    assert not jnp.array_equal(after_first_ron.round_state.score, ron_state.round_state.score)
+    assert not jnp.array_equal(
+        after_second_ron.round_state.score, after_first_ron.round_state.score
+    )
+    # ... and the third takes all of it back: nobody wins a 三家和, so the payments
+    # come off, the riichi sticks go back on the table and the round is abandoned.
     assert jnp.array_equal(after_third_ron.round_state.score, ron_state.round_state.score)
+    assert jnp.array_equal(after_third_ron.rewards, -after_second_ron.pending_rewards)
     assert int(after_third_ron.round_state.kyotaku) == 2
     assert not bool(after_third_ron.players.has_won.any())
-    assert not bool(after_third_ron.rewards.any())
+    assert not bool(after_third_ron.pending_rewards.any())
     assert bool(after_third_ron.players.legal_action_mask[:, Action.KYUUSHU].all())
 
 

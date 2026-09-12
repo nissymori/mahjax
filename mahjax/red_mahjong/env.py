@@ -117,6 +117,7 @@ _ROUND_FIELDS = {
     "kan_declared",
     "can_after_kan",
     "can_robbing_kan",
+    "use_red_fives",
 }
 
 
@@ -454,6 +455,7 @@ def _init(rng: PRNGKey, game_config: Optional[GameConfig] = None) -> State:
         ura_dora_indicators=ura_dora_indicators,
         hand=init_hand,
         hand_with_red=init_hand_with_red,
+        use_red_fives=_resolve_game_config(game_config).use_red_fives,
     )
     can_ron = v_can_win(state.players.hand, TILE_RANGE)
     c_p = state.current_player
@@ -531,6 +533,7 @@ def _init_for_next_round_from_prepared(
         ura_dora_indicators=ura_dora_indicators,
         hand=init_hand,
         hand_with_red=init_hand_with_red,
+        use_red_fives=_resolve_game_config(game_config).use_red_fives,
     )
     c_p = state.current_player
     new_tile = state.round_state.deck[state.round_state.next_deck_ix]
@@ -1417,10 +1420,19 @@ def _kan(state: State, action, game_config: Optional[GameConfig] = None):
     """
     c_p = state.current_player
     config = _resolve_game_config(game_config)
+    self_kan_tile_type = action - Tile.NUM_TILE_TYPE_WITH_RED
+    # An added kan of a five puts the red copy in the meld once the black ones are
+    # gone, and a chankan must score and report that red identity.
+    self_kan_tile = jnp.where(
+        Hand.has_red_of(state.players.hand_with_red[c_p], self_kan_tile_type)
+        & (state.players.hand_with_red[c_p, self_kan_tile_type] == 0),
+        Tile.to_red(self_kan_tile_type),
+        self_kan_tile_type,
+    )
     tile = jnp.where(
         action == Action.OPEN_KAN,
         state.round_state.target,
-        action - Tile.NUM_TILE_TYPE_WITH_RED,
+        self_kan_tile,
     )
     rinshan_tile = state.round_state.deck[
         jnp.int32(10 + state.players.n_kan.sum())
@@ -1733,9 +1745,10 @@ def _pass(state: State, game_config: Optional[GameConfig] = None):
             furiten_by_pass=state.players.furiten_by_pass.at[c_p].set(
                 state.players.furiten_by_pass[c_p] | (is_ron_player & ~can_robbing_kan)
             ),
-            score=jnp.int32(state.round_state.score + state.pending_rewards),
-            rewards=jnp.float32(state.pending_rewards),
+            # Every ron of the chain already settled into ``score``; declining the
+            # last one just closes the round, so it moves no points.
             pending_rewards=jnp.zeros_like(state.rewards),
+            pending_kyotaku=jnp.int8(0),
             kyotaku=jnp.int8(0),
             legal_action_mask=ZERO_MASK_2D.at[:, Action.DUMMY].set(TRUE),
             terminated_round=TRUE,
@@ -1847,8 +1860,14 @@ def _ron(state: State, game_config: Optional[GameConfig] = None) -> State:
     # The Kyotaku is already paid when the RIICHI is declared, so we only need to add the Kyotaku to the winner
     kyotaku_bonus = 10 * state.round_state.kyotaku * is_first_ron
     reward = reward.at[c_p].add(kyotaku_bonus)
+    # Each ron of a chain settles as it is declared, the way tenhou books it, so
+    # ``score`` never shows a win that has already happened as unpaid. ``pending``
+    # keeps the running total of the chain purely so 三家和 can undo the lot.
     pending = jnp.where(is_first_ron, jnp.zeros_like(state.rewards), state.pending_rewards) + reward
-    score = state.round_state.score + pending
+    pending_kyotaku = jnp.where(
+        is_first_ron, state.round_state.kyotaku, state.pending_kyotaku
+    ).astype(jnp.int8)
+    score = state.round_state.score + reward
     remaining_ron_mask = ZERO_MASK_2D.at[:, Action.RON].set(
         state.players.legal_action_mask[:, Action.RON]
     )
@@ -1857,7 +1876,9 @@ def _ron(state: State, game_config: Optional[GameConfig] = None) -> State:
         remaining_ron_mask, state.round_state.last_player
     )
     # 三家和: this is the 3rd RON declared on the same discard. Nobody wins, so
-    # the pending payments and has_won bits of the prior two RONs are dropped.
+    # the prior two RONs are rolled back — their payments come off ``score``, the
+    # riichi sticks go back on the table, and the has_won bits are dropped. The
+    # negative ``rewards`` is what that rollback costs the two winners this step.
     is_triple_ron = (
         config.enable_special_abortive_draw
         & ((state.players.has_won.sum() + 1) >= 3)
@@ -1865,8 +1886,11 @@ def _ron(state: State, game_config: Optional[GameConfig] = None) -> State:
     triple_ron_state = _trigger_special_abortive_draw(
         _replace_state(
             state,
-            rewards=jnp.zeros_like(state.rewards),
+            score=jnp.int32(state.round_state.score - state.pending_rewards),
+            rewards=jnp.float32(-state.pending_rewards),
             pending_rewards=jnp.zeros_like(state.rewards),
+            kyotaku=jnp.int8(state.pending_kyotaku),
+            pending_kyotaku=jnp.int8(0),
             has_won=jnp.zeros_like(state.players.has_won),
         )
     )
@@ -1878,7 +1902,11 @@ def _ron(state: State, game_config: Optional[GameConfig] = None) -> State:
     continue_state = _replace_state(
         state,
         current_player=jnp.int8(next_ron_player),
+        score=jnp.int32(score),
+        rewards=jnp.float32(reward),
         pending_rewards=jnp.float32(pending),
+        pending_kyotaku=jnp.int8(pending_kyotaku),
+        kyotaku=jnp.int8(0),
         has_won=state.players.has_won.at[c_p].set(TRUE),
         legal_action_mask=remaining_ron_mask.at[next_ron_player, Action.PASS].set(TRUE),
         draw_next=FALSE,
@@ -1887,8 +1915,9 @@ def _ron(state: State, game_config: Optional[GameConfig] = None) -> State:
         state,
         terminated_round=TRUE,
         score=jnp.int32(score),
-        rewards=jnp.float32(pending),
+        rewards=jnp.float32(reward),
         pending_rewards=jnp.zeros_like(state.rewards),
+        pending_kyotaku=jnp.int8(0),
         kyotaku=jnp.int8(0),
         has_won=state.players.has_won.at[c_p].set(TRUE),
         legal_action_mask=ZERO_MASK_2D.at[:, Action.DUMMY].set(TRUE),

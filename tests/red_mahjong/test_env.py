@@ -733,3 +733,108 @@ def test_red_furiten_by_pass_clears_when_a_meld_gives_the_turn() -> None:
 
     assert bool(declined.players.furiten_by_pass[x])
     assert not bool(ponned.players.furiten_by_pass[x])
+
+
+def test_red_robbing_kan_on_a_red_five_keeps_the_red_dora() -> None:
+    """A chankan must score and report the robbed five's redness."""
+    from mahjax.red_mahjong.meld import Meld as RedMeld
+    from mahjax.red_mahjong.state import GameConfig as RedGameConfig  # noqa: F401
+
+    five_p, red_five_p = 13, Tile.RED_FIVE["p"]
+
+    def rob(declarer_holds_red: bool):
+        base = default_state()
+        declarer, winner = 0, 1
+        declarer_hand = jnp.zeros((37,), dtype=jnp.int8).at[
+            red_five_p if declarer_holds_red else five_p
+        ].set(1)
+        winner_hand = jnp.zeros((37,), dtype=jnp.int8)
+        for tile in (11, 12, 0, 1, 2, 3, 4, 5, 6, 7, 8, 18, 18):
+            winner_hand = winner_hand.at[tile].add(1)
+        hand_with_red = base.players.hand_with_red.at[declarer].set(declarer_hand).at[
+            winner
+        ].set(winner_hand)
+        hand = base.players.hand.at[declarer].set(Hand.to_34(declarer_hand)).at[winner].set(
+            Hand.to_34(winner_hand)
+        )
+        can_win = jax.vmap(Hand.can_ron, in_axes=(None, 0))(hand[winner], jnp.arange(34))
+        state = _replace_state(
+            base,
+            current_player=jnp.int8(declarer),
+            hand=hand,
+            hand_with_red=hand_with_red,
+            pon=base.players.pon.at[(declarer, five_p)].set(1),
+            melds=base.players.melds.at[declarer, 0].set(RedMeld.init(Action.PON, five_p, 1)),
+            meld_counts=base.players.meld_counts.at[declarer].set(1),
+            can_win=base.players.can_win.at[winner].set(can_win),
+            deck=jnp.zeros((136,), dtype=jnp.int8).at[10].set(30),
+            dora_indicators=jnp.full((5,), -1, dtype=jnp.int8),
+            legal_action_mask=jnp.zeros((4, Action.NUM_ACTION), dtype=jnp.bool_)
+            .at[declarer, Tile.NUM_TILE_TYPE_WITH_RED + five_p]
+            .set(True),
+        )
+        out = _kan(state, jnp.int32(Tile.NUM_TILE_TYPE_WITH_RED + five_p))
+        return int(out.round_state.target), int(out.players.fan[winner, 0])
+
+    black_target, black_fan = rob(False)
+    red_target, red_fan = rob(True)
+
+    assert black_target == five_p
+    assert red_target == red_five_p
+    assert red_fan == black_fan + 1
+
+
+def test_red_kan_of_fives_scores_no_red_dora_without_red_fives() -> None:
+    from mahjax.red_mahjong.meld import Meld as RedMeld
+    from mahjax.red_mahjong.state import GameConfig as RedGameConfig
+    from mahjax.red_mahjong.yaku import Yaku as RedYaku
+
+    def fan_for(use_red_fives: bool) -> int:
+        env = RedMahjong(
+            round_mode="half", game_config=RedGameConfig(use_red_fives=jnp.bool_(use_red_fives))
+        )
+        state = env.init(jax.random.PRNGKey(0))
+        hand = jnp.zeros((37,), dtype=jnp.int8)
+        for tile in (0, 1, 2, 9, 10, 11, 18, 19, 20, 27, 27):
+            hand = hand.at[tile].add(1)
+        state = state.replace(
+            players=state.players.replace(
+                melds=state.players.melds.at[0, 0].set(RedMeld.init(Action.OPEN_KAN, 4, 1)),
+                meld_counts=state.players.meld_counts.at[0].set(1),
+            ),
+            round_state=state.round_state.replace(
+                target=jnp.int8(27), dora_indicators=jnp.full((5,), -1, dtype=jnp.int8)
+            ),
+        )
+        _, fan, _ = RedYaku.judge(hand, jnp.bool_(True), jnp.int8(0), state)
+        return int(fan)
+
+    assert fan_for(False) == fan_for(True) - 1
+
+
+def test_red_use_red_fives_survives_round_transitions() -> None:
+    from mahjax.red_mahjong.state import GameConfig as RedGameConfig
+
+    env = RedMahjong(
+        round_mode="half",
+        game_config=RedGameConfig(use_red_fives=jnp.bool_(False)),
+        next_round_style="dummy_share",
+    )
+    step = jax.jit(env.step)
+    key = jax.random.PRNGKey(3)
+    key, sub = jax.random.split(key)
+    state = env.init(sub)
+    rounds = set()
+
+    for _ in range(4000):
+        assert not bool(state.round_state.use_red_fives)
+        rounds.add(int(state.round_state.round))
+        key, action_key, step_key = jax.random.split(key, 3)
+        action = jax.random.categorical(
+            action_key, jnp.log(jnp.where(state.legal_action_mask, 1.0, 0.0))
+        )
+        state = step(state, action.astype(jnp.int8), step_key)
+        if bool(state.terminated) or bool(state.truncated):
+            break
+
+    assert len(rounds) > 1

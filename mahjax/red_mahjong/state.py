@@ -122,6 +122,7 @@ class RoundState:
     kan_declared: jnp.bool_ = FALSE
     can_after_kan: jnp.bool_ = FALSE
     can_robbing_kan: jnp.bool_ = FALSE
+    use_red_fives: jnp.bool_ = TRUE
 
 
 @dataclass
@@ -132,8 +133,10 @@ class EnvState:
     round_state: RoundState = RoundState()
     step_count: jnp.int32 = jnp.int32(0)
     rewards: jnp.ndarray = jnp.zeros((NUM_PLAYERS,), dtype=jnp.float32)
-    # Multi-ron payments wait here until the ron chain resolves; see ``_ron``.
+    # What a multi-ron chain has paid out so far, so 三家和 can undo it; see ``_ron``.
     pending_rewards: jnp.ndarray = jnp.zeros((NUM_PLAYERS,), dtype=jnp.float32)
+    # Riichi sticks the head winner of that chain collected, restored on 三家和.
+    pending_kyotaku: jnp.int8 = jnp.int8(0)
     terminated: jnp.bool_ = FALSE
     truncated: jnp.bool_ = FALSE
 
