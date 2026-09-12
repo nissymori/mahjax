@@ -1745,9 +1745,10 @@ def _pass(state: State, game_config: Optional[GameConfig] = None):
             furiten_by_pass=state.players.furiten_by_pass.at[c_p].set(
                 state.players.furiten_by_pass[c_p] | (is_ron_player & ~can_robbing_kan)
             ),
-            score=jnp.int32(state.round_state.score + state.pending_rewards),
-            rewards=jnp.float32(state.pending_rewards),
+            # Every ron of the chain already settled into ``score``; declining the
+            # last one just closes the round, so it moves no points.
             pending_rewards=jnp.zeros_like(state.rewards),
+            pending_kyotaku=jnp.int8(0),
             kyotaku=jnp.int8(0),
             legal_action_mask=ZERO_MASK_2D.at[:, Action.DUMMY].set(TRUE),
             terminated_round=TRUE,
@@ -1859,8 +1860,14 @@ def _ron(state: State, game_config: Optional[GameConfig] = None) -> State:
     # The Kyotaku is already paid when the RIICHI is declared, so we only need to add the Kyotaku to the winner
     kyotaku_bonus = 10 * state.round_state.kyotaku * is_first_ron
     reward = reward.at[c_p].add(kyotaku_bonus)
+    # Each ron of a chain settles as it is declared, the way tenhou books it, so
+    # ``score`` never shows a win that has already happened as unpaid. ``pending``
+    # keeps the running total of the chain purely so 三家和 can undo the lot.
     pending = jnp.where(is_first_ron, jnp.zeros_like(state.rewards), state.pending_rewards) + reward
-    score = state.round_state.score + pending
+    pending_kyotaku = jnp.where(
+        is_first_ron, state.round_state.kyotaku, state.pending_kyotaku
+    ).astype(jnp.int8)
+    score = state.round_state.score + reward
     remaining_ron_mask = ZERO_MASK_2D.at[:, Action.RON].set(
         state.players.legal_action_mask[:, Action.RON]
     )
@@ -1869,7 +1876,9 @@ def _ron(state: State, game_config: Optional[GameConfig] = None) -> State:
         remaining_ron_mask, state.round_state.last_player
     )
     # 三家和: this is the 3rd RON declared on the same discard. Nobody wins, so
-    # the pending payments and has_won bits of the prior two RONs are dropped.
+    # the prior two RONs are rolled back — their payments come off ``score``, the
+    # riichi sticks go back on the table, and the has_won bits are dropped. The
+    # negative ``rewards`` is what that rollback costs the two winners this step.
     is_triple_ron = (
         config.enable_special_abortive_draw
         & ((state.players.has_won.sum() + 1) >= 3)
@@ -1877,8 +1886,11 @@ def _ron(state: State, game_config: Optional[GameConfig] = None) -> State:
     triple_ron_state = _trigger_special_abortive_draw(
         _replace_state(
             state,
-            rewards=jnp.zeros_like(state.rewards),
+            score=jnp.int32(state.round_state.score - state.pending_rewards),
+            rewards=jnp.float32(-state.pending_rewards),
             pending_rewards=jnp.zeros_like(state.rewards),
+            kyotaku=jnp.int8(state.pending_kyotaku),
+            pending_kyotaku=jnp.int8(0),
             has_won=jnp.zeros_like(state.players.has_won),
         )
     )
@@ -1890,7 +1902,11 @@ def _ron(state: State, game_config: Optional[GameConfig] = None) -> State:
     continue_state = _replace_state(
         state,
         current_player=jnp.int8(next_ron_player),
+        score=jnp.int32(score),
+        rewards=jnp.float32(reward),
         pending_rewards=jnp.float32(pending),
+        pending_kyotaku=jnp.int8(pending_kyotaku),
+        kyotaku=jnp.int8(0),
         has_won=state.players.has_won.at[c_p].set(TRUE),
         legal_action_mask=remaining_ron_mask.at[next_ron_player, Action.PASS].set(TRUE),
         draw_next=FALSE,
@@ -1899,8 +1915,9 @@ def _ron(state: State, game_config: Optional[GameConfig] = None) -> State:
         state,
         terminated_round=TRUE,
         score=jnp.int32(score),
-        rewards=jnp.float32(pending),
+        rewards=jnp.float32(reward),
         pending_rewards=jnp.zeros_like(state.rewards),
+        pending_kyotaku=jnp.int8(0),
         kyotaku=jnp.int8(0),
         has_won=state.players.has_won.at[c_p].set(TRUE),
         legal_action_mask=ZERO_MASK_2D.at[:, Action.DUMMY].set(TRUE),
