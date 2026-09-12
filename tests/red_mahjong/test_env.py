@@ -614,7 +614,7 @@ def test_red_uma_scales_a_custom_order_points() -> None:
     assert jnp.array_equal(out.round_state.score - before, jnp.array([200, 50, -50, -200]))
 
 
-def _temporary_furiten_after_declining_then_an_unrelated_pass(m, Action):
+def _furiten_by_pass_after_declining_then_an_unrelated_pass(m, Action):
     """X declines a winning discard, then passes on an unrelated PON before drawing."""
     base = m.default_state()
     x = 1
@@ -638,10 +638,10 @@ def _temporary_furiten_after_declining_then_an_unrelated_pass(m, Action):
     return x, declined, unrelated
 
 
-def test_red_temporary_furiten_survives_an_unrelated_pass() -> None:
+def test_red_furiten_by_pass_survives_an_unrelated_pass() -> None:
     from mahjax.red_mahjong import env as m
 
-    x, declined, unrelated = _temporary_furiten_after_declining_then_an_unrelated_pass(m, Action)
+    x, declined, unrelated = _furiten_by_pass_after_declining_then_an_unrelated_pass(m, Action)
 
     assert bool(declined.players.furiten_by_pass[x])
     assert bool(unrelated.players.furiten_by_pass[x])
@@ -711,3 +711,25 @@ def test_red_multi_ron_reward_stream_matches_the_score_movement() -> None:
         total = total + state.rewards
 
     assert jnp.allclose(total, (state.round_state.score - start).astype(jnp.float32))
+
+
+def test_red_furiten_by_pass_clears_when_a_meld_gives_the_turn() -> None:
+    """A pon takes the turn without a draw, so it must clear the furiten by pass."""
+    from mahjax.red_mahjong import env as m
+
+    x, declined, _ = _furiten_by_pass_after_declining_then_an_unrelated_pass(m, Action)
+    hand = jnp.zeros((37,), dtype=jnp.int8).at[0].set(3).at[1].set(3).at[2].set(3).at[3].set(3)
+    ponned = m._pon(
+        _replace_state(
+            declined,
+            current_player=jnp.int8(x),
+            last_player=jnp.int8(0),
+            target=jnp.int8(0),
+            hand_with_red=declined.players.hand_with_red.at[x].set(hand),
+            hand=declined.players.hand.at[x].set(Hand.to_34(hand)),
+        ),
+        jnp.int8(Action.PON),
+    )
+
+    assert bool(declined.players.furiten_by_pass[x])
+    assert not bool(ponned.players.furiten_by_pass[x])

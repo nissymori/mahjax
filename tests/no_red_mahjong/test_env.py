@@ -1663,7 +1663,7 @@ def test_no_red_uma_scales_a_custom_order_points() -> None:
     assert jnp.array_equal(out.round_state.score - before, jnp.array([200, 50, -50, -200]))
 
 
-def _temporary_furiten_after_declining_then_an_unrelated_pass(m, Action):
+def _furiten_by_pass_after_declining_then_an_unrelated_pass(m, Action):
     """X declines a winning discard, then passes on an unrelated PON before drawing."""
     base = m.default_state()
     x = 1
@@ -1687,10 +1687,10 @@ def _temporary_furiten_after_declining_then_an_unrelated_pass(m, Action):
     return x, declined, unrelated
 
 
-def test_no_red_temporary_furiten_survives_an_unrelated_pass() -> None:
+def test_no_red_furiten_by_pass_survives_an_unrelated_pass() -> None:
     from mahjax.no_red_mahjong import env as m
 
-    x, declined, unrelated = _temporary_furiten_after_declining_then_an_unrelated_pass(m, Action)
+    x, declined, unrelated = _furiten_by_pass_after_declining_then_an_unrelated_pass(m, Action)
 
     assert bool(declined.players.furiten_by_pass[x])
     assert bool(unrelated.players.furiten_by_pass[x])

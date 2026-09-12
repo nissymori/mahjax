@@ -1373,6 +1373,20 @@ def _added_kan(state: State, target):
     )
 
 
+def _clear_furiten_by_pass(state: State, c_p: Array) -> State:
+    """Furiten by pass lasts only until the player's own turn comes round again.
+
+    ``_draw`` does this for a normal turn; a turn taken by pon / chi / open kan
+    has no draw, so those call it directly. Riichi keeps the player furiten.
+    """
+    return _replace_state(
+        state,
+        furiten_by_pass=state.players.furiten_by_pass.at[c_p].set(
+            state.players.furiten_by_pass[c_p] & state.players.riichi[c_p]
+        ),
+    )
+
+
 def _open_kan(state: State):
     """
     Apply OPEN_KAN
@@ -1382,6 +1396,7 @@ def _open_kan(state: State):
     c_p = state.current_player
     l_p = state.round_state.last_player
     state = _accept_riichi(state)
+    state = _clear_furiten_by_pass(state, c_p)
     src = (l_p - c_p) % 4
     meld = Meld.init(Action.OPEN_KAN, state.round_state.target, src)
     state = _append_meld(state, meld, c_p)
@@ -1409,6 +1424,7 @@ def _pon(state: State, action: Array):
     l_p = state.round_state.last_player
     tar = state.round_state.target
     state = _accept_riichi(state)
+    state = _clear_furiten_by_pass(state, c_p)
     src = (l_p - c_p) % 4
     meld = Meld.init(Action.PON, tar, src)
     state = _append_meld(state, meld, c_p)
@@ -1449,6 +1465,7 @@ def _chi(state: State, action: Array):
     tar_p = state.round_state.last_player  # Absolute position
     tar = state.round_state.target
     state = _accept_riichi(state)
+    state = _clear_furiten_by_pass(state, c_p)
     meld = Meld.init(action, tar, src=jnp.int32(3))
     state = _append_meld(state, meld, c_p)
     chi_hand = Hand.chi(state.players.hand[c_p], tar, action)
