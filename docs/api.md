@@ -24,7 +24,7 @@ env = mahjax.make(
     "red_mahjong",
     round_mode="single",   # "single", "east" (tonpuusen), or "half" (hanchan)
     next_round_style="auto",  # "auto" (default, RL) or "dummy_share" (interactive / mjai)
-    order_points=[30, 10, -10, -30],
+    order_points=[300, 100, -100, -300],
 )
 step_fn = jax.jit(jax.vmap(env.step))
 obs_fn = jax.jit(jax.vmap(env.observe))
@@ -111,7 +111,7 @@ Held common across all four players.
 | `init_wind` | `(4,)` | `int8` | Initial seat winds at the start of the game. |
 | `seat_wind` | `(4,)` | `int8` | Current seat wind per player. |
 | `dealer` | `()` | `int8` | Current dealer. |
-| `order_points` | `(4,)` | `int32` | Placement bonus / uma, in units of 1000 points. |
+| `order_points` | `(4,)` | `int32` | Placement bonus / uma, in hundreds of points like `score`. |
 | `score` | `(4,)` | `int32` | Per-player score, in hundreds of points. |
 | `deck` | `(136,)` | `int8` | Current round's shuffled wall (tile types). |
 | `next_deck_ix` | `()` | `int32` | Next index to draw from in `deck`. |

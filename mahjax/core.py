@@ -264,7 +264,7 @@ def make(env_id: EnvId, **kwargs):  # noqa: C901
             "no_red_mahjong",
             round_mode="single",  # "single", "east" (tonpuusen), or "half" (hanchan)
             observe_type="dict", # "dict" for Transformer, "2D" for CNN
-            order_points=[30, 10, -10, -30],  # Final score bonuses (uma)
+            order_points=[300, 100, -100, -300],  # Final score bonuses (uma), in hundreds of points
         )
         ```
     """

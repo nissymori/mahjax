@@ -573,7 +573,7 @@ def test_red_sudden_death_runs_for_exactly_four_extra_rounds() -> None:
     assert terminated == [False, False, False, False, True]
 
 
-def test_red_uma_is_applied_in_units_of_1000_points() -> None:
+def test_red_uma_is_added_to_the_final_score() -> None:
     env = RedMahjong(round_mode="half", next_round_style="auto")
     before = jnp.array([310, 300, 200, 190], dtype=jnp.int32)
     state = _end_of_round_state(env, score=before)
@@ -601,7 +601,7 @@ def test_red_dummy_share_applies_uma_when_a_non_dealer_won_the_final_round() -> 
 
 
 def test_red_uma_scales_a_custom_order_points() -> None:
-    env = RedMahjong(round_mode="half", next_round_style="auto", order_points=[20, 5, -5, -20])
+    env = RedMahjong(round_mode="half", next_round_style="auto", order_points=[200, 50, -50, -200])
     before = jnp.array([310, 300, 200, 190], dtype=jnp.int32)
     state = _end_of_round_state(env, score=before)
 

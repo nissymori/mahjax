@@ -214,11 +214,11 @@ class NoRedMahjong(Env):
         round_mode: Literal["single", "east", "half"] = "half",
         observe_type: str = "dict",
         order_points: List[int] = [
-            30,
-            10,
-            -10,
-            -30,
-        ],  # No oka, 10-30, SAIKOUISEN rule https://saikouisen.com/about/rules/
+            300,
+            100,
+            -100,
+            -300,
+        ],  # No oka, 10-30 uma in hundreds of points like ``score``, SAIKOUISEN rule https://saikouisen.com/about/rules/
         next_round_style: Literal["auto", "dummy_share"] = "auto",
     ):
         if round_mode not in ("single", "east", "half"):
@@ -1748,13 +1748,9 @@ def _abortive_draw_normal(state: State) -> State:
 
 
 def _final_score(round_state) -> Array:
-    """Score at game end: raw score plus uma, with the riichi sticks to the top.
-
-    ``order_points`` is expressed in units of 1000 points and ``score`` in units
-    of 100, hence the factor of 10.
-    """
+    """Score at game end: raw score plus uma, with the riichi sticks to the top."""
     order = jnp.argsort(-round_state.score)
-    rank_points = jnp.zeros_like(round_state.score).at[order].set(round_state.order_points * 10)
+    rank_points = jnp.zeros_like(round_state.score).at[order].set(round_state.order_points)
     score = round_state.score + rank_points
     return score.at[jnp.argmax(score)].add(10 * round_state.kyotaku)
 
