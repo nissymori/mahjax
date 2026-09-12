@@ -259,11 +259,11 @@ class RedMahjong(Env):
         round_mode: Literal["single", "east", "half"] = "half",
         observe_type: str = "dict",
         order_points: List[int] = [
-            300,
-            100,
-            -100,
-            -300,
-        ],  # No oka, 10-30 uma in hundreds of points like ``score``, SAIKOUISEN rule https://saikouisen.com/about/rules/
+            0,
+            0,
+            0,
+            0,
+        ],  # No uma by default; in hundreds of points like ``score`` (10-30 uma is [300, 100, -100, -300])
         game_config: Optional[GameConfig] = None,
         next_round_style: Literal["auto", "dummy_share"] = "auto",
     ):
@@ -322,6 +322,7 @@ class RedMahjong(Env):
         state = _replace_state(
             state,
             order_points=jnp.array(self.order_points, dtype=jnp.int32),
+            rewards=jnp.zeros_like(state.rewards),  # Reset rewards to 0 for this step
         )
 
 
@@ -1547,6 +1548,20 @@ def _added_kan(state: State, target):
     )
 
 
+def _clear_furiten_by_pass(state: State, c_p: Array) -> State:
+    """Furiten by pass lasts only until the player's own turn comes round again.
+
+    ``_draw`` does this for a normal turn; a turn taken by pon / chi / open kan
+    has no draw, so those call it directly. Riichi keeps the player furiten.
+    """
+    return _replace_state(
+        state,
+        furiten_by_pass=state.players.furiten_by_pass.at[c_p].set(
+            state.players.furiten_by_pass[c_p] & state.players.riichi[c_p]
+        ),
+    )
+
+
 def _open_kan(state: State):
     """
     Apply OPEN_KAN
@@ -1556,6 +1571,7 @@ def _open_kan(state: State):
     c_p = state.current_player
     l_p = state.round_state.last_player
     state = _accept_riichi(state)
+    state = _clear_furiten_by_pass(state, c_p)
     src = (l_p - c_p) % 4
     meld = Meld.init(Action.OPEN_KAN, state.round_state.target, src)
     state = _append_meld(state, meld, c_p)
@@ -1588,6 +1604,7 @@ def _pon(state: State, action: Array):
     l_p = state.round_state.last_player
     tar = state.round_state.target
     state = _accept_riichi(state)
+    state = _clear_furiten_by_pass(state, c_p)
     src = (l_p - c_p) % 4
     meld = Meld.init(action, tar, src)
     state = _append_meld(state, meld, c_p)
@@ -1630,6 +1647,7 @@ def _chi(state: State, action: Array):
     tar_p = state.round_state.last_player  # Absolute position
     tar = state.round_state.target
     state = _accept_riichi(state)
+    state = _clear_furiten_by_pass(state, c_p)
     meld = Meld.init(action, tar, src=jnp.int32(3))
     state = _append_meld(state, meld, c_p)
     chi_hand = Hand.chi(state.players.hand_with_red[c_p], tar, action)
@@ -1705,7 +1723,7 @@ def _pass(state: State, game_config: Optional[GameConfig] = None):
             current_player=jnp.int8(next_ron_player),
             legal_action_mask=post_ron_mask.at[next_ron_player, Action.PASS].set(TRUE),
             furiten_by_pass=state.players.furiten_by_pass.at[c_p].set(
-                is_ron_player & ~can_robbing_kan
+                state.players.furiten_by_pass[c_p] | (is_ron_player & ~can_robbing_kan)
             ),
             draw_next=FALSE,
         ),
@@ -1713,9 +1731,11 @@ def _pass(state: State, game_config: Optional[GameConfig] = None):
             state,
             target=jnp.int8(-1),
             furiten_by_pass=state.players.furiten_by_pass.at[c_p].set(
-                is_ron_player & ~can_robbing_kan
+                state.players.furiten_by_pass[c_p] | (is_ron_player & ~can_robbing_kan)
             ),
-            score=jnp.int32(state.round_state.score + state.rewards),
+            score=jnp.int32(state.round_state.score + state.pending_rewards),
+            rewards=jnp.float32(state.pending_rewards),
+            pending_rewards=jnp.zeros_like(state.rewards),
             kyotaku=jnp.int8(0),
             legal_action_mask=ZERO_MASK_2D.at[:, Action.DUMMY].set(TRUE),
             terminated_round=TRUE,
@@ -1736,7 +1756,7 @@ def _pass(state: State, game_config: Optional[GameConfig] = None):
                 ),
                 target=jnp.int8(-1),
                 furiten_by_pass=state.players.furiten_by_pass.at[c_p].set(
-                    is_ron_player & ~can_robbing_kan
+                    state.players.furiten_by_pass[c_p] | (is_ron_player & ~can_robbing_kan)
                 ),
                 draw_next=TRUE & ~can_robbing_kan,
                 is_abortive_draw_normal=is_abortive_draw_normal,
@@ -1749,7 +1769,7 @@ def _pass(state: State, game_config: Optional[GameConfig] = None):
                     next_meld_player, Action.PASS
                 ].set(TRUE),
                 furiten_by_pass=state.players.furiten_by_pass.at[c_p].set(
-                    is_ron_player & ~can_robbing_kan
+                    state.players.furiten_by_pass[c_p] | (is_ron_player & ~can_robbing_kan)
                 ),
             ),
         ),
@@ -1827,7 +1847,7 @@ def _ron(state: State, game_config: Optional[GameConfig] = None) -> State:
     # The Kyotaku is already paid when the RIICHI is declared, so we only need to add the Kyotaku to the winner
     kyotaku_bonus = 10 * state.round_state.kyotaku * is_first_ron
     reward = reward.at[c_p].add(kyotaku_bonus)
-    pending = jnp.where(is_first_ron, jnp.zeros_like(state.rewards), state.rewards) + reward
+    pending = jnp.where(is_first_ron, jnp.zeros_like(state.rewards), state.pending_rewards) + reward
     score = state.round_state.score + pending
     remaining_ron_mask = ZERO_MASK_2D.at[:, Action.RON].set(
         state.players.legal_action_mask[:, Action.RON]
@@ -1846,6 +1866,7 @@ def _ron(state: State, game_config: Optional[GameConfig] = None) -> State:
         _replace_state(
             state,
             rewards=jnp.zeros_like(state.rewards),
+            pending_rewards=jnp.zeros_like(state.rewards),
             has_won=jnp.zeros_like(state.players.has_won),
         )
     )
@@ -1857,7 +1878,7 @@ def _ron(state: State, game_config: Optional[GameConfig] = None) -> State:
     continue_state = _replace_state(
         state,
         current_player=jnp.int8(next_ron_player),
-        rewards=jnp.float32(pending),
+        pending_rewards=jnp.float32(pending),
         has_won=state.players.has_won.at[c_p].set(TRUE),
         legal_action_mask=remaining_ron_mask.at[next_ron_player, Action.PASS].set(TRUE),
         draw_next=FALSE,
@@ -1866,7 +1887,8 @@ def _ron(state: State, game_config: Optional[GameConfig] = None) -> State:
         state,
         terminated_round=TRUE,
         score=jnp.int32(score),
-        rewards=jnp.float32(reward),
+        rewards=jnp.float32(pending),
+        pending_rewards=jnp.zeros_like(state.rewards),
         kyotaku=jnp.int8(0),
         has_won=state.players.has_won.at[c_p].set(TRUE),
         legal_action_mask=ZERO_MASK_2D.at[:, Action.DUMMY].set(TRUE),
@@ -2159,6 +2181,11 @@ def _next_round(
             score=jnp.where(
                 (s.round_state.dummy_count == 0) & game_end, final_score, s.round_state.score
             ),  # Reflect the final score in the first DUMMY sharing phase
+            rewards=jnp.where(
+                (s.round_state.dummy_count == 0) & game_end,
+                jnp.float32(final_score - s.round_state.score),
+                s.rewards,
+            ),
         )
 
     # ---- After the DUMMY sharing phase (=3), determine the next round or end the game ----
@@ -2289,6 +2316,7 @@ def _advance_to_next_round_auto(
 
     terminated_state = _replace_state(state,
         score=jnp.int32(final_score),
+        rewards=jnp.float32(state.rewards + (final_score - state.round_state.score)),
         terminated=TRUE,
     )
 

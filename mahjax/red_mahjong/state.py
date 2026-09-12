@@ -104,7 +104,7 @@ class RoundState:
     init_wind: jnp.ndarray = jnp.array([0, 1, 2, 3], dtype=jnp.int8)
     seat_wind: jnp.ndarray = jnp.array([0, 1, 2, 3], dtype=jnp.int8)
     dealer: jnp.int8 = jnp.int8(0)
-    order_points: jnp.ndarray = jnp.array([300, 100, -100, -300], dtype=jnp.int32)
+    order_points: jnp.ndarray = jnp.array([0, 0, 0, 0], dtype=jnp.int32)
     score: jnp.ndarray = jnp.full((NUM_PLAYERS,), 250, dtype=jnp.int32)
     deck: jnp.ndarray = jnp.zeros((NUM_PHYSICAL_TILES,), dtype=jnp.int8)
     next_deck_ix: jnp.int32 = jnp.int32(83)
@@ -132,6 +132,8 @@ class EnvState:
     round_state: RoundState = RoundState()
     step_count: jnp.int32 = jnp.int32(0)
     rewards: jnp.ndarray = jnp.zeros((NUM_PLAYERS,), dtype=jnp.float32)
+    # Multi-ron payments wait here until the ron chain resolves; see ``_ron``.
+    pending_rewards: jnp.ndarray = jnp.zeros((NUM_PLAYERS,), dtype=jnp.float32)
     terminated: jnp.bool_ = FALSE
     truncated: jnp.bool_ = FALSE
 

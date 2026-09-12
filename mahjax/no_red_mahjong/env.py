@@ -214,11 +214,11 @@ class NoRedMahjong(Env):
         round_mode: Literal["single", "east", "half"] = "half",
         observe_type: str = "dict",
         order_points: List[int] = [
-            300,
-            100,
-            -100,
-            -300,
-        ],  # No oka, 10-30 uma in hundreds of points like ``score``, SAIKOUISEN rule https://saikouisen.com/about/rules/
+            0,
+            0,
+            0,
+            0,
+        ],  # No uma by default; in hundreds of points like ``score`` (10-30 uma is [300, 100, -100, -300])
         next_round_style: Literal["auto", "dummy_share"] = "auto",
     ):
         if round_mode not in ("single", "east", "half"):
@@ -272,6 +272,7 @@ class NoRedMahjong(Env):
         current_player = state.current_player
         state = _replace_state(state,   # type:ignore
             order_points=jnp.array(self.order_points, dtype=jnp.int32),
+            rewards=jnp.zeros_like(state.rewards),
         )  # type: ignore reflect the order points
 
         # If the state is already terminated or truncated, environment does not take usual step,
@@ -1372,6 +1373,20 @@ def _added_kan(state: State, target):
     )
 
 
+def _clear_furiten_by_pass(state: State, c_p: Array) -> State:
+    """Furiten by pass lasts only until the player's own turn comes round again.
+
+    ``_draw`` does this for a normal turn; a turn taken by pon / chi / open kan
+    has no draw, so those call it directly. Riichi keeps the player furiten.
+    """
+    return _replace_state(
+        state,
+        furiten_by_pass=state.players.furiten_by_pass.at[c_p].set(
+            state.players.furiten_by_pass[c_p] & state.players.riichi[c_p]
+        ),
+    )
+
+
 def _open_kan(state: State):
     """
     Apply OPEN_KAN
@@ -1381,6 +1396,7 @@ def _open_kan(state: State):
     c_p = state.current_player
     l_p = state.round_state.last_player
     state = _accept_riichi(state)
+    state = _clear_furiten_by_pass(state, c_p)
     src = (l_p - c_p) % 4
     meld = Meld.init(Action.OPEN_KAN, state.round_state.target, src)
     state = _append_meld(state, meld, c_p)
@@ -1408,6 +1424,7 @@ def _pon(state: State, action: Array):
     l_p = state.round_state.last_player
     tar = state.round_state.target
     state = _accept_riichi(state)
+    state = _clear_furiten_by_pass(state, c_p)
     src = (l_p - c_p) % 4
     meld = Meld.init(Action.PON, tar, src)
     state = _append_meld(state, meld, c_p)
@@ -1448,6 +1465,7 @@ def _chi(state: State, action: Array):
     tar_p = state.round_state.last_player  # Absolute position
     tar = state.round_state.target
     state = _accept_riichi(state)
+    state = _clear_furiten_by_pass(state, c_p)
     meld = Meld.init(action, tar, src=jnp.int32(3))
     state = _append_meld(state, meld, c_p)
     chi_hand = Hand.chi(state.players.hand[c_p], tar, action)
@@ -1519,7 +1537,7 @@ def _pass(state: State):
             ),  # If the player who declared the KAN passes, set the last player
             target=jnp.int8(-1),
             furiten_by_pass=state.players.furiten_by_pass.at[c_p].set(
-                is_ron_player & ~can_robbing_kan
+                state.players.furiten_by_pass[c_p] | (is_ron_player & ~can_robbing_kan)
             ),  # If the player who RON passes, set the furiten
             draw_next=TRUE
             & ~can_robbing_kan,  # If no next player for robbing KAN, draw the rinshan tile
@@ -1535,7 +1553,7 @@ def _pass(state: State):
                 TRUE
             ),  # Add the pass action to the legal action
             furiten_by_pass=state.players.furiten_by_pass.at[c_p].set(
-                is_ron_player & ~can_robbing_kan
+                state.players.furiten_by_pass[c_p] | (is_ron_player & ~can_robbing_kan)
             ),  # If the player who RON passes, set the furiten
         ),
     )
@@ -1808,6 +1826,11 @@ def _next_round(state: State, key: PRNGKey) -> State:
             score=jnp.where(
                 (s.round_state.dummy_count == 0) & game_end, final_score, s.round_state.score
             ),  # Reflect the final score in the first DUMMY sharing phase
+            rewards=jnp.where(
+                (s.round_state.dummy_count == 0) & game_end,
+                jnp.float32(final_score - s.round_state.score),
+                s.rewards,
+            ),
         )
 
     # ---- After the DUMMY sharing phase (=3), determine the next round or end the game ----
@@ -1936,6 +1959,7 @@ def _advance_to_next_round_auto(state: State, key: PRNGKey) -> State:
 
     terminated_state = _replace_state(state,
         score=jnp.int32(final_score),
+        rewards=jnp.float32(state.rewards + (final_score - state.round_state.score)),
         terminated=TRUE,
     )
 

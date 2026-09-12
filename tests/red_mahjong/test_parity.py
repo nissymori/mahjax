@@ -416,7 +416,7 @@ def test_double_ron_config_chains_ron_and_pass_resolution() -> None:
     assert int(after_pass.round_state.kyotaku) == 0
     assert jnp.array_equal(
         after_pass.round_state.score,
-        jnp.int32(ron_state.round_state.score + after_first_ron.rewards),
+        jnp.int32(ron_state.round_state.score + after_first_ron.pending_rewards),
     )
 
 

@@ -58,7 +58,7 @@ env = mahjax.make(
     "red_mahjong",
     round_mode="single", # "single", "east" (tonpuusen), or "half" (hanchan)
     observe_type="dict", # "dict" for Transformer, "2D" for CNN
-    order_points=[300, 100, -100, -300], # Final score bonuses (uma), in hundreds of points
+    order_points=[0, 0, 0, 0], # Final score bonuses (uma), in hundreds of points
 )
 
 init_fn = jax.jit(jax.vmap(env.init))
@@ -144,14 +144,14 @@ You can configure the environment with:
 - `id`: the rule set, such as `red_mahjong` or `no_red_mahjong`
 - `round_mode`: `single` for a single round, `east` for tonpuusen (East-only), or `half` for hanchan (East-South)
 - `observe_type`: `dict` for transformer-style inputs or `2D` for CNN-style inputs
-- `order_points`: final placement bonuses (uma), in hundreds of points like `score`, for example `[300, 100, -100, -300]` for 10-30 uma
+- `order_points`: final placement bonuses (uma), in hundreds of points like `score`. Defaults to no uma; pass `[300, 100, -100, -300]` for 10-30 uma
 
 ```python
 env = mahjax.make(
     "red_mahjong",
     round_mode="single",
     observe_type="dict",
-    order_points=[300, 100, -100, -300],
+    order_points=[0, 0, 0, 0],
 )
 ```
 
