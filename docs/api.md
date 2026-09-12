@@ -24,7 +24,7 @@ env = mahjax.make(
     "red_mahjong",
     round_mode="single",   # "single", "east" (tonpuusen), or "half" (hanchan)
     next_round_style="auto",  # "auto" (default, RL) or "dummy_share" (interactive / mjai)
-    order_points=[30, 10, -10, -30],
+    order_points=[300, 100, -100, -300],
 )
 step_fn = jax.jit(jax.vmap(env.step))
 obs_fn = jax.jit(jax.vmap(env.observe))
@@ -104,14 +104,14 @@ Held common across all four players.
 | `round_step` | `()` | `int32` | Write cursor into `action_history`, reset to 0 each round. Do **not** index the history with `state.step_count`: that counter is hanchan-global, so it walks past the end of this per-round buffer and JAX drops the out-of-bounds scatter silently. |
 | `history_overflow` | `()` | `bool` | `True` once a round produced more actions than `action_history` can hold; the newest action then overwrites the last slot. Makes truncation observable instead of silent. |
 | `round` | `()` | `int8` | Round index (`0`-based). |
-| `round_limit` | `()` | `int8` | Round limit derived from `round_mode`: `4` for `east`, `8` for `half`. |
+| `round_limit` | `()` | `int8` | Index of the last regular kyoku, derived from `round_mode`: `3` for `east`, `7` for `half`. Play continues past it while nobody has 30000 points. |
 | `terminated_round` | `()` | `bool` | `True` on the step that ends the round (RON / TSUMO / 流局). See the round-transition section for how `auto` vs `dummy_share` expose this. |
 | `honba` | `()` | `int8` | Honba count (renchan counter). |
 | `kyotaku` | `()` | `int8` | Number of unclaimed riichi sticks on the table. |
 | `init_wind` | `(4,)` | `int8` | Initial seat winds at the start of the game. |
 | `seat_wind` | `(4,)` | `int8` | Current seat wind per player. |
 | `dealer` | `()` | `int8` | Current dealer. |
-| `order_points` | `(4,)` | `int32` | Placement bonus / uma. |
+| `order_points` | `(4,)` | `int32` | Placement bonus / uma, in hundreds of points like `score`. |
 | `score` | `(4,)` | `int32` | Per-player score, in hundreds of points. |
 | `deck` | `(136,)` | `int8` | Current round's shuffled wall (tile types). |
 | `next_deck_ix` | `()` | `int32` | Next index to draw from in `deck`. |
@@ -162,11 +162,11 @@ the right / across / left.
 | `riichi` | `(4,)` | `bool` | Seat-rotated. Public for every seat. |
 | `is_hand_concealed` | `(4,)` | `bool` | Seat-rotated. Gates riichi legality and menzen tsumo. Deriving it from `melds` means reimplementing the rule that a closed kan keeps the hand concealed. |
 | `wall_remaining` | `()` | `int32` | Tiles still drawable from the live wall, `[0, 70]`. Drives haitei, the exhaustive draw and the riichi precondition. |
-| `round` | `()` | `int8` | Kyoku counter in `[0, round_limit]`. |
-| `round_limit` | `()` | `int8` | Last kyoku index: 4 for `east`, 8 for `single`/`half`. With `round`, how much game is left. |
+| `round` | `()` | `int8` | Kyoku counter. Exceeds `round_limit` during sudden death, up to `round_limit + 4`. |
+| `round_limit` | `()` | `int8` | Index of the last regular kyoku: 3 for `east`, 7 for `single`/`half`. With `round`, how much game is left. |
 | `honba` | `()` | `int8` | Honba count. |
 | `kyotaku` | `()` | `int8` | Riichi sticks on the table. |
-| `prevalent_wind` | `()` | `int8` | Round wind, `round // 4`. Reaches 2 (West) on the last kyoku of a `half` game. |
+| `prevalent_wind` | `()` | `int8` | Round wind, `round // 4`. Reaches 2 (West) during the sudden-death kyoku of a `half` game. |
 | `seat_wind` | `()` | `int8` | Observer's seat wind `[0-3]`; 0 is the dealer. |
 | `dora_indicators` | `(5,)` | `int8` | Indicators `[0-36]`, `-1` for unrevealed slots. |
 

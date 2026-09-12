@@ -126,7 +126,7 @@ class RoundState:
     init_wind: Array = jnp.array([0, 1, 2, 3], dtype=jnp.int8)
     seat_wind: Array = jnp.array([0, 1, 2, 3], dtype=jnp.int8)
     dealer: Array = jnp.int8(0)
-    order_points: Array = jnp.array([30, 10, -10, -30], dtype=jnp.int32)
+    order_points: Array = jnp.array([300, 100, -100, -300], dtype=jnp.int32)
     score: Array = jnp.full((NUM_PLAYERS,), 250, dtype=jnp.int32)
     deck: Array = jnp.zeros((NUM_PHYSICAL_TILES,), dtype=jnp.int8)
     next_deck_ix: Array = jnp.int32(FIRST_DRAW_IDX)
