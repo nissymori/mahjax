@@ -134,61 +134,33 @@ class Shanten:
 
     @staticmethod
     def normal(hand: Array) -> Array:
-        # --- code generation (int32 fixed) ---
-        def encode_suit(suit):
-            def loop_rng(start, stop):
-                def body(i, code):
-                    return code * jnp.int32(5) + hand[i].astype(jnp.int32)
+        # Marginal meld costs can decrease, so greedy allocation is not exact.
+        # Enumerate all allocations of up to four melds and choose the pair suit.
+        powers = jnp.asarray([5**i for i in range(8, -1, -1)], dtype=jnp.int32)
+        suited = hand[:27].astype(jnp.int32).reshape(3, 9) @ powers
+        honors = hand[27:34].astype(jnp.int32) @ powers[2:] + 5**9
+        codes = jnp.concatenate([suited, honors[None]])
+        rows = jnp.take(
+            Shanten.CACHE_FLAT, codes[:, None] * 9 + jnp.arange(9, dtype=jnp.int32)
+        ).astype(jnp.int32)
 
-                return jax.lax.fori_loop(start, stop, body, jnp.int32(0))
-
-            return jax.lax.cond(
-                suit == 3,
-                lambda: loop_rng(27, 34) + jnp.int32(1953125),  # 5**9
-                lambda: loop_rng(9 * suit, 9 * (suit + 1)),
-            )
-
-        code = jax.vmap(encode_suit)(jnp.arange(4, dtype=jnp.int32))  # (4,)
-        # n_set is OK for tracer. Guarded by a fixed number of loops and cond later.
-        n_set = jnp.minimum(
-            jnp.sum(hand, dtype=jnp.int32) // jnp.int32(3), jnp.int32(4)
+        # Cache columns: four meld increments, pair cost, four increments with a pair.
+        zero = jnp.zeros((4, 1), dtype=jnp.int32)
+        without_pair = jnp.concatenate([zero, jnp.cumsum(rows[:, :4], axis=1)], axis=1)
+        with_pair = rows[:, 4:5] + jnp.concatenate([zero, jnp.cumsum(rows[:, 5:], axis=1)], axis=1)
+        allocations = jnp.asarray(
+            [
+                (a, b, c, d)
+                for a in range(5)
+                for b in range(5 - a)
+                for c in range(5 - a - b)
+                for d in range(5 - a - b - c)
+            ],
+            dtype=jnp.int32,
         )
-        # --- 1 element only gather ---
-        CACHE = Shanten.CACHE  # (N_code, 9)
-        J = jnp.int32(CACHE.shape[1])  # == 9
-
-        def gather_elem(c, idx):
-            lin = c * J + idx
-            return jnp.take(Shanten.CACHE_FLAT, lin)
-
-        # 4 variants simultaneously calculate
-        base_costs = gather_elem(code, jnp.full((4,), 4, dtype=jnp.int32))  # (4,)
-
-        idx = jnp.zeros((4, 4), dtype=jnp.int32)  # (variant, suit)
-        idx = idx.at[jnp.arange(4), jnp.arange(4)].set(jnp.int32(5))
-        codes_rect = jnp.broadcast_to(code, (4, 4))  # (4,4)
-
-        def one_step(t, carry):
-            cost, idx = carry
-            # Get the candidate costs (4,4) and select the minimum suit
-            cand = gather_elem(codes_rect, idx)  # (4,4)
-            pick = jnp.argmin(cand, axis=1)  # (4,)
-            delta = cand[jnp.arange(4), pick]  # (4,)
-            inc = (jnp.arange(4)[None, :] == pick[:, None]).astype(jnp.int32)
-
-            new_cost = cost + delta
-            new_idx = idx + inc
-
-            # Only update when t < n_set (scalar pred guards all variants)
-            return jax.lax.cond(
-                t < n_set,
-                lambda: (new_cost, new_idx),
-                lambda: (cost, idx),
-            )
-
-        # Fixed 4 steps (no variable length, so avoid Concretization)
-        def fori_body(t, carry):
-            return one_step(jnp.int32(t), carry)
-
-        costs, _ = jax.lax.fori_loop(0, 4, fori_body, (base_costs, idx))
-        return costs.min().astype(jnp.int32)
+        suits = jnp.arange(4)[None, :]
+        costs = without_pair[suits, allocations]
+        pair_extra = with_pair[suits, allocations] - costs
+        totals = costs.sum(axis=1) + pair_extra.min(axis=1)
+        n_set = jnp.minimum(jnp.sum(hand, dtype=jnp.int32) // 3, 4)
+        return jnp.min(jnp.where(allocations.sum(axis=1) == n_set, totals, jnp.iinfo(jnp.int32).max)).astype(jnp.int32)
