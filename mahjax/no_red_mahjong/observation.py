@@ -97,17 +97,13 @@ def _observe_dict(state: State) -> Dict:
       rule. Gates riichi legality and menzen tsumo.
     - tiles_seen: (34,) int8, copies of each tile type already visible, [0, 4]
     - round / honba / kyotaku: () int8
-    - round_limit: () int8, last kyoku index of the game
+    - round_limit: () int8, last REGULAR kyoku index of the game; ``round`` runs
+      past it, up to ``round_limit + SUDDEN_DEATH_ROUNDS``, during sudden death
     - wall_remaining: () int32, drawable tiles left in the live wall, [0, 70]
-    - prevalent_wind: () int8, round // 4. Reaches 2 (West) on the last kyoku of a
-      'half' game, not just {0 East, 1 South}.
+    - prevalent_wind: () int8, round // 4. Reaches 2 (West) during the sudden-death
+      kyoku of a 'half' game, not just {0 East, 1 South}.
     - seat_wind: () int8, the current player's seat wind [0-3]; 0 is the dealer.
     - dora_indicators: (5,) int8, [0-33], -1 for unrevealed slots
-    - target: () int8, the tile the pending call/ron decision is about, -1 when
-      there is none. Without this a PON/CHI/RON/PASS choice is blind. Caveat: for a
-      call on a discard this is the red-aware id [0-36], but for a chankan (robbing
-      an added kan) the env stores the bare tile type [0-33] (``_selfkan`` derives it
-      as ``action - 37``), so redness is not reported in that one case.
     - target: () int8, the tile a pending call/ron decision is about, -1 if none
     - last_player: () int8, relative seat of whoever acted last, -1 if none
     """

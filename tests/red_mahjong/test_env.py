@@ -13,6 +13,8 @@ from mahjax.red_mahjong.env import (
     _mask_for_chi,
     _next_meld_player,
     _next_ron_player,
+    _pass,
+    _advance_to_next_round_auto,
     _replace_state,
     _step,
 )
@@ -362,7 +364,7 @@ def test_red_auto_single_mode_terminates_like_legacy() -> None:
 
 
 def test_red_auto_game_end_sets_terminated_with_final_score() -> None:
-    env_auto = RedMahjong(round_mode="half", next_round_style="auto")
+    env_auto = RedMahjong(round_mode="half", next_round_style="auto", order_points=[300, 100, -100, -300])
     state = env_auto.init(jax.random.PRNGKey(3))
     state = _replace_state(
         state,
@@ -378,7 +380,7 @@ def test_red_auto_game_end_sets_terminated_with_final_score() -> None:
     )
     next_state = env_auto.step(state, jnp.int32(Action.RON), STEP_KEY)
     assert bool(next_state.terminated)
-    expected = jnp.array([370, 320, 180, 160], dtype=jnp.int32)
+    expected = jnp.array([640, 410, 90, -110], dtype=jnp.int32)
     assert bool(jnp.all(next_state.round_state.score == expected)), (
         f"got {next_state.round_state.score}, expected {expected}"
     )
@@ -455,8 +457,8 @@ def test_red_auto_matches_dummy_share_at_game_end() -> None:
     Compare the two terminal states: same ``terminated``, same final ``score``,
     same ``rewards``.
     """
-    env_auto = RedMahjong(round_mode="half", next_round_style="auto")
-    env_share = RedMahjong(round_mode="half", next_round_style="dummy_share")
+    env_auto = RedMahjong(round_mode="half", next_round_style="auto", order_points=[300, 100, -100, -300])
+    env_share = RedMahjong(round_mode="half", next_round_style="dummy_share", order_points=[300, 100, -100, -300])
     key = jax.random.PRNGKey(2026)
     forced = dict(
         dealer=jnp.int8(0),
@@ -472,13 +474,16 @@ def test_red_auto_matches_dummy_share_at_game_end() -> None:
     state_share = _replace_state(_force_ron_state(env_share, key), **forced)
 
     state_auto = env_auto.step(state_auto, jnp.int32(Action.RON), STEP_KEY)
+    total_auto = state_auto.rewards
     state_share = env_share.step(state_share, jnp.int32(Action.RON), STEP_KEY)
+    total_share = state_share.rewards
     state_share = env_share.step(state_share, jnp.int32(Action.DUMMY), STEP_KEY)
+    total_share = total_share + state_share.rewards
 
     assert bool(state_auto.terminated)
     assert bool(state_share.terminated)
     assert bool(jnp.all(state_auto.round_state.score == state_share.round_state.score))
-    assert bool(jnp.all(state_auto.rewards == state_share.rewards))
+    assert bool(jnp.all(total_auto == total_share))
 
 
 def test_calc_wind_assigns_east_to_dealer() -> None:
@@ -499,3 +504,337 @@ def test_calc_wind_assigns_east_to_dealer() -> None:
     # The invariant the four literals encode.
     for dealer in range(4):
         assert int(_calc_wind(jnp.int32(dealer))[dealer]) == 0
+
+
+def _end_of_round_state(env, **overrides):
+    state = env.init(jax.random.PRNGKey(7))
+    mask = jnp.zeros_like(state.players.legal_action_mask).at[:, Action.DUMMY].set(True)
+    fields = dict(
+        dealer=jnp.int8(0),
+        current_player=jnp.int8(0),
+        round=jnp.int8(7),
+        round_limit=jnp.int8(7),
+        honba=jnp.int8(0),
+        kyotaku=jnp.int8(0),
+        dummy_count=jnp.int8(0),
+        has_won=jnp.zeros(4, dtype=jnp.bool_),
+        can_win=jnp.zeros_like(state.players.can_win),
+        terminated_round=True,
+        draw_next=False,
+        legal_action_mask=mask,
+    )
+    fields.update(overrides)
+    return _replace_state(state, **fields)
+
+
+def test_red_half_game_is_eight_kyoku_long() -> None:
+    assert int(RedMahjong(round_mode="half").round_limit) == 7
+    assert int(RedMahjong(round_mode="east").round_limit) == 3
+
+
+def test_red_final_round_ends_the_game_once_someone_has_30000() -> None:
+    env = RedMahjong(round_mode="half", next_round_style="auto")
+    state = _end_of_round_state(env, score=jnp.array([300, 250, 240, 210], dtype=jnp.int32))
+
+    out = _advance_to_next_round_auto(state, jax.random.PRNGKey(0))
+
+    assert bool(out.terminated)
+
+
+def test_red_final_round_runs_on_when_nobody_has_30000() -> None:
+    env = RedMahjong(round_mode="half", next_round_style="auto")
+    state = _end_of_round_state(env, score=jnp.array([280, 250, 240, 230], dtype=jnp.int32))
+
+    out = _advance_to_next_round_auto(state, jax.random.PRNGKey(0))
+
+    assert not bool(out.terminated)
+    assert int(out.round_state.round) == 8
+
+
+def test_red_sudden_death_ends_at_the_last_extra_round() -> None:
+    env = RedMahjong(round_mode="half", next_round_style="auto")
+    state = _end_of_round_state(
+        env, round=jnp.int8(11), score=jnp.array([280, 250, 240, 230], dtype=jnp.int32)
+    )
+
+    out = _advance_to_next_round_auto(state, jax.random.PRNGKey(0))
+
+    assert bool(out.terminated)
+
+
+def test_red_sudden_death_runs_for_exactly_four_extra_rounds() -> None:
+    env = RedMahjong(round_mode="half", next_round_style="auto")
+    below = jnp.array([280, 250, 240, 230], dtype=jnp.int32)
+    terminated = [
+        bool(
+            _advance_to_next_round_auto(
+                _end_of_round_state(env, round=jnp.int8(r), score=below), jax.random.PRNGKey(0)
+            ).terminated
+        )
+        for r in range(7, 12)
+    ]
+
+    assert terminated == [False, False, False, False, True]
+
+
+def test_red_uma_is_added_to_the_final_score() -> None:
+    env = RedMahjong(round_mode="half", next_round_style="auto", order_points=[300, 100, -100, -300])
+    before = jnp.array([310, 300, 200, 190], dtype=jnp.int32)
+    state = _end_of_round_state(env, score=before)
+
+    out = _advance_to_next_round_auto(state, jax.random.PRNGKey(0))
+
+    assert bool(out.terminated)
+    assert jnp.array_equal(out.round_state.score - before, jnp.array([300, 100, -100, -300]))
+
+
+def test_red_dummy_share_applies_uma_when_a_non_dealer_won_the_final_round() -> None:
+    env = RedMahjong(round_mode="half", next_round_style="dummy_share", order_points=[300, 100, -100, -300])
+    state = _end_of_round_state(
+        env,
+        score=jnp.array([200, 300, 260, 240], dtype=jnp.int32),
+        kyotaku=jnp.int8(2),
+        has_won=jnp.zeros(4, dtype=jnp.bool_).at[1].set(True),
+        can_win=jnp.zeros_like(env.init(jax.random.PRNGKey(7)).players.can_win).at[0, 0].set(True),
+    )
+
+    out = env.step(state, jnp.int8(Action.DUMMY), jax.random.PRNGKey(0))
+
+    assert bool(out.terminated)
+    assert jnp.array_equal(out.round_state.score, jnp.array([-100, 620, 360, 140]))
+
+
+def test_red_uma_scales_a_custom_order_points() -> None:
+    env = RedMahjong(round_mode="half", next_round_style="auto", order_points=[200, 50, -50, -200])
+    before = jnp.array([310, 300, 200, 190], dtype=jnp.int32)
+    state = _end_of_round_state(env, score=before)
+
+    out = _advance_to_next_round_auto(state, jax.random.PRNGKey(0))
+
+    assert jnp.array_equal(out.round_state.score - before, jnp.array([200, 50, -50, -200]))
+
+
+def _furiten_by_pass_after_declining_then_an_unrelated_pass(m, Action):
+    """X declines a winning discard, then passes on an unrelated PON before drawing."""
+    base = m.default_state()
+    x = 1
+    mask = base.players.legal_action_mask
+    declined = m._pass(
+        m._replace_state(
+            base,
+            current_player=jnp.int8(x),
+            last_player=jnp.int8(0),
+            legal_action_mask=mask.at[x, Action.RON].set(True).at[x, Action.PASS].set(True),
+        )
+    )
+    unrelated = m._pass(
+        m._replace_state(
+            declined,
+            current_player=jnp.int8(x),
+            last_player=jnp.int8(2),
+            legal_action_mask=mask.at[x, Action.PON].set(True).at[x, Action.PASS].set(True),
+        )
+    )
+    return x, declined, unrelated
+
+
+def test_red_furiten_by_pass_survives_an_unrelated_pass() -> None:
+    from mahjax.red_mahjong import env as m
+
+    x, declined, unrelated = _furiten_by_pass_after_declining_then_an_unrelated_pass(m, Action)
+
+    assert bool(declined.players.furiten_by_pass[x])
+    assert bool(unrelated.players.furiten_by_pass[x])
+    # It still clears on the player own next draw, unless they are in riichi.
+    drawn = _draw(_replace_state(unrelated, current_player=jnp.int8(x), draw_next=True))
+    assert not bool(drawn.players.furiten_by_pass[x])
+    riichi = _draw(
+        _replace_state(
+            unrelated,
+            current_player=jnp.int8(x),
+            draw_next=True,
+            riichi=unrelated.players.riichi.at[x].set(True),
+        )
+    )
+    assert bool(riichi.players.furiten_by_pass[x])
+
+
+def test_red_rewards_report_only_the_current_transition() -> None:
+    env = RedMahjong(round_mode="east", next_round_style="dummy_share")
+    step = jax.jit(env.step)
+    key = jax.random.PRNGKey(11)
+    key, sub = jax.random.split(key)
+    state = env.init(sub)
+
+    for _ in range(1500):
+        before = state.round_state.score
+        key, action_key, step_key = jax.random.split(key, 3)
+        action = jax.random.categorical(
+            action_key, jnp.log(jnp.where(state.legal_action_mask, 1.0, 0.0))
+        )
+        state = step(state, action.astype(jnp.int8), step_key)
+        delta = (state.round_state.score - before).astype(jnp.float32)
+        assert jnp.allclose(state.rewards, delta), (
+            f"rewards {state.rewards} but the score moved by {delta}"
+        )
+        if bool(state.terminated) or bool(state.truncated):
+            break
+
+
+def test_red_multi_ron_reward_stream_matches_the_score_movement() -> None:
+    env = RedMahjong(round_mode="single", next_round_style="auto")
+    base = default_state()
+    legal_action_mask = base.players.legal_action_mask
+    for player in range(3):
+        legal_action_mask = legal_action_mask.at[player, Action.RON].set(True)
+    state = base.replace(
+        current_player=jnp.int8(0),
+        legal_action_mask=legal_action_mask[0],
+        players=base.players.replace(
+            legal_action_mask=legal_action_mask,
+            fan=base.players.fan.at[:, 0].set(jnp.int32(5)),
+            fu=base.players.fu.at[:, 0].set(jnp.int32(30)),
+        ),
+        round_state=base.round_state.replace(
+            dealer=jnp.int8(3),
+            last_player=jnp.int8(3),
+            honba=jnp.int8(1),
+            kyotaku=jnp.int8(2),
+            score=jnp.array([250, 250, 250, 250], dtype=jnp.int32),
+        ),
+    )
+    start = state.round_state.score
+    total = jnp.zeros(4, dtype=jnp.float32)
+
+    for action in (Action.RON, Action.PASS):
+        state = env.step(state, jnp.int8(action), STEP_KEY)
+        total = total + state.rewards
+
+    assert jnp.allclose(total, (state.round_state.score - start).astype(jnp.float32))
+
+
+def test_red_furiten_by_pass_clears_when_a_meld_gives_the_turn() -> None:
+    """A pon takes the turn without a draw, so it must clear the furiten by pass."""
+    from mahjax.red_mahjong import env as m
+
+    x, declined, _ = _furiten_by_pass_after_declining_then_an_unrelated_pass(m, Action)
+    hand = jnp.zeros((37,), dtype=jnp.int8).at[0].set(3).at[1].set(3).at[2].set(3).at[3].set(3)
+    ponned = m._pon(
+        _replace_state(
+            declined,
+            current_player=jnp.int8(x),
+            last_player=jnp.int8(0),
+            target=jnp.int8(0),
+            hand_with_red=declined.players.hand_with_red.at[x].set(hand),
+            hand=declined.players.hand.at[x].set(Hand.to_34(hand)),
+        ),
+        jnp.int8(Action.PON),
+    )
+
+    assert bool(declined.players.furiten_by_pass[x])
+    assert not bool(ponned.players.furiten_by_pass[x])
+
+
+def test_red_robbing_kan_on_a_red_five_keeps_the_red_dora() -> None:
+    """A chankan must score and report the robbed five's redness."""
+    from mahjax.red_mahjong.meld import Meld as RedMeld
+    from mahjax.red_mahjong.state import GameConfig as RedGameConfig  # noqa: F401
+
+    five_p, red_five_p = 13, Tile.RED_FIVE["p"]
+
+    def rob(declarer_holds_red: bool):
+        base = default_state()
+        declarer, winner = 0, 1
+        declarer_hand = jnp.zeros((37,), dtype=jnp.int8).at[
+            red_five_p if declarer_holds_red else five_p
+        ].set(1)
+        winner_hand = jnp.zeros((37,), dtype=jnp.int8)
+        for tile in (11, 12, 0, 1, 2, 3, 4, 5, 6, 7, 8, 18, 18):
+            winner_hand = winner_hand.at[tile].add(1)
+        hand_with_red = base.players.hand_with_red.at[declarer].set(declarer_hand).at[
+            winner
+        ].set(winner_hand)
+        hand = base.players.hand.at[declarer].set(Hand.to_34(declarer_hand)).at[winner].set(
+            Hand.to_34(winner_hand)
+        )
+        can_win = jax.vmap(Hand.can_ron, in_axes=(None, 0))(hand[winner], jnp.arange(34))
+        state = _replace_state(
+            base,
+            current_player=jnp.int8(declarer),
+            hand=hand,
+            hand_with_red=hand_with_red,
+            pon=base.players.pon.at[(declarer, five_p)].set(1),
+            melds=base.players.melds.at[declarer, 0].set(RedMeld.init(Action.PON, five_p, 1)),
+            meld_counts=base.players.meld_counts.at[declarer].set(1),
+            can_win=base.players.can_win.at[winner].set(can_win),
+            deck=jnp.zeros((136,), dtype=jnp.int8).at[10].set(30),
+            dora_indicators=jnp.full((5,), -1, dtype=jnp.int8),
+            legal_action_mask=jnp.zeros((4, Action.NUM_ACTION), dtype=jnp.bool_)
+            .at[declarer, Tile.NUM_TILE_TYPE_WITH_RED + five_p]
+            .set(True),
+        )
+        out = _kan(state, jnp.int32(Tile.NUM_TILE_TYPE_WITH_RED + five_p))
+        return int(out.round_state.target), int(out.players.fan[winner, 0])
+
+    black_target, black_fan = rob(False)
+    red_target, red_fan = rob(True)
+
+    assert black_target == five_p
+    assert red_target == red_five_p
+    assert red_fan == black_fan + 1
+
+
+def test_red_kan_of_fives_scores_no_red_dora_without_red_fives() -> None:
+    from mahjax.red_mahjong.meld import Meld as RedMeld
+    from mahjax.red_mahjong.state import GameConfig as RedGameConfig
+    from mahjax.red_mahjong.yaku import Yaku as RedYaku
+
+    def fan_for(use_red_fives: bool) -> int:
+        env = RedMahjong(
+            round_mode="half", game_config=RedGameConfig(use_red_fives=jnp.bool_(use_red_fives))
+        )
+        state = env.init(jax.random.PRNGKey(0))
+        hand = jnp.zeros((37,), dtype=jnp.int8)
+        for tile in (0, 1, 2, 9, 10, 11, 18, 19, 20, 27, 27):
+            hand = hand.at[tile].add(1)
+        state = state.replace(
+            players=state.players.replace(
+                melds=state.players.melds.at[0, 0].set(RedMeld.init(Action.OPEN_KAN, 4, 1)),
+                meld_counts=state.players.meld_counts.at[0].set(1),
+            ),
+            round_state=state.round_state.replace(
+                target=jnp.int8(27), dora_indicators=jnp.full((5,), -1, dtype=jnp.int8)
+            ),
+        )
+        _, fan, _ = RedYaku.judge(hand, jnp.bool_(True), jnp.int8(0), state)
+        return int(fan)
+
+    assert fan_for(False) == fan_for(True) - 1
+
+
+def test_red_use_red_fives_survives_round_transitions() -> None:
+    from mahjax.red_mahjong.state import GameConfig as RedGameConfig
+
+    env = RedMahjong(
+        round_mode="half",
+        game_config=RedGameConfig(use_red_fives=jnp.bool_(False)),
+        next_round_style="dummy_share",
+    )
+    step = jax.jit(env.step)
+    key = jax.random.PRNGKey(3)
+    key, sub = jax.random.split(key)
+    state = env.init(sub)
+    rounds = set()
+
+    for _ in range(4000):
+        assert not bool(state.round_state.use_red_fives)
+        rounds.add(int(state.round_state.round))
+        key, action_key, step_key = jax.random.split(key, 3)
+        action = jax.random.categorical(
+            action_key, jnp.log(jnp.where(state.legal_action_mask, 1.0, 0.0))
+        )
+        state = step(state, action.astype(jnp.int8), step_key)
+        if bool(state.terminated) or bool(state.truncated):
+            break
+
+    assert len(rounds) > 1

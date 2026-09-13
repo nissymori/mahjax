@@ -123,8 +123,10 @@ For how to consume these rewards in turn-based MARL training (per-player reward 
 ## Termination
 
 - `round_mode="single"` terminates after the first round ends.
-- `round_mode="east"` runs East-only progression with `round_limit=4`.
-- `round_mode="half"` runs East-South progression with `round_limit=8`.
+- `round_mode="east"` runs East-only progression with `round_limit=3` (East-1 to East-4).
+- `round_mode="half"` runs East-South progression with `round_limit=7` (East-1 to South-4).
+- If nobody holds 30000 points or more when the last kyoku ends, the deal runs on into the
+  extra rounds (西入) and stops as soon as somebody does, or after four extra kyoku.
 
 In multi-round modes, the next-round transition behavior is controlled by `next_round_style` (see [API](api.md#round-transition-style-next_round_style)).
 

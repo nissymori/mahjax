@@ -1,4 +1,4 @@
-name: Tests (excluding test_play)
+name: Tests (excluding test_visualize)
 
 on:
   push:
@@ -31,8 +31,8 @@ jobs:
           make install
           pip install pytest svgwrite typing_extensions>=4.2.0
 
-      - name: Run test suite (excluding test_play)
+      - name: Run test suite (excluding test_visualize)
         env:
           PYTHONPATH: .
         run: |
-          pytest --ignore=tests/no_red_mahjong/test_play.py --ignore=tests/no_red_mahjong/test_visualize.py --ignore=tests/red_mahjong/test_play.py --ignore=tests/red_mahjong/test_visualize.py -vv
+          pytest --ignore=tests/no_red_mahjong/test_visualize.py --ignore=tests/red_mahjong/test_visualize.py -vv

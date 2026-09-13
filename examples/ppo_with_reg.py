@@ -40,12 +40,8 @@ class PPOWithRegArgs(BaseModel):
     algo: str = "ppo_with_reg"
     # Environment
     env_name: str = "no_red_mahjong"
-    # "transformer" or "perceiver" (networks/network.py). The two have DIFFERENT
-    # parameter trees, so pretrained_model_path must point at a BC checkpoint trained
-    # with the SAME encoder, and RL checkpoints must not share a path across encoders.
-    encoder: Literal["transformer", "perceiver"] = "transformer"
     # Free-form label appended to the RL checkpoint filename, so concurrent ablations
-    # sharing env/seed/encoder do not overwrite each other.
+    # sharing env and seed do not overwrite each other.
     run_tag: str = ""
     round_mode: Literal["single", "east", "half"] = "single"
     seed: int = 0
@@ -62,10 +58,10 @@ class PPOWithRegArgs(BaseModel):
     ent_coef: float = 0.01
     clip_eps: float = 0.2
     vf_coef: float = 0.5
-    # Magnet hyperparameters
+    # Magnet (anchor) hyperparameters. The anchor is FIXED for the whole run: it is
+    # set once at startup and the policy is regularized toward it throughout. There
+    # is deliberately no option to refresh it to the current policy.
     mag_coef: float = 0.2
-    update_magnet: bool = False
-    magnet_update_interval: int = 1
     init_magnet_from_pretrained: bool = True
     mag_divergence_type: Literal["kl", "l2"] = "kl"
     pretrained_model_path: Optional[str] = "bc_params.pkl"
@@ -84,7 +80,7 @@ class PPOWithRegArgs(BaseModel):
     class args: extra = "forbid"
 
 args = PPOWithRegArgs(**OmegaConf.to_object(OmegaConf.from_cli()))
-NETWORK_CLS = get_network_cls(args.env_name, args.encoder)
+NETWORK_CLS = get_network_cls(args.env_name)
 if args.pretrained_model_path == "bc_params.pkl":
     args.pretrained_model_path = default_bc_params_path(args.env_name)
 print(args, file=sys.stderr)
@@ -329,7 +325,7 @@ def train(rng_key):
     else:
         print("Using random baseline.", flush=True); baseline_params = params
 
-    # Initialize magnet parameters (used for regularization)
+    # Anchor parameters for the regularizer. Bound once here and never reassigned.
     use_magnet = args.mag_coef > 0.0
     if use_magnet and args.init_magnet_from_pretrained and args.pretrained_model_path:
         print(f"Loading anchor: {args.pretrained_model_path}", flush=True)
@@ -366,10 +362,7 @@ def train(rng_key):
         # 3. Update Parameters
         rng, key_update = jax.random.split(rng)
         train_state, loss_metrics = update_step_fn(train_state, magnet_params, key_update, batch_data)
-        # 4. Optionally refresh magnet to track the current policy
-        if args.update_magnet and use_magnet and (i + 1) % args.magnet_update_interval == 0:
-            magnet_params = train_state.params
-        
+
         steps += BATCH_SIZE
         inv_len = jnp.mean(transitions.is_new_episode.astype(jnp.float32))
         avg_reward = jnp.mean(transitions.reward[..., 0])
@@ -399,7 +392,7 @@ if __name__ == "__main__":
     wandb.init(project=args.wandb_project, config=args.dict())
     final_state = train(jax.random.PRNGKey(args.seed))
     if args.save_model:
-        save_path = default_rl_params_path(args.env_name, args.seed, args.encoder, args.run_tag)
+        save_path = default_rl_params_path(args.env_name, args.seed, args.run_tag)
         os.makedirs(os.path.dirname(save_path) or ".", exist_ok=True)
         with open(save_path, "wb") as f:
             pickle.dump(final_state.params, f)

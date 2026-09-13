@@ -16,20 +16,14 @@ def default_bc_params_path(env_name: str) -> str:
     return str(PARAMS_DIR / f"{env_name}_bc_params.pkl")
 
 
-def default_rl_params_path(
-    env_name: str, seed: int, encoder: str = "transformer", run_tag: str = ""
-) -> str:
+def default_rl_params_path(env_name: str, seed: int, run_tag: str = "") -> str:
     """RL checkpoint path.
 
-    The encoder is part of the identity: a perceiver checkpoint cannot be loaded by a
-    transformer network or vice versa, so they must not share a filename. The
-    transformer keeps the original unsuffixed name so existing checkpoints stay valid.
+    run_tag separates ABLATIONS that share env and seed and would otherwise race for
+    the same file when run concurrently.
     """
-    suffix = "" if encoder == "transformer" else f"-{encoder}"
-    # run_tag separates ABLATIONS that share env/seed/encoder and would otherwise
-    # race for the same file when run concurrently.
     tag = f"-{run_tag}" if run_tag else ""
-    return str(PARAMS_DIR / f"{env_name}-seed={seed}{suffix}{tag}.ckpt")
+    return str(PARAMS_DIR / f"{env_name}-seed={seed}{tag}.ckpt")
 
 
 def get_rule_based_player(env_name: str) -> Callable[..., Any]:
@@ -44,12 +38,12 @@ def get_rule_based_player(env_name: str) -> Callable[..., Any]:
     raise ValueError(f"Unsupported env_name: {env_name}")
 
 
-def get_network_cls(env_name: str, encoder: str = "transformer"):
-    """Bind the env's tokenizer to a sequence model.
+def get_network_cls(env_name: str):
+    """Bind the env's tokenizer to the transformer.
 
     ``network.py`` is env-agnostic; the red / no-red split lives entirely in the two
     feature modules, which expose the same contract (D_MODEL, NUM_ACTIONS,
-    CLS_POSITIONS). ``encoder`` selects "transformer" or "perceiver".
+    CLS_POSITIONS).
     """
     try:
         from .networks.network import make_acnet
@@ -61,13 +55,13 @@ def get_network_cls(env_name: str, encoder: str = "transformer"):
             from .networks.red_feature import ObservationTokenizer
         except ImportError:
             from networks.red_feature import ObservationTokenizer
-        return make_acnet(ObservationTokenizer, encoder)
+        return make_acnet(ObservationTokenizer)
     if env_name == "no_red_mahjong":
         try:
             from .networks.no_red_feature import ObservationTokenizer
         except ImportError:
             from networks.no_red_feature import ObservationTokenizer
-        return make_acnet(ObservationTokenizer, encoder)
+        return make_acnet(ObservationTokenizer)
     raise ValueError(f"Unsupported env_name: {env_name}")
 
 
