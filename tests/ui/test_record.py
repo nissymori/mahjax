@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 
 import pytest
 
@@ -10,6 +11,7 @@ from mahjax.ui import record as record_mod
 from mahjax.ui.agents import AgentRegistry
 from mahjax.ui.match import Match, MatchConfig
 from mahjax.ui.record import Replay
+from mahjax.ui.rules import rules_for
 
 ENV_IDS = ("red_mahjong", "no_red_mahjong")
 
@@ -33,6 +35,34 @@ def _self_play(registry: AgentRegistry, env_id: str, seed: int, round_mode: str 
         save_record=False,
     )
     match = Match(config, registry.default_for(env_id))
+    match.play_out()
+    return match
+
+
+#: A red east game in which the agent below is offered nine terminals and takes it.
+NINE_TERMINALS_SEED = 14
+
+
+def _nine_terminals_game(registry: AgentRegistry) -> Match:
+    """Self-play with a random agent that always declares nine terminals when offered.
+
+    A legal declaration needs nine terminal and honor types on a player's first
+    draw, so a plain random agent almost never makes one, and the bundled
+    heuristic never does.
+    """
+    random_agent = registry.get("random")
+    kyuushu = rules_for("red_mahjong").KYUUSHU
+
+    def act(state, key):
+        mask = state.legal_action_mask
+        if bool(mask[kyuushu]) and int(mask.sum()) > 1:
+            return kyuushu
+        return random_agent.act(state, key)
+
+    config = MatchConfig(
+        env_id="red_mahjong", round_mode="east", seed=NINE_TERMINALS_SEED, human_seat=None, save_record=False
+    )
+    match = Match(config, replace(random_agent, act=act))
     match.play_out()
     return match
 
@@ -102,14 +132,8 @@ def test_listing_summarises_saved_records(registry: AgentRegistry) -> None:
 def test_a_chosen_nine_terminals_still_breaks_the_record(registry: AgentRegistry) -> None:
     """Nine terminals declared by choice ends the round, so the log has to carry
     a boundary there; without one the replay drifts a round out of step.
-
-    Driven by the random agent: the bundled heuristic never declares it.
     """
-    config = MatchConfig(
-        env_id="red_mahjong", round_mode="east", seed=30, human_seat=None, save_record=False
-    )
-    match = Match(config, registry.get("random"))
-    match.play_out()
+    match = _nine_terminals_game(registry)
     kinds = [e["type"] for e in match.events]
     assert kinds.count("start_kyoku") == kinds.count("end_kyoku")
     reasons = [e.get("reason") for e in match.events if e["type"] == "ryukyoku"]
@@ -142,11 +166,7 @@ def test_a_replay_keeps_the_name_of_the_abortive_draw(registry: AgentRegistry) -
     read off the board before the step is applied; the replay used to leave it
     blank and label every abortive draw with the generic title.
     """
-    config = MatchConfig(
-        env_id="red_mahjong", round_mode="east", seed=30, human_seat=None, save_record=False
-    )
-    match = Match(config, registry.get("random"))
-    match.play_out()
+    match = _nine_terminals_game(registry)
 
     replay = Replay(match.events)
     abortive = [r for r in replay._results.values() if r["type"] == "abortive"]  # noqa: SLF001
@@ -164,13 +184,57 @@ def test_a_voided_round_lists_no_winners(registry: AgentRegistry) -> None:
     """An abortive draw is a draw. The log still carries the wins that were
     declared before the round was voided, and a replay must not put them up as
     results the live board never showed."""
-    config = MatchConfig(
-        env_id="red_mahjong", round_mode="east", seed=30, human_seat=None, save_record=False
-    )
-    match = Match(config, registry.get("random"))
-    match.play_out()
+    match = _nine_terminals_game(registry)
 
     replay = Replay(match.events)
-    for result in replay._results.values():  # noqa: SLF001 - the result map is the point
-        if result["type"] == "abortive":
-            assert result["winners"] == []
+    abortive = [r for r in replay._results.values() if r["type"] == "abortive"]  # noqa: SLF001
+    assert abortive, "this seed no longer produces an abortive draw"
+    for result in abortive:
+        assert result["winners"] == []
+
+
+
+def test_a_record_saved_on_a_result_still_replays(registry: AgentRegistry) -> None:
+    """Quitting while a round's result is on screen leaves a log that ends on
+    that result. The replay stops there instead of dealing a round the log never
+    reached."""
+    match = _self_play(registry, "red_mahjong", seed=1)
+    cut = next(i for i, e in enumerate(match.events) if e["type"] == "end_kyoku")
+    replay = Replay(match.events[: cut + 1])
+    results = [replay._results[k] for k in sorted(replay._results)]  # noqa: SLF001
+    assert len(results) == 1
+    assert results[0]["gameOver"] is False
+    assert len(replay.rounds) == 1
+
+
+def test_a_record_saved_as_the_next_round_is_dealt_still_replays(registry: AgentRegistry) -> None:
+    """Quitting straight after moving on leaves a log that ends on a fresh
+    start_kyoku. The sharing steps before it were played, so the replay plays
+    them too and checks the deal."""
+    match = _self_play(registry, "red_mahjong", seed=1)
+    second = [i for i, e in enumerate(match.events) if e["type"] == "start_kyoku"][1]
+    replay = Replay(match.events[: second + 1])
+    opening = replay._states[-1].round_state  # noqa: SLF001
+    assert len(replay._results) == 1  # noqa: SLF001
+    assert int(opening.honba) == match.events[second]["honba"]
+    assert int(opening.round) % 4 + 1 == match.events[second]["kyoku"]
+    # The dealt round has a span of its own, so the replay bar does not file it
+    # under the first round.
+    last = len(replay._states) - 1  # noqa: SLF001
+    assert [(r.start, r.end) for r in replay.rounds] == [(0, last - 1), (last, last)]
+
+
+def test_a_record_from_another_version_says_so(registry: AgentRegistry) -> None:
+    """The replay re-runs the env, so a log written by a version that plays
+    differently cannot be followed. The error names the version, not the step."""
+    match = _self_play(registry, "red_mahjong", seed=44, round_mode="single")
+    events = [dict(e) for e in match.events]
+    events[0]["mahjax"] = {**events[0]["mahjax"], "mahjax_version": "0.0.1"}
+    for event in events:
+        if event.get("type") == "tsumo":
+            event["pai"] = "1m" if event["pai"] != "1m" else "9s"
+            break
+    else:
+        pytest.skip("no tsumo event to change")
+    with pytest.raises(record_mod.RecordError, match="mahjax 0.0.1"):
+        Replay(events)

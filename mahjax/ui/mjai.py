@@ -373,9 +373,9 @@ def _abortive_reason(rules: Rules, pre_state: Any) -> str:
     mask = np.asarray(pre_state.legal_action_mask, dtype=bool)
     if int(mask.sum()) > 1:
         return "kyushukyuhai"  # discards were still on offer: a voluntary declaration
-    players = pre_state.players
-    if bool(np.asarray(players.has_won).any()):
+    if rules.is_triple_ron(pre_state):
         return "sanchaho"
+    players = pre_state.players
     if int(np.asarray(players.riichi).sum()) == 4:
         return "suuchariichi"
     n_kan = np.asarray(players.n_kan)
@@ -451,9 +451,12 @@ def decode_steps(
     cursor = 0
     step = 0
     while not bool(state.terminated):
-        if cursor > tail:
+        over = rules.is_round_over(state)
+        # Past the last action the replay stops -- except at a round end that the
+        # log goes on to deal from, because those DUMMYs were played.
+        if cursor > tail and not (over and _deals_again(events, cursor)):
             return
-        if rules.is_round_over(state):
+        if over:
             action, consumed_at = rules.DUMMY, None
         else:
             action, consumed_at = _decide(rules, state, events, cursor)
@@ -589,6 +592,11 @@ def _last_replayable_index(events: Sequence[Event]) -> int:
         if _is_action_event(event) or event.get("type") == "end_game":
             last = i
     return last
+
+
+def _deals_again(events: Sequence[Event], cursor: int) -> bool:
+    """Whether the log opens another round at or after ``cursor``."""
+    return any(event.get("type") == "start_kyoku" for event in events[cursor:])
 
 
 __all__ = [

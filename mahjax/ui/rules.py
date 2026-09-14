@@ -372,6 +372,17 @@ class Rules:
     def has_won(self, state: Any) -> List[bool]:
         return [bool(x) for x in np.asarray(state.players.has_won)]
 
+    def is_triple_ron(self, state: Any) -> bool:
+        """Whether a third ron on one discard is what voided this round.
+
+        The env takes the first two wins back before it offers the abortive draw,
+        so ``has_won`` is already clear by then. The third ron is still the last
+        action in the round's history, and no other abortive draw follows a ron.
+        """
+        rs = state.round_state
+        n = int(rs.round_step)
+        return n > 0 and int(np.asarray(rs.action_history)[1, n - 1]) == self.RON
+
     def nagashi_mangan(self, state: Any) -> List[bool]:
         arr = getattr(state.players, "has_nagashi_mangan", None)
         if arr is None:

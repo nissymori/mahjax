@@ -650,11 +650,10 @@ def build_win(
 def final_standings(rules: Rules, state: Any) -> List[Dict[str, int]]:
     """Final standings in seat order, with the points and the rank bonus apart.
 
-    ``uma`` keeps the env's own units (the +30 / +10 / -10 / -30 it carries) and
-    is deliberately not folded into ``score``: the two are read side by side, not
-    added. The scores themselves are recomputed here rather than read back from
-    the state because the env only folds uma in on one of its two game-end paths
-    (spec section 9.3).
+    Both are in points. ``uma`` is deliberately not folded into ``score``: the two
+    are read side by side, not added. ``state`` is the round-end state, from
+    before the env's game-end step folds uma and the table's riichi sticks into
+    ``score``, so the sticks are added here and the uma is kept apart.
     """
     rs = state.round_state
     scores = np.asarray(rs.score, dtype=np.int64)
@@ -672,7 +671,7 @@ def final_standings(rules: Rules, state: Any) -> List[Dict[str, int]]:
             "seat": seat,
             "rank": int(rank_of[seat]),
             "score": int(final[seat]) * 100,
-            "uma": int(uma_of[seat]),
+            "uma": int(uma_of[seat]) * 100,
         }
         for seat in range(NUM_PLAYERS)
     ]
@@ -686,9 +685,9 @@ def abortive_reason(rules: Rules, state: Any) -> str:
     call this, which is what keeps a saved game's overlay saying the same thing
     the live one said.
     """
-    players = state.players
-    if int(sum(bool(x) for x in players.has_won)) >= 2:
+    if rules.is_triple_ron(state):
         return "triple_ron"
+    players = state.players
     if int(sum(int(x) for x in players.riichi)) == NUM_PLAYERS:
         return "four_riichi"
     if int(sum(int(x) for x in players.n_kan)) >= 4:

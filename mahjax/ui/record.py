@@ -200,7 +200,22 @@ class Replay:
         self._steps: List[Dict[str, Any]] = []
         self._results: Dict[int, Dict[str, Any]] = {}
         self.rounds: List[RoundSpan] = []
-        self._replay(verify=verify)
+        try:
+            self._replay(verify=verify)
+        except (RecordError, mjai.MjaiError) as err:
+            import mahjax
+
+            # The replay re-runs the env from the seed, so a log from another
+            # version fails wherever the rules changed. Say that, not where.
+            recorded = self.meta.get("mahjax_version")
+            if recorded and recorded != mahjax.__version__:
+                raise RecordError(
+                    f"This record was written by mahjax {recorded}, and mahjax "
+                    f"{mahjax.__version__} plays the game differently, so it cannot be replayed."
+                ) from err
+            if isinstance(err, RecordError):
+                raise
+            raise RecordError(str(err)) from err
 
     def _seats(self) -> List[SeatInfo]:
         names = self.events[0].get("names") or []
@@ -251,7 +266,8 @@ class Replay:
         self._push(state, None, round_index)
 
         def finalize(current: Any) -> bool:
-            """Attach the held result. Returns True when the game is over."""
+            """Attach the held result. Returns True when nothing follows it: the
+            game is over, or the log stops on this result."""
             nonlocal pending, round_index, round_start_frame, score_start, wins
             if pending is None:
                 return False
@@ -270,6 +286,9 @@ class Replay:
                 )
             )
             if game_over:
+                return True
+            if rules.is_round_over(current):
+                # Saved while this result was on screen: the next round was never dealt.
                 return True
             round_index += 1
             wins = []
@@ -316,12 +335,16 @@ class Replay:
                 )
         finalize(state)
 
-        if not self.rounds and self._states:
+        # Frames after the last finished round -- a round still in play when the
+        # record was saved, or the whole game when none finished -- need a span of
+        # their own, or the replay bar files them under the first round.
+        last_end = self.rounds[-1].end if self.rounds else -1
+        if last_end < len(self._states) - 1:
             self.rounds.append(
                 RoundSpan(
-                    index=0,
+                    index=len(self.rounds),
                     label=round_label(self._states[-1]),
-                    start=0,
+                    start=last_end + 1,
                     end=len(self._states) - 1,
                 )
             )

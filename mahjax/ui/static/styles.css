@@ -103,7 +103,20 @@ button.ghost { background: transparent; }
 .replay-bar .auto { min-width: 5ch; border-color: var(--line); background: #fff; }
 .replay-bar .auto.playing { background: var(--ink); color: #fff; border-color: transparent; }
 
-.replay-label { min-width: 22ch; text-align: center; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+/* A set width, not a minimum. The label changes on every step, and one that
+   grew would push the buttons either side of it along with it. It depends on
+   the window alone, starts on the left so the round and the count hold still,
+   and cuts a line too long for it with an ellipsis (the tooltip keeps it whole). */
+.replay-label {
+  flex: none;
+  width: clamp(12ch, calc(100vw - 440px), 46ch);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+}
 
 /* ------------------------------------------------------------------- table */
 
@@ -423,13 +436,12 @@ img.tile {
 
 /* ----------------------------------------------------------------- actions */
 
+/* right and bottom come from the hand's metrics: see placeActions(). */
 .actions {
   position: absolute;
-  right: calc(var(--u) * 2);
-  bottom: calc(var(--u) * 11);
   display: flex;
-  flex-direction: column;
   align-items: flex-end;
+  justify-content: flex-end;
   gap: calc(var(--u) * 1);
   z-index: 3;
 }
@@ -447,7 +459,17 @@ img.tile {
 .actions button:hover:not(:disabled) { background: #3b434a; }
 .actions button.win { background: #000; }
 .actions button.pass { background: #7c8489; }
-.actions .choices { display: flex; flex-direction: column; gap: calc(var(--u) * 0.6); align-items: flex-end; }
+.actions .choices { position: relative; display: flex; }
+/* Stacked upwards from the button, the first group nearest to it. */
+.actions .choice-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + var(--u) * 0.6);
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: flex-end;
+  gap: calc(var(--u) * 0.6);
+}
 .actions .choice {
   --h: calc(var(--u) * 4.8);
   display: flex;

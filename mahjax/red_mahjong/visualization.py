@@ -45,8 +45,8 @@ _PLAYER_WIND_LABELS = {
     "en": ("E", "S", "W", "N"),
 }
 _ROUND_WIND_LABELS = {
-    "ja": ("東", "南"),
-    "en": ("East", "South"),
+    "ja": ("東", "南", "西", "北"),
+    "en": ("East", "South", "West", "North"),
 }
 _JA_FONT_FAMILY = "'Noto Sans CJK JP', 'Noto Sans CJK', sans-serif"
 

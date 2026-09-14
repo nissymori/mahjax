@@ -15,7 +15,7 @@
 """Paint the tile faces the way a real set is painted.
 
     python -m mahjax._src.assets.tiles.colorize            # the ja set
-    python -m mahjax._src.assets.tiles.colorize ja en      # or name the sets
+    python mahjax/_src/assets/tiles/generate_en_tiles.py   # then rebuild en from it
 
 The faces are drawn as one ``<path>`` holding every subpath: the rounded frame
 (an outer rectangle and an inset one, filled evenodd so only the ring shows)
@@ -24,9 +24,17 @@ set reads as black on white. Splitting the frame from the character lets the
 character take the suit's colour while the frame stays ink, and a manzu tile
 can keep a black numeral above its red 萬 the way a real tile does.
 
-The colours are the ones ``generate_en_tiles.py`` already paints the English
-set with, so the two sets agree. That set needs nothing from here: it is built
-with its numerals already coloured.
+A pin or sou face is not one colour either. It takes its suit's colour, and the
+parts a real set paints otherwise are laid over it: the red centre of 1p, 3p and
+5p, the lower block of 6p and 7p, the middle row of 9p, the red sticks of 5s, 7s
+and 9s, and the peacock's ink body and red legs on 1s. Which part takes which
+colour follows the FluffyStuff riichi-mahjong-tiles set (public domain), which
+these faces are drawn after. An accent is the whole character again, masked to
+its region, because a region can cut across a subpath -- 7p's pips share one
+outline -- and splitting the subpaths would break their evenodd holes.
+
+The English set copies these faces, colours and masks included, so
+``generate_en_tiles.py`` has to run after this.
 
 The split is derived from the geometry every time, so running this twice is the
 same as running it once.
@@ -36,15 +44,16 @@ from __future__ import annotations
 
 import re
 import sys
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Sequence, Tuple, Union
 
 HERE = Path(__file__).resolve().parent
 
 #: The frame is drawn in ink whatever the face says, so a red five reads as a
 #: red character and not as a red tile.
 FRAME = "#000"
-RED = "#c62828"  # 萬, 中, and the red fives
+RED = "#c62828"  # 萬, 中, the red fives, and the red pips and sticks
 GREEN = "#16703c"  # bamboo, and 發
 BLUE = "#1f3f99"  # the circles of a pin tile
 SUIT = {"m": FRAME, "p": BLUE, "s": GREEN}
@@ -56,6 +65,66 @@ SKIP = {"b.svg", "back.svg", "oya.svg"}
 #: the lowest numeral stroke ends at 0.44 of the height, the highest 萬 stroke
 #: starts at 0.43, so the midpoint of a subpath separates them cleanly.
 MAN_SPLIT = 0.42
+
+
+@dataclass(frozen=True)
+class Circle:
+    """A disc around a pip, centred on its ring edges."""
+
+    cx: float
+    cy: float
+    r: float
+
+
+@dataclass(frozen=True)
+class Outline:
+    """The largest shape on the face whose box holds ``(x, y)``, grown by half
+    of ``GROW`` so that the mask edge falls in the gap around the shape."""
+
+    x: float
+    y: float
+
+
+@dataclass(frozen=True)
+class Side:
+    """The half of the face nearer ``(x, y)`` than ``(ox, oy)``, always cut out.
+
+    Two pips that overlap share one outline, so a disc round either would take a
+    crescent of the other; the line halfway between their centres takes neither.
+    """
+
+    x: float
+    y: float
+    ox: float
+    oy: float
+
+
+Region = Union[Circle, Outline, Side]
+
+#: How far an outline mask is stroked past the shape, in viewBox units.
+GROW = 0.4
+
+#: Pip centres are the centres of the ring edges. A pip's outer radius is 4.5 in
+#: the 2x2 block, where neighbours overlap, 4.0 on 9p and 5.0 on 3p and 5p; each
+#: disc is 0.3-0.4 larger so that its edge lies in the white around the pip.
+_LOWER_BLOCK: Tuple[Region, ...] = (
+    Circle(10.5, 24.75, 4.9),
+    Circle(18.5, 24.75, 4.9),
+    Circle(10.5, 32.75, 4.9),
+    Circle(18.5, 32.75, 4.9),
+)
+ACCENTS: Dict[str, Tuple[Tuple[str, Tuple[Region, ...]], ...]] = {
+    "1p": ((RED, (Circle(14.5, 20.75, 7.6),)),),
+    "3p": ((RED, (Circle(14.5, 20.75, 5.4),)),),
+    "5p": ((RED, (Circle(14.5, 20.75, 5.4),)),),
+    "6p": ((RED, _LOWER_BLOCK),),
+    "7p": ((RED, _LOWER_BLOCK + (Side(21.25, 17.25, 18.5, 24.75),)),),  # the last blue pip overlaps the block
+    "9p": ((RED, (Circle(7.5, 20.75, 4.3), Circle(14.5, 20.75, 4.3), Circle(21.5, 20.75, 4.3))),),
+    "1s": ((FRAME, (Outline(14.5, 28.0),)), (RED, (Outline(11.45, 34.6), Outline(15.5, 34.6)))),
+    "5s": ((RED, (Outline(14.5, 20.5),)),),
+    "7s": ((RED, (Outline(14.5, 8.3),)),),
+    "9s": ((RED, (Outline(14.5, 8.3), Outline(14.5, 20.5), Outline(14.5, 32.7))),),
+}
 
 NUMBER = re.compile(r"[-+]?(?:\d*\.\d+|\d+)(?:[eE][-+]?\d+)?")
 #: Which arguments of each command are points, and how many arguments it takes.
@@ -113,6 +182,17 @@ def _frame_indices(subs: List[str], width: float, height: float) -> List[int]:
     ]
 
 
+def _face_ds(svg: str) -> List[str]:
+    """The ``d`` of every drawn path, leaving out masks and the accents they cut."""
+    body = re.sub(r"<defs>.*?</defs>", "", svg, flags=re.DOTALL)
+    ds = []
+    for tag in re.findall(r"<path\b[^>]*>", body):
+        d = re.search(r'\sd="([^"]*)"', tag)
+        if d is not None and 'mask="url(#accent-' not in tag:
+            ds.append(d.group(1))
+    return ds
+
+
 def _glyph_colour(name: str, subpath: str, height: float) -> str:
     stem = name[:-4]  # drop ".svg"
     if stem.endswith("r"):  # 5mr, 5pr, 5sr
@@ -131,10 +211,65 @@ def _glyph_colour(name: str, subpath: str, height: float) -> str:
     return FRAME  # 東南西北 and the blank 白
 
 
+def _enclosing(glyph: Sequence[str], x: float, y: float) -> str:
+    boxed = [(s, _bbox(s)) for s in glyph]
+    inside = [(s, b) for s, b in boxed if b[0] <= x <= b[2] and b[1] <= y <= b[3]]
+    if not inside:
+        raise ValueError(f"no shape holds ({x}, {y})")
+    return max(inside, key=lambda sb: (sb[1][2] - sb[1][0]) * (sb[1][3] - sb[1][1]))[0]
+
+
+def _half_plane(side: Side, reach: float = 100.0) -> str:
+    """Polygon points covering the half-plane of ``side``, far past the tile."""
+    dx, dy = side.x - side.ox, side.y - side.oy
+    norm = (dx * dx + dy * dy) ** 0.5
+    ux, uy = dx / norm, dy / norm  # towards the side that is cut
+    vx, vy = -uy, ux  # along the dividing line
+    mx, my = (side.x + side.ox) / 2, (side.y + side.oy) / 2
+    corners = [
+        (mx + vx * reach, my + vy * reach),
+        (mx + (vx + ux) * reach, my + (vy + uy) * reach),
+        (mx + (ux - vx) * reach, my + (uy - vy) * reach),
+        (mx - vx * reach, my - vy * reach),
+    ]
+    return " ".join(f"{x:.3f},{y:.3f}" for x, y in corners)
+
+
+def _mask(
+    mask_id: str,
+    regions: Sequence[Region],
+    glyph: Sequence[str],
+    width: float,
+    height: float,
+    invert: bool = False,
+) -> str:
+    """A mask showing ``regions``, or with ``invert`` everything but them."""
+    on, off = ("#000", "#fff") if invert else ("#fff", "#000")
+    shapes = [f'<rect x="0" y="0" width="{width}" height="{height}" fill="#fff" stroke="none"/>'] if invert else []
+    for region in regions:
+        if isinstance(region, Circle):
+            shapes.append(
+                f'<circle cx="{region.cx}" cy="{region.cy}" r="{region.r}" fill="{on}" stroke="none"/>'
+            )
+        elif isinstance(region, Side):
+            shapes.append(f'<polygon points="{_half_plane(region)}" fill="{off}" stroke="none"/>')
+        else:
+            d = _enclosing(glyph, region.x, region.y)
+            shapes.append(f'<path d="{d}" fill="{on}" stroke="{on}" stroke-width="{GROW}"/>')
+    return (
+        f'<mask id="{mask_id}" maskUnits="userSpaceOnUse" x="0" y="0" '
+        f'width="{width}" height="{height}">{"".join(shapes)}</mask>'
+    )
+
+
+def _path(d: str, colour: str, extra: str = "") -> str:
+    return f'<path d="{d}" stroke="{colour}" fill="{colour}" style="stroke:{colour};fill:{colour}"{extra}/>'
+
+
 def paint(path: Path) -> bool:
-    """Rewrite one tile with a frame path and one path per glyph colour."""
+    """Rewrite one tile with a frame path, one path per glyph colour, and its accents."""
     svg = path.read_text(encoding="utf-8")
-    ds = re.findall(r'\sd="([^"]*)"', svg)
+    ds = _face_ds(svg)
     if not ds:
         return False
     _, _, width, height = _view_box(svg)
@@ -143,23 +278,38 @@ def paint(path: Path) -> bool:
     if len(frame) != 2:
         raise ValueError(f"{path.name}: found {len(frame)} frame subpaths, wanted 2")
 
+    glyph = [sub for i, sub in enumerate(subs) if i not in frame]
     by_colour: Dict[str, List[str]] = {FRAME: [subs[i] for i in frame]}
-    for i, sub in enumerate(subs):
-        if i in frame:
-            continue
+    for sub in glyph:
         by_colour.setdefault(_glyph_colour(path.name, sub, height), []).append(sub)
 
-    head = svg[: svg.index("<g")]
+    accented = ACCENTS.get(path.name[:-4], ())
+    masks: List[str] = []
+    accents: List[str] = []
+    for k, (colour, regions) in enumerate(accented):
+        mask_id = f"accent-{k}"
+        masks.append(_mask(mask_id, regions, glyph, width, height))
+        accents.append(_path(" ".join(glyph), colour, f' mask="url(#{mask_id})"'))
+    base = ""
+    if accented:
+        # The suit colour is cut away wherever an accent goes. Left underneath,
+        # its antialiased edge would show as a thin rim round every accent.
+        every = [region for _, regions in accented for region in regions]
+        masks.insert(0, _mask("base", every, glyph, width, height, invert=True))
+        base = ' mask="url(#base)"'
+    suit_colour = SUIT.get(path.name[:-4][-1], FRAME)
+
+    head = re.sub(r"<defs>.*?</defs>", "", svg[: svg.index("<g")], flags=re.DOTALL)
+    defs = f"<defs>{''.join(masks)}</defs>" if masks else ""
     # Keep the group tag exactly as it was. A path's own fill beats the one it
     # would inherit, so the colours below still win, and generate_en_tiles.py,
     # which copies this tag into the English set, keeps producing what it did.
     group = re.search(r"<g[^>]*>", svg).group(0)
     body = "".join(
-        f'<path d="{" ".join(parts)}" stroke="{colour}" fill="{colour}" '
-        f'style="stroke:{colour};fill:{colour}"/>'
+        _path(" ".join(parts), colour, base if colour == suit_colour and colour != FRAME else "")
         for colour, parts in by_colour.items()
     )
-    path.write_text(f"{head}{group}{body}</g></svg>", encoding="utf-8")
+    path.write_text(f"{head}{defs}{group}{body}{''.join(accents)}</g></svg>", encoding="utf-8")
     return True
 
 

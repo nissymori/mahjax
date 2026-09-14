@@ -30,10 +30,15 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
+from mahjax.red_mahjong.action import Action
+from mahjax.red_mahjong.env import _step_dummy_share
+from mahjax.red_mahjong.state import GameConfig, default_state
+from mahjax.ui import mjai
 from mahjax.ui.rules import Rules, rules_for, tile_type
 from mahjax.ui.view import (
     SeatInfo,
     _judge_win,
+    abortive_cause,
     build_prompt,
     build_round_result,
     build_view,
@@ -477,9 +482,9 @@ def test_final_standings_keep_points_and_uma_apart(roll: Rollout) -> None:
     assert [s["seat"] for s in standings] == [0, 1, 2, 3]
     assert [s["rank"] for s in standings] == [1, 2, 3, 4]
     # Everyone starts level, so seat order breaks the tie and nothing moves the
-    # points; the rank bonus is reported on its own, in the env's own units.
+    # points; the rank bonus is reported on its own, in points like the score.
     assert [s["score"] for s in standings] == [25000] * 4
-    assert [s["uma"] for s in standings] == np.asarray(state.round_state.order_points).tolist()
+    assert [s["uma"] for s in standings] == (100 * np.asarray(state.round_state.order_points)).tolist()
 
     end = roll.uneven
     assert end is not None
@@ -494,6 +499,37 @@ def test_final_standings_keep_points_and_uma_apart(roll: Rollout) -> None:
     assert sum(s["score"] for s in standings) == sum(scores) + sticks
     assert sum(s["uma"] for s in standings) == 0
     assert by_rank[0]["uma"] == max(s["uma"] for s in standings)
+
+
+def test_a_triple_ron_is_named_after_the_env_takes_the_wins_back() -> None:
+    """Three rons on one discard void the round, and the env clears ``has_won``
+    before it offers the abortive draw. The play overlay and the saved record
+    must still both call it a triple ron."""
+    base = default_state()
+    ron_mask = base.players.legal_action_mask
+    for seat in range(3):
+        ron_mask = ron_mask.at[seat, Action.RON].set(True)
+    state = base.replace(
+        legal_action_mask=ron_mask[0],
+        players=base.players.replace(
+            legal_action_mask=ron_mask,
+            fan=base.players.fan.at[:, 0].set(jnp.int32(5)),
+            fu=base.players.fu.at[:, 0].set(jnp.int32(30)),
+        ),
+        round_state=base.round_state.replace(dealer=jnp.int8(3), last_player=jnp.int8(3)),
+    )
+    config = GameConfig(allow_double_ron=jnp.bool_(True))
+    key = jax.random.PRNGKey(0)
+    for seat in range(3):
+        state = _step_dummy_share(
+            state.replace(current_player=jnp.int8(seat)), jnp.int32(Action.RON), key, config
+        )
+
+    rules = rules_for("red_mahjong")
+    assert not any(rules.has_won(state))
+    assert rules.legal_actions(state) == [rules.KYUUSHU]
+    assert abortive_cause(rules, state) == ("triple_ron", None)
+    assert mjai._abortive_reason(rules, state) == "sanchaho"  # noqa: SLF001
 
 
 def test_describe_action_names_the_tiles(roll: Rollout) -> None:

@@ -406,6 +406,9 @@ function handMetrics(seat, isSelf) {
     meldScale,
     right: meldSpan,
     left: (room - reserved * scale) / 2,
+    // The right end of the concealed tiles, just short of the drawn tile. That
+    // row is what gets centred; the drawn tile's slot hangs off its end.
+    edge: room / 2 + (width / 2) * scale,
   };
 }
 
@@ -446,6 +449,7 @@ function renderCenter(v, vp) {
 function renderActions(v) {
   el.actions.textContent = "";
   if (S.mode !== "play" || !v.prompt || S.busy) return;
+  placeActions(v);
   const options = v.prompt.options;
   const byKind = new Map();
   for (const option of options) {
@@ -463,6 +467,16 @@ function renderActions(v) {
   if (pass) el.actions.append(simpleButton("pass", pass[0]));
 }
 
+/** In a row just above your hand, flush with the end of the concealed tiles
+ *  rather than the drawn one, so the buttons stay put between a draw and a
+ *  call. [パス] is added last, so it is always rightmost. */
+function placeActions(v) {
+  const metrics = handMetrics(v.seats[viewpointSeat(v)], true);
+  el.actions.style.right = `${100 - metrics.edge}%`;
+  // Clear of the hand (7.2) and of a tile lifted by hover (1.4), both scaled.
+  el.actions.style.bottom = `calc(var(--u) * ${1.4 + 8.6 * metrics.scale + 0.6})`;
+}
+
 function buttonFor(kind, label) {
   const button = document.createElement("button");
   button.textContent = label;
@@ -477,17 +491,20 @@ function simpleButton(kind, option) {
   return button;
 }
 
-/** Several ways to make the same call: show the tile groups and let the player
- *  pick the one they meant. */
+/** Several ways to make the same call: the tile groups open upwards from the
+ *  button, over the table, and the player picks the one they meant. */
 function choiceButton(kind, list) {
   const wrap = div("choices");
   const button = buttonFor(kind, ACTION_LABEL[kind] || kind);
   wrap.append(button);
-  let open = false;
+  let menu = null;
   button.addEventListener("click", () => {
-    open = !open;
-    for (const node of Array.from(wrap.querySelectorAll(".choice"))) node.remove();
-    if (!open) return;
+    if (menu) {
+      menu.remove();
+      menu = null;
+      return;
+    }
+    menu = div("choice-menu");
     for (const option of list) {
       const choice = div("choice");
       choice.setAttribute("role", "button");
@@ -501,8 +518,9 @@ function choiceButton(kind, list) {
           pick();
         }
       });
-      wrap.append(choice);
+      menu.append(choice);
     }
+    wrap.append(menu);
   });
   return wrap;
 }
@@ -805,7 +823,7 @@ function showFinal(v) {
   for (const entry of rows) {
     const row = document.createElement("tr");
     const cells = [`${entry.rank}位`, v.seats[entry.seat].name, entry.score.toLocaleString()];
-    if (hasUma) cells.push((entry.uma > 0 ? "+" : "") + entry.uma);
+    if (hasUma) cells.push((entry.uma > 0 ? "+" : "") + entry.uma.toLocaleString());
     cells.forEach((text, col) => {
       const td = document.createElement("td");
       td.textContent = text;
@@ -919,7 +937,9 @@ function renderReplayBar(v) {
   const within = S.index - span.start + 1;
   const total = span.end - span.start + 1;
   const event = v.step && v.step.event ? describeEvent(v, v.step.event) : "配牌";
-  el.replayLabel.textContent = `${span.label}  ${within}/${total}  ${event}`;
+  const text = `${span.label}  ${within}/${total}  ${event}`;
+  el.replayLabel.textContent = text;
+  el.replayLabel.title = text;
 }
 
 function describeEvent(v, event) {

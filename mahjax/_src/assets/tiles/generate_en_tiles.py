@@ -133,22 +133,25 @@ def label_for(name: str) -> tuple[str, str]:
 
 def build_motif_markup(name: str, border_parts: set[str]) -> str:
     text = (JA / name).read_text()
+    # The masks colorize.py cuts a face's accent colours with; the accent paths
+    # below still point at them by id.
+    defs = "".join(re.findall(r"<defs>.*?</defs>", text, flags=re.DOTALL))
     groups = re.findall(r"(<g[^>]*>)(.*?)</g>", text, flags=re.DOTALL)
     chunks: list[str] = []
     for group_open, group_body in groups:
-        paths = re.findall(r'<path d="([^"]+)"', group_body)
-        kept_paths = []
-        for path_d in paths:
+        kept_tags = []
+        for tag in re.findall(r"<path\b[^>]*>", group_body):
+            path_d = re.search(r'\sd="([^"]+)"', tag).group(1)
             kept = [part for part in split_subpaths(path_d) if part not in border_parts]
             if kept:
-                kept_paths.append(" ".join(kept))
-        if kept_paths:
-            body = "".join(
-                f'<path d="{path_d}" vector-effect="non-scaling-stroke"/>'
-                for path_d in kept_paths
-            )
-            chunks.append(f"{group_open}{body}</g>")
-    return "".join(chunks)
+                # Only the frame is dropped: the path keeps its own colour and mask.
+                attrs = re.sub(r'\s(?:d|vector-effect)="[^"]*"', "", tag[len("<path"):]).rstrip("/>").rstrip()
+                kept_tags.append(
+                    f'<path d="{" ".join(kept)}"{attrs} vector-effect="non-scaling-stroke"/>'
+                )
+        if kept_tags:
+            chunks.append(f"{group_open}{''.join(kept_tags)}</g>")
+    return defs + "".join(chunks)
 
 
 def main() -> None:
