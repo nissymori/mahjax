@@ -63,7 +63,7 @@ const seatOptionRefs = {
 };
 const LANGUAGE_BUTTON_SELECTOR = '#languageToggle .language-btn[data-lang]';
 
-const Languages = { JA: 'ja', EN: 'en', ZH_CN: 'zh-CN' };
+const Languages = { JA: 'ja', EN: 'en', ZH_CN: 'zh-CN', KO: 'ko' };
 const I18N = {
   ja: {
     code: 'ja',
@@ -426,6 +426,126 @@ const I18N = {
     kanKinds: {
       加槓: '加杠',
       暗槓: '暗杠',
+    },
+  },
+  ko: {
+    code: 'ko',
+    title: 'MahJax Human vs AI',
+    you: '나',
+    relativeSeats: ['나', '하가', '대면', '상가'],
+    honors: ['동', '남', '서', '북', '백', '발', '중'],
+    winds: {
+      東: '동',
+      南: '남',
+      西: '서',
+      北: '북',
+      白: '백',
+      發: '발',
+      中: '중',
+    },
+    sections: {
+      hand: '손패',
+      actions: '행동',
+      score: '점수',
+      events: '기록',
+    },
+    controls: {
+      env: '규칙',
+      agent: 'Agent',
+      mode: 'Mode',
+      humanSeat: 'Human Seat',
+      seed: 'Seed',
+      humanName: 'Human',
+      aiName: 'Agent Base Name',
+      aiDelay: 'Agent Delay(ms)',
+      hideOpponents: '상대 패 숨기기',
+      noCalls: '울기 없음',
+      start: 'Start Game',
+      end: 'End Game',
+      modes: {
+        half: '반장전',
+        east: '동풍전',
+        single: '단판전',
+      },
+      seats: {
+        auto: '무작위',
+        east: '동',
+        south: '남',
+        west: '서',
+        north: '북',
+      },
+      envs: {
+        no_red_mahjong: '적도라 없음',
+        red_mahjong: '적도라 있음',
+      },
+    },
+    scoreboardHeaders: ['자리', '이름', '점수', '증감'],
+    actions: {
+      tsumogiri: '쯔모기리',
+      riichi: '리치',
+      tsumo: '쯔모',
+      ron: '론',
+      pass: '스킵',
+      pon: '퐁',
+      chi: '치',
+      openKan: '대명깡',
+      closedKan: '안깡',
+      addedKan: '소명깡',
+      advanceFinal: '종국',
+      advanceNext: '다음 국',
+    },
+    statuses: {
+      idle: 'Choose settings and start a game.',
+      sending: '전송 중…',
+      gameStarted: 'Game started.',
+      noGame: 'No active game.',
+      gameEnded: 'No active game.',
+      awaitingHuman: '당신의 차례입니다.',
+      awaitingAI: 'AI가 생각 중입니다…',
+      roundSummaryPending: '결과를 확인 후 “다음 국”을 누르세요.',
+      roundSummaryPrompt: (label) => `“${label}”을(를) 눌러 결과를 확인하세요.`,
+      finished: 'Game finished.',
+    },
+    summaryReasons: {
+      tsumo: '쯔모',
+      ron: '론',
+      abortive_draw_normal: '유국',
+    },
+    summary: {
+      defaultTitle: (reason) => `국 결과 (${reason})`,
+      finalTitle: '대국 종료',
+      winnersHeader: '상세 정보',
+      yakuLabel: '역',
+      yakuman: (count) => `${count}배 역만`,
+      fanFu: (fan, fu) => `${fan}판 ${fu}부`,
+      dora: (dora, uraDora, includeUra = true) => {
+        if (includeUra && typeof uraDora === 'number') {
+          if (dora > 0 && uraDora > 0) {
+            return `도라: ${dora}, 뒷도라: ${uraDora}`;
+          }
+          if (uraDora > 0) {
+            return `뒷도라: ${uraDora}`;
+          }
+          return `도라: ${dora}, 뒷도라: 0`;
+        }
+        return `도라: ${dora}`;
+      },
+      doraTiles: (labels) => `도라패: ${labels.join(' ')}`,
+      uraDoraTiles: (labels) => `뒷도라패: ${labels.join(' ')}`,
+      winningTile: '화료패',
+      winningTileFrom: (tile, rel, name) => `화료패: ${tile} ← ${rel} (${name})`,
+      meta: (honba, kyotaku) => `본장: ${honba}  공탁: ${kyotaku}`,
+      tableHeaders: ['순위', '자리', '이름', '점수', '증감'],
+      continue: '다음 국',
+      endCta: '대국 종료',
+    },
+    advance: {
+      next: '다음 국',
+      final: '대국 종료',
+    },
+    kanKinds: {
+      加槓: '소명깡',
+      暗槓: '안깡',
     },
   },
 };
@@ -1431,6 +1551,25 @@ function translateWindName(wind) {
 function translateEventDescription(description) {
   if (currentLanguage === Languages.JA) return description;
   if (!description) return '';
+  if (currentLanguage === Languages.KO) {
+    if (description.startsWith('打 ')) {
+      return `타패 ${description.slice(2)}`;
+    }
+    if (description.startsWith('カン ')) {
+      return `깡 ${description.slice(3)}`;
+    }
+    if (description === 'ツモ切り') return '쯔모기리';
+    if (description === '立直宣言') return '리치 선언';
+    if (description === '自摸') return '쯔모';
+    if (description.startsWith('ロン')) return description.replace('ロン', '론');
+    if (description.startsWith('ポン')) return description.replace('ポン', '퐁');
+    if (description.startsWith('明槓')) return description.replace('明槓', '대명깡');
+    if (description.startsWith('チー')) return description.replace('チー', '치');
+    if (description === 'パス') return '패스';
+    if (description === '進行') return '진행';
+    if (description.startsWith('アクション')) return description.replace('アクション', '행동');
+    return description;
+  }
   if (currentLanguage === Languages.ZH_CN) {
     if (description.startsWith('打 ')) {
       return `打 ${description.slice(2)}`;

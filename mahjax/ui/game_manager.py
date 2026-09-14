@@ -150,6 +150,42 @@ YAKU_NAMES_ZH_CN = [
     "四暗刻",
     "四杠子",
 ]
+YAKU_NAMES_KO = [
+    "핑후",
+    "이페코",
+    "량페코",
+    "찬타",
+    "준찬타",
+    "일기통관",
+    "삼색동순",
+    "삼색동각",
+    "또이또이",
+    "산안커",
+    "산깡즈",
+    "치또이츠",
+    "탕야오",
+    "혼일색",
+    "청일색",
+    "혼노두",
+    "소삼원",
+    "백",
+    "발",
+    "중",
+    "장풍패",
+    "자풍패",
+    "멘젠쯔모",
+    "리치",
+    "대삼원",
+    "소사희",
+    "대사희",
+    "구련보등",
+    "국사무쌍",
+    "청노두",
+    "자일색",
+    "녹일색",
+    "스안커",
+    "스깡즈",
+]
 RED_YAKU_NAMES_EN = [
     "Fully Concealed Hand",
     "Riichi",
@@ -312,26 +348,80 @@ RED_YAKU_NAMES_ZH_CN = [
     "小四喜",
     "四杠子",
 ]
-
+RED_YAKU_NAMES_KO = [
+    "멘젠쯔모",
+    "리치",
+    "일발",
+    "창깡",
+    "영상개화",
+    "해저로월",
+    "하저로어",
+    "핑후",
+    "탕야오",
+    "이페코",
+    "자풍패 동",
+    "자풍패 남",
+    "자풍패 서",
+    "자풍패 북",
+    "장풍패 동",
+    "장풍패 남",
+    "장풍패 서",
+    "장풍패 북",
+    "역패 백",
+    "역패 발",
+    "역패 중",
+    "더블리치",
+    "치또이츠",
+    "찬타",
+    "일기통관",
+    "삼색동순",
+    "삼색동각",
+    "산깡즈",
+    "또이또이",
+    "산안커",
+    "소삼원",
+    "혼노두",
+    "량페코",
+    "준찬타",
+    "혼일색",
+    "청일색",
+    "인화",
+    "천화",
+    "지화",
+    "대삼원",
+    "스안커",
+    "스안커 단기",
+    "자일색",
+    "녹일색",
+    "청노두",
+    "구련보등",
+    "순정구련보등",
+    "국사무쌍",
+    "국사무쌍 13면 대기",
+    "대사희",
+    "소사희",
+    "스깡즈",
+]
 
 class ExtraYakuDefinition(NamedTuple):
     english: str
     japanese: str
     chinese: str
+    korean: str
     attr: str
 
 
 EXTRA_RON_YAKU: List[ExtraYakuDefinition] = [
-    ExtraYakuDefinition("Ippatsu", "一発", "一发", "_ippatsu"),
-    ExtraYakuDefinition("Double Riichi", "ダブル立直", "两立直", "_double_riichi"),
-    ExtraYakuDefinition("Robbing a Kan", "搶槓", "抢杠", "_kan_declared"),
-    ExtraYakuDefinition("Houtei Raoyui", "河底撈魚", "河底捞鱼", "_is_haitei"),
+    ExtraYakuDefinition("Ippatsu", "一発", "一发", "일발", "_ippatsu"),
+    ExtraYakuDefinition("Double Riichi", "ダブル立直", "两立直", "더블리치", "_double_riichi"),
+    ExtraYakuDefinition("Robbing a Kan", "搶槓", "抢杠", "창깡", "_kan_declared"),
+    ExtraYakuDefinition("Houtei Raoyui", "河底撈魚", "河底捞鱼", "하저로어", "_is_haitei"),
 ]
 EXTRA_TSUMO_YAKU: List[ExtraYakuDefinition] = [
-    ExtraYakuDefinition("Rinshan Kaihou", "嶺上開花", "岭上开花", "_can_after_kan"),
-    ExtraYakuDefinition("Ippatsu", "一発", "一发", "_ippatsu"),
-    ExtraYakuDefinition("Double Riichi", "ダブル立直", "两立直", "_double_riichi"),
-    ExtraYakuDefinition("Haitei Raoyue", "海底摸月", "海底摸月", "_is_haitei"),
+    ExtraYakuDefinition("Rinshan Kaihou", "嶺上開花", "岭上开花", "영상개화", "_can_after_kan"),
+    ExtraYakuDefinition("Ippatsu", "一発", "一发", "일발", "_ippatsu"),
+    ExtraYakuDefinition("Double Riichi", "ダブル立直", "两立直", "더블리치", "_double_riichi"),
+    ExtraYakuDefinition("Haitei Raoyue", "海底摸月", "海底摸月", "해저로월", "_is_haitei"),
 ]
 
 
@@ -366,6 +456,7 @@ class WinnerSummary:
     yaku: List[str]
     yaku_japanese: List[str]
     yaku_chinese: List[str]
+    yaku_korean: List[str]
     dora_count: int
     ura_dora_count: int
     dora_tiles: List[int]
@@ -386,10 +477,12 @@ class WinnerSummary:
             "yaku": self.yaku,
             "yakuEnglish": self.yaku,
             "yakuJapanese": self.yaku_japanese,
+            "yakuKorean": self.yaku,
             "yakuLocalized": {
                 "en": self.yaku,
                 "ja": self.yaku_japanese,
                 "zh-CN": self.yaku_chinese,
+                "ko": self.yaku_korean
             },
             "dora": self.dora_count,
             "uraDora": self.ura_dora_count,
@@ -1506,6 +1599,7 @@ def summarise_winner(
     yaku_english = [YAKU_NAMES_EN[i] for i in indices]
     yaku_japanese = [YAKU_NAMES_JA[i] for i in indices]
     yaku_chinese = [YAKU_NAMES_ZH_CN[i] for i in indices]
+    yaku_korean = [YAKU_NAMES_KO[i] for i in indices]
     extra_definitions = EXTRA_RON_YAKU if is_ron else EXTRA_TSUMO_YAKU
     extras_english = list_extra_yaku(
         prev_state, player, extra_definitions, language="en"
@@ -1516,19 +1610,25 @@ def summarise_winner(
     extras_chinese = list_extra_yaku(
         prev_state, player, extra_definitions, language="zh-CN"
     )
+    extras_korean = list_extra_yaku(
+        prev_state, player, extra_definitions, language="ko"
+    )
     if not is_ron:
         if is_first_turn(prev_state) and int(prev_state.players.meld_counts.sum()) == 0:
             if player == int(prev_state.round_state.dealer):
                 extras_english.append("Heavenly Hand")
                 extras_japanese.append("天和")
                 extras_chinese.append("天和")
+                extras_korean.append("천화")
             else:
                 extras_english.append("Earthly Hand")
                 extras_japanese.append("地和")
-                extras_chinese.append("地和")
+                extras_chinese.append("지화")
+                extras_korean.append
     yaku_english.extend(extras_english)
     yaku_japanese.extend(extras_japanese)
     yaku_chinese.extend(extras_chinese)
+    yaku_korean.extend(extras_korean)
     riichi_yaku_flag = any(
         name in yaku_english for name in ("Riichi", "Double Riichi")
     )
@@ -1544,6 +1644,7 @@ def summarise_winner(
         yaku=yaku_english,
         yaku_japanese=yaku_japanese,
         yaku_chinese=yaku_chinese,
+        yaku_korean=yaku_korean,
         dora_count=visible_dora,
         ura_dora_count=ura_dora,
         dora_tiles=dora_tile_list,
@@ -1587,19 +1688,23 @@ def summarise_winner_red(
     yaku_english = [RED_YAKU_NAMES_EN[i] for i in indices]
     yaku_japanese = [RED_YAKU_NAMES_JA[i] for i in indices]
     yaku_chinese = [RED_YAKU_NAMES_ZH_CN[i] for i in indices]
+    yaku_korean = [RED_YAKU_NAMES_KO[i] for i in indices]
     extra_definitions = EXTRA_RON_YAKU if is_ron else EXTRA_TSUMO_YAKU
     yaku_english.extend(list_extra_yaku(prev_state, player, extra_definitions, language="en"))
     yaku_japanese.extend(list_extra_yaku(prev_state, player, extra_definitions, language="ja"))
     yaku_chinese.extend(list_extra_yaku(prev_state, player, extra_definitions, language="zh-CN"))
+    yaku_korean.extend(list_extra_yaku(prev_state, player, extra_definitions, language="ko"))
     if not is_ron and is_first_turn(prev_state) and int(np.array(prev_state.players.meld_counts).sum()) == 0:
         if player == int(prev_state.round_state.dealer):
             yaku_english.append("Heavenly Hand")
             yaku_japanese.append("天和")
             yaku_chinese.append("天和")
+            yaku_korean.append("천화")
         else:
             yaku_english.append("Earthly Hand")
             yaku_japanese.append("地和")
             yaku_chinese.append("地和")
+            yaku_korean.append("지화")
     yakuman = 0
     if fu_val == 0 and fan_val > 0:
         yakuman = fan_val
@@ -1613,6 +1718,7 @@ def summarise_winner_red(
         yaku=yaku_english,
         yaku_japanese=yaku_japanese,
         yaku_chinese=yaku_chinese,
+        yaku_korean=yaku_korean,
         dora_count=visible_dora,
         ura_dora_count=ura_dora,
         dora_tiles=dora_tile_list,
@@ -1659,6 +1765,8 @@ def list_extra_yaku(
                 names.append(definition.english)
             elif language == "zh-CN":
                 names.append(definition.chinese)
+            elif language == "ko":
+                names.append(definition.korean)
             else:
                 names.append(definition.japanese)
     return names
