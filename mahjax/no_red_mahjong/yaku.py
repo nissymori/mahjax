@@ -543,7 +543,7 @@ class Yaku:
                 & (has_tanyao == 0),  # ThirteenOrphans(国士無双)
                 (has_tanyao == 0) & (has_honor == 0),  # AllTerminals(清老頭)
                 jnp.all(flatten[0:27] == 0),  # AllHonors(字一色)
-                jnp.sum(flatten[ALL_GREEN_TILE]) == 14,  # AllGreen(緑一色)
+                jnp.sum(flatten[ALL_GREEN_TILE]) == jnp.sum(flatten),  # AllGreen(緑一色), a kan counts 4 tiles
                 jnp.any(n_concealed_pung == 4),  # FourConcealedPons(四暗刻)
                 n_kan == 4,  # FourKans(四槓子)
             ],

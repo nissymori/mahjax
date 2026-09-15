@@ -193,6 +193,30 @@ def test_pinfu_is_rejected_when_closed_kan_exists() -> None:
     assert int(fu) > 20
 
 
+def test_all_green_counts_the_four_tiles_of_a_kan() -> None:
+    """With a kan the hand holds 15 tiles, so All Green means no other tile, not 14 green ones."""
+    base = default_state()
+    closed_kan_8s = Meld.init(Tile.NUM_TILE_TYPE_WITH_RED + 25, 25, 0)
+    state = base.replace(
+        players=base.players.replace(
+            melds=base.players.melds.at[0, 0].set(closed_kan_8s),
+            meld_counts=base.players.meld_counts.at[0].set(1),
+        ),
+        round_state=base.round_state.replace(last_draw=jnp.int8(21)),  # tsumo 4s
+    )
+    for tiles, is_all_green in (
+        ((19, 19, 20, 20, 21, 23, 23, 23, 32, 32), True),  # 8888s + 234s 234s 666s GrGr
+        ((18, 19, 19, 20, 20, 21, 21, 23, 23, 23), False),  # 8888s + 123s 234s 666s 44s: 1s is not green
+    ):
+        hand = jnp.zeros((34,), dtype=jnp.int8)
+        for tile in tiles:
+            hand = hand.at[tile].add(1)
+
+        yaku, _, _ = Yaku.judge(hand, jnp.bool_(False), jnp.int8(0), state)
+
+        assert bool(yaku[Yaku.AllGreen]) == is_all_green
+
+
 def test_kyuushu_action_is_enabled_on_first_turn() -> None:
     state = default_state()
     hand_with_red = state.players.hand_with_red.at[0].set(

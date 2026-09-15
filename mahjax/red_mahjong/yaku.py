@@ -558,7 +558,7 @@ class Yaku:
                 jnp.all(hand[KOKUSHI_TILE] > 0) & (has_tanyao == 0),
                 (has_tanyao == 0) & (has_honor == 0),
                 jnp.all(flatten[0:27] == 0),
-                jnp.sum(flatten[ALL_GREEN_TILE]) == 14,
+                jnp.sum(flatten[ALL_GREEN_TILE]) == jnp.sum(flatten),  # a kan counts 4 tiles
                 four_concealed_tsumo,
                 n_kan == 4,
             ],
