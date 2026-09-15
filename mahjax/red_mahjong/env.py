@@ -1061,7 +1061,12 @@ def _discard(state: State, tile: Array, game_config: Optional[GameConfig] = None
         & had_after_kan
         & (state.players.n_kan.sum() >= 4)
         & ((state.players.n_kan > 0).sum() >= 2)
-        & ~legal_action_mask_4p[:, Action.RON].any()
+    )
+    # After the fourth kan only a ron can take the discard; unclaimed, the round is drawn.
+    legal_action_mask_4p = jnp.where(
+        is_four_kan_draw,
+        ZERO_MASK_2D.at[:, Action.RON].set(legal_action_mask_4p[:, Action.RON]),
+        legal_action_mask_4p,
     )
 
     next_meld_player, can_any = _next_meld_player(
@@ -1077,9 +1082,10 @@ def _discard(state: State, tile: Array, game_config: Optional[GameConfig] = None
         is_haitei=state.round_state.is_haitei | is_abortive_draw_normal,
     )
     state = jax.lax.cond(
-        is_four_kan_draw,
+        is_four_kan_draw & no_ron_player,
         lambda: _trigger_special_abortive_draw(
-            _replace_state(state, last_player=jnp.int8(c_p), target=jnp.int8(tile))
+            # A riichi declared on this discard stands, and its stick stays on the table.
+            _accept_riichi(_replace_state(state, last_player=jnp.int8(c_p), target=jnp.int8(tile)))
         ),
         lambda: jax.lax.cond(
             no_meld_player | (is_abortive_draw_normal & no_ron_player),
@@ -1778,7 +1784,7 @@ def _pass(state: State, game_config: Optional[GameConfig] = None):
             draw_next=FALSE,
         ),
     )
-    return jax.lax.cond(
+    passed = jax.lax.cond(
         is_post_ron,
         lambda: post_ron_state,
         lambda: jax.lax.cond(
@@ -1808,6 +1814,20 @@ def _pass(state: State, game_config: Optional[GameConfig] = None):
                 ),
             ),
         ),
+    )
+    # Nobody took the discard after the fourth kan: the four-kan abortive draw. Four kans by
+    # two or more players can only mean that discard, since it ends the round either way.
+    is_four_kan_draw = (
+        config.enable_special_abortive_draw
+        & ~can_robbing_kan
+        & (state.players.n_kan.sum() >= 4)
+        & ((state.players.n_kan > 0).sum() >= 2)
+    )
+    return jax.lax.cond(
+        is_four_kan_draw & ~is_post_ron & no_meld_player,
+        # A riichi declared on that discard stands, and its stick stays on the table.
+        lambda: _trigger_special_abortive_draw(_accept_riichi(passed)),
+        lambda: passed,
     )
 
 

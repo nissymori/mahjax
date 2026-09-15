@@ -350,6 +350,65 @@ def test_robbing_kan_second_candidate_pass_after_ron_does_not_draw_after_kan() -
     assert int(pass_state.round_state.n_kan_doras) == 0
 
 
+def test_red_four_kan_abortive_draw_after_a_passed_ron_keeps_the_riichi_stick() -> None:
+    """After the fourth kan only a ron can take the discard; unclaimed, the round is drawn and a riichi on it stands."""
+    from mahjax.red_mahjong import env as m
+
+    five_s = 22
+
+    def counts(tiles):
+        hand = jnp.zeros(Tile.NUM_TILE_TYPE_WITH_RED, dtype=jnp.int8)
+        for tile in tiles:
+            hand = hand.at[tile].add(1)
+        return hand
+
+    def after_the_fourth_kan(p3_waits_on_5s: bool):
+        hands = jnp.stack(
+            [
+                counts([five_s, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]),  # P0 discards 5s declaring riichi
+                counts([five_s, five_s, 27, 27, 28, 28, 29, 29, 30, 30, 31, 31, 32]),  # P1 could pon it
+                counts([13, 13, 14, 14, 15, 15, 16, 16, 17, 17, 18, 18, 33]),
+                counts([0, 1, 2, 3, 4, 5, 15, 16, 17, 19, 20, 21, five_s if p3_waits_on_5s else 33]),  # P3 in riichi
+            ]
+        )
+        hands34 = jax.vmap(Hand.to_34)(hands)
+        return _replace_state(
+            _init(jax.random.PRNGKey(3)),
+            current_player=jnp.int8(0),
+            dealer=jnp.int8(0),
+            last_player=jnp.int8(3),
+            hand_with_red=hands,
+            hand=hands34,
+            can_win=m.v_can_win(hands34, m.TILE_RANGE),
+            n_kan=jnp.array([2, 2, 0, 0], dtype=jnp.int8),
+            can_after_kan=jnp.bool_(True),
+            riichi=jnp.array([False, False, False, True]),
+            riichi_declared=jnp.array([True, False, False, False]),
+            score=jnp.array([250, 250, 250, 240], dtype=jnp.int32),
+            kyotaku=jnp.int8(1),
+            next_deck_ix=jnp.int32(60),
+        )
+
+    step = jax.jit(_step)
+    kyuushu_only = jnp.zeros((Action.NUM_ACTION,), dtype=jnp.bool_).at[Action.KYUUSHU].set(True)
+
+    # Nobody can ron: drawn at once.
+    drawn = step(after_the_fourth_kan(False), jnp.int8(five_s), STEP_KEY)
+    # P3 can ron: only RON is offered, not P1's pon, and passing it draws the round.
+    asked = step(after_the_fourth_kan(True), jnp.int8(five_s), STEP_KEY)
+    assert int(asked.current_player) == 3
+    assert {int(a) for a in jnp.flatnonzero(asked.legal_action_mask)} == {Action.RON, Action.PASS}
+    assert not bool(asked.players.legal_action_mask[1, Action.PON])
+    drawn_after_pass = step(asked, jnp.int8(Action.PASS), STEP_KEY)
+
+    for state in (drawn, drawn_after_pass):
+        assert jnp.array_equal(state.legal_action_mask, kyuushu_only)
+        # P0's riichi on that discard stands: the stick goes on the table.
+        assert bool(state.players.riichi[0])
+        assert int(state.round_state.kyotaku) == 2
+        assert int(state.round_state.score[0]) == 240
+
+
 # ----------------- next_round_style tests -----------------
 
 
