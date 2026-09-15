@@ -527,3 +527,23 @@ def test_pao_can_be_disabled_by_game_config() -> None:
         after_ron.rewards,
         jnp.array([ron_payment + 3, -ron_payment - 3, 0, 0], dtype=jnp.float32),
     )
+
+
+def test_pao_survives_an_added_kan() -> None:
+    """Adding the fourth tile to a called dragon pon does not change who is liable."""
+    base = default_state()
+    srcs = (1, 3, 2)  # White from P1, Green from P3, Red (the third) from P2
+    for kanned in range(3):
+        melds = base.players.melds
+        for i, src in enumerate(srcs):
+            tile = 31 + i
+            action = Tile.NUM_TILE_TYPE_WITH_RED + tile if i == kanned else Action.PON
+            melds = melds.at[0, i].set(Meld.init(action, tile, src))
+        state = base.replace(
+            players=base.players.replace(melds=melds, meld_counts=base.players.meld_counts.at[0].set(3))
+        )
+
+        is_pao, pao_player = _pao(state, jnp.int8(0))
+
+        assert bool(is_pao)
+        assert int(pao_player) == 2

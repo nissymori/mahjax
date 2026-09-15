@@ -2127,8 +2127,13 @@ def _pao(state: State, winner: Array) -> Tuple[Array, Array]:
     targets = jax.vmap(Meld.target)(melds)
     actions = jax.vmap(Meld.action)(melds)
     srcs = jax.vmap(Meld.src)(melds)
+    # An added kan keeps the pon's slot and ``src`` (see ``_added_kan``), so it still
+    # counts as the set that was called.
     is_open_set = valid & (
-        (actions == Action.PON) | (actions == Action.PON_RED) | (actions == Action.OPEN_KAN)
+        (actions == Action.PON)
+        | (actions == Action.PON_RED)
+        | (actions == Action.OPEN_KAN)
+        | (Action.is_selfkan(actions) & (srcs != 0))
     )
 
     def _has_open_set(tile_type: int) -> Array:
