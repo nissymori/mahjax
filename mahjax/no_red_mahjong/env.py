@@ -852,6 +852,7 @@ def _make_legal_action_mask_after_draw_w_riichi(
     can_closed_kan = (
         Hand.can_closed_kan_after_riichi(hand[c_p], new_tile, state.players.can_win[c_p])
         & ~state.round_state.is_haitei
+        & ~(state.players.n_kan.sum() >= 4)  # riichi does not lift the four-kan limit
     )
     mask = mask.at[new_tile + Tile.NUM_TILE_TYPE].set(can_closed_kan)
     mask = mask.at[Action.TSUMO].set(state.players.can_win[c_p, new_tile])

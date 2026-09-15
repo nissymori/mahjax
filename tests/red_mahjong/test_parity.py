@@ -287,6 +287,18 @@ def test_riichi_closed_kan_is_offered_for_the_drawn_tile() -> None:
     assert int(kan_mask.sum()) == 1
 
 
+def test_riichi_closed_kan_is_not_offered_once_four_kans_are_on_the_table() -> None:
+    # The same hand and draw as above; riichi does not lift the four-kan limit.
+    state, hand = _riichi_draw_state([0, 0, 0, 1, 2, 3, 12, 13, 14, 15, 16, 17, 26], 0)
+
+    for kans, offered in (([0, 3, 0, 0], True), ([0, 4, 0, 0], False)):
+        at_kans = state.replace(players=state.players.replace(n_kan=jnp.array(kans, dtype=jnp.int8)))
+
+        mask = _make_legal_action_mask_after_draw_w_riichi(at_kans, hand, jnp.int8(0), jnp.int8(0))
+
+        assert bool(mask[Tile.NUM_TILE_TYPE_WITH_RED + 0]) == offered
+
+
 def test_four_winds_abortive_draw_sets_kyuushu_mask() -> None:
     state = default_state()
     river = state.players.river

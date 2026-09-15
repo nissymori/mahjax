@@ -122,6 +122,30 @@ class TestEnv(unittest.TestCase):
             tile = state.round_state.deck[i]
             self.assertEqual(hand[player, tile] > 0, True)
 
+    def test_riichi_closed_kan_is_not_offered_once_four_kans_are_on_the_table(self):
+        # In riichi with 111m 234p 567p 789s 5s, drawing the 4th 1m: riichi does not lift the four-kan limit.
+        from mahjax.no_red_mahjong.hand import Hand
+
+        before_draw = jnp.zeros(Tile.NUM_TILE_TYPE, dtype=jnp.int8)
+        for tile in (0, 0, 0, 10, 11, 12, 13, 14, 15, 24, 25, 26, 22):
+            before_draw = before_draw.at[tile].add(1)
+        hands = jnp.zeros((4, Tile.NUM_TILE_TYPE), dtype=jnp.int8).at[0].set(before_draw.at[0].add(1))
+        can_win = jax.vmap(Hand.can_ron, in_axes=(None, 0))(before_draw, jnp.arange(Tile.NUM_TILE_TYPE))
+
+        for kans, offered in (([0, 3, 0, 0], True), ([0, 4, 0, 0], False)):
+            state = self.set_state(
+                self.state,
+                current_player=jnp.int8(0),
+                riichi=jnp.array([True, False, False, False]),
+                can_win=self.state.players.can_win.at[0].set(can_win),
+                n_kan=jnp.array(kans, dtype=jnp.int8),
+                is_haitei=jnp.bool_(False),
+            )
+
+            mask = jitted_make_legal_action_mask_after_draw_w_riichi(state, hands, 0, 0)
+
+            self.assertEqual(bool(mask[Tile.NUM_TILE_TYPE + 0]), offered)
+
     def test_discard(self):
         # Ensure _discard removes exactly one tile from current hand.
         state = self.state
