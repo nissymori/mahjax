@@ -465,7 +465,7 @@ def _init(rng: PRNGKey, game_config: Optional[GameConfig] = None) -> State:
     eval_state = _replace_state(state, last_draw=new_tile)
     # The full judge: ``judge_yakuman`` has no meld decomposition and counts every
     # three of a kind as a concealed pon. ``_tsumo`` adds the Blessing of Heaven
-    # to a cached yakuman (fu 0) and pays it alone otherwise.
+    # to the cached yakuman count (fu stays 0, as before) and pays it alone otherwise.
     _, fan, fu = Yaku.judge(
         state.players.hand_with_red[c_p],
         FALSE,
@@ -482,8 +482,8 @@ def _init(rng: PRNGKey, game_config: Optional[GameConfig] = None) -> State:
     state = _replace_state(
         state,
         has_yaku=state.players.has_yaku.at[c_p, 0].set(can_ron[c_p, new_tile_type]),
-        fan=state.players.fan.at[c_p, 0].set(fan),
-        fu=state.players.fu.at[c_p, 0].set(fu),
+        fan=state.players.fan.at[c_p, 0].set(jnp.where(fu == 0, fan, 0)),
+        fu=state.players.fu.at[c_p, 0].set(jnp.int32(0)),
         can_win=can_ron,
         legal_action_mask=legal_action_mask_4p,
         next_deck_ix=next_deck_ix,
@@ -546,7 +546,7 @@ def _init_for_next_round_from_prepared(
     eval_state = _replace_state(state, last_draw=new_tile)
     # The full judge: ``judge_yakuman`` has no meld decomposition and counts every
     # three of a kind as a concealed pon. ``_tsumo`` adds the Blessing of Heaven
-    # to a cached yakuman (fu 0) and pays it alone otherwise.
+    # to the cached yakuman count (fu stays 0, as before) and pays it alone otherwise.
     _, fan, fu = Yaku.judge(
         state.players.hand_with_red[c_p],
         FALSE,
@@ -563,8 +563,8 @@ def _init_for_next_round_from_prepared(
     state = _replace_state(
         state,
         has_yaku=state.players.has_yaku.at[c_p, 0].set(can_ron[c_p, new_tile_type]),
-        fan=state.players.fan.at[c_p, 0].set(fan),
-        fu=state.players.fu.at[c_p, 0].set(fu),
+        fan=state.players.fan.at[c_p, 0].set(jnp.where(fu == 0, fan, 0)),
+        fu=state.players.fu.at[c_p, 0].set(jnp.int32(0)),
         can_win=can_ron,
         legal_action_mask=legal_action_mask_4p,
         next_deck_ix=next_deck_ix,

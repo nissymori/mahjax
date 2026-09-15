@@ -434,7 +434,7 @@ def _init(rng: PRNGKey) -> State:
     dora = _dora_array(state)
     # The full judge: ``judge_yakuman`` has no meld decomposition and counts every
     # three of a kind as a concealed pon. ``_tsumo`` adds the Blessing of Heaven
-    # to a cached yakuman (fu 0) and pays it alone otherwise.
+    # to the cached yakuman count (fu stays 0, as before) and pays it alone otherwise.
     _, fan, fu = Yaku.judge(
         hand=state.players.hand[c_p],
         melds=state.players.melds[c_p],
@@ -457,8 +457,8 @@ def _init(rng: PRNGKey) -> State:
         has_yaku=state.players.has_yaku.at[c_p, 0].set(
             can_ron[c_p, new_tile]
         ),  # If the combination is horable, the yaku is always attached (Blessing of Heaven).
-        fan=state.players.fan.at[c_p, 0].set(fan),
-        fu=state.players.fu.at[c_p, 0].set(fu),
+        fan=state.players.fan.at[c_p, 0].set(jnp.where(fu == 0, fan, 0)),
+        fu=state.players.fu.at[c_p, 0].set(jnp.int32(0)),
         can_win=can_ron,
         legal_action_mask=legal_action_mask_4p,
         next_deck_ix=next_deck_ix,
@@ -511,7 +511,7 @@ def _init_for_next_round(rng: PRNGKey, state: State) -> State:
     dora = _dora_array(state)
     # The full judge: ``judge_yakuman`` has no meld decomposition and counts every
     # three of a kind as a concealed pon. ``_tsumo`` adds the Blessing of Heaven
-    # to a cached yakuman (fu 0) and pays it alone otherwise.
+    # to the cached yakuman count (fu stays 0, as before) and pays it alone otherwise.
     _, fan, fu = Yaku.judge(
         hand=state.players.hand[c_p],
         melds=state.players.melds[c_p],
@@ -536,8 +536,8 @@ def _init_for_next_round(rng: PRNGKey, state: State) -> State:
         has_yaku=state.players.has_yaku.at[c_p, 0].set(
             can_ron[c_p, new_tile]
         ),  # If the player wins, the yaku is always attached.
-        fan=state.players.fan.at[c_p, 0].set(fan),
-        fu=state.players.fu.at[c_p, 0].set(fu),
+        fan=state.players.fan.at[c_p, 0].set(jnp.where(fu == 0, fan, 0)),
+        fu=state.players.fu.at[c_p, 0].set(jnp.int32(0)),
         can_win=can_ron,
         legal_action_mask=legal_action_mask_4p,
         next_deck_ix=next_deck_ix,
