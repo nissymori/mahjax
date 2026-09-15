@@ -671,6 +671,27 @@ def test_red_uma_scales_a_custom_order_points() -> None:
     assert jnp.array_equal(out.round_state.score - before, jnp.array([200, 50, -50, -200]))
 
 
+def test_red_thirteen_riichi_sticks_do_not_wrap_negative() -> None:
+    """13 sticks are +13000 points; multiplying the int8 ``kyotaku`` wrapped them."""
+    from mahjax.red_mahjong import env as m
+
+    base = default_state()
+    state = m._replace_state(
+        base,
+        current_player=jnp.int8(1),
+        last_player=jnp.int8(2),
+        kyotaku=jnp.int8(13),
+        next_deck_ix=jnp.int32(50),
+        score=jnp.array([250, 250, 250, 250], dtype=jnp.int32),
+        fan=base.players.fan.at[1, 0].set(jnp.int32(1)),
+        fu=base.players.fu.at[1, 0].set(jnp.int32(30)),
+    )
+
+    assert float(m._ron(state).rewards[1]) == 10 + 130  # 1 han 30 fu ron + the sticks
+    assert float(m._tsumo(state).rewards[1]) == 11 + 130  # 300/500 tsumo + the sticks
+    assert int(m._final_score(state.round_state)[0]) == 250 + 130
+
+
 def _furiten_by_pass_after_declining_then_an_unrelated_pass(m, Action):
     """X declines a winning discard, then passes on an unrelated PON before drawing."""
     base = m.default_state()

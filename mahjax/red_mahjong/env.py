@@ -1881,7 +1881,7 @@ def _ron(state: State, game_config: Optional[GameConfig] = None) -> State:
     pao_reward = pao_reward.at[state.round_state.last_player].add(-score / 2)
     reward = jnp.where(config.enable_pao & is_pao, pao_reward, normal_reward)
     # The Kyotaku is already paid when the RIICHI is declared, so we only need to add the Kyotaku to the winner
-    kyotaku_bonus = 10 * state.round_state.kyotaku * is_first_ron
+    kyotaku_bonus = 10 * state.round_state.kyotaku.astype(jnp.int32) * is_first_ron  # int8 wraps at 13 sticks
     reward = reward.at[c_p].add(kyotaku_bonus)
     # Each ron of a chain settles as it is declared, the way tenhou books it, so
     # ``score`` never shows a win that has already happened as unpaid. ``pending``
@@ -2036,7 +2036,7 @@ def _tsumo(state: State, game_config: Optional[GameConfig] = None) -> State:
     pao_reward = pao_reward.at[pao_player].set(-score - 3 * honba)
     reward = jnp.where(config.enable_pao & is_pao, pao_reward, normal_reward)
     # The Kyotaku is already paid when the RIICHI is declared, so we only need to add the Kyotaku to the winner
-    kyotaku_bonus = 10 * state.round_state.kyotaku
+    kyotaku_bonus = 10 * state.round_state.kyotaku.astype(jnp.int32)  # int8 wraps at 13 sticks
     reward = reward.at[c_p].add(kyotaku_bonus)
     score = state.round_state.score + reward
     reward = reward
@@ -2169,7 +2169,7 @@ def _final_score(round_state) -> Array:
     order = jnp.argsort(-round_state.score)
     rank_points = jnp.zeros_like(round_state.score).at[order].set(round_state.order_points)
     score = round_state.score + rank_points
-    return score.at[jnp.argmax(score)].add(10 * round_state.kyotaku)
+    return score.at[jnp.argmax(score)].add(10 * round_state.kyotaku.astype(jnp.int32))
 
 
 def _is_game_end(round_state, will_dealer_continue: Array) -> Array:

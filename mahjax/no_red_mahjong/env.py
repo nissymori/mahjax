@@ -1649,7 +1649,7 @@ def _ron(state: State) -> State:
     reward = reward.at[c_p].set(score + honba)
     reward = reward.at[state.round_state.last_player].set(-score - honba)
     # The Kyotaku is already paid when the RIICHI is declared, so we only need to add the Kyotaku to the winner
-    kyotaku_bonus = 10 * (state.round_state.kyotaku)
+    kyotaku_bonus = 10 * state.round_state.kyotaku.astype(jnp.int32)  # int8 wraps at 13 sticks
     reward = reward.at[c_p].add(kyotaku_bonus)
     score = state.round_state.score + jnp.float32(reward)
     return _replace_state(state,   # type:ignore
@@ -1738,7 +1738,7 @@ def _tsumo(state: State) -> State:
         .set(s1 * 2 + s2 + 3 * honba),  # The non-dealer pays the score
     )
     # The Kyotaku is already paid when the RIICHI is declared, so we only need to add the Kyotaku to the winner
-    kyotaku_bonus = 10 * state.round_state.kyotaku
+    kyotaku_bonus = 10 * state.round_state.kyotaku.astype(jnp.int32)  # int8 wraps at 13 sticks
     reward = reward.at[c_p].add(kyotaku_bonus)
     score = state.round_state.score + reward
     reward = reward
@@ -1793,7 +1793,7 @@ def _final_score(round_state) -> Array:
     order = jnp.argsort(-round_state.score)
     rank_points = jnp.zeros_like(round_state.score).at[order].set(round_state.order_points)
     score = round_state.score + rank_points
-    return score.at[jnp.argmax(score)].add(10 * round_state.kyotaku)
+    return score.at[jnp.argmax(score)].add(10 * round_state.kyotaku.astype(jnp.int32))
 
 
 def _is_game_end(round_state, will_dealer_continue: Array) -> Array:

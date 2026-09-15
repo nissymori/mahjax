@@ -440,6 +440,26 @@ class TestEnv(unittest.TestCase):
         self.assertEqual(state.round_state.score[0], 240) # reduce score for riichi declaration
         self.assertEqual(state.players.double_riichi[0], False) # not double riichi
 
+    def test_thirteen_riichi_sticks_do_not_wrap_negative(self):
+        # 13 sticks are +13000 points; multiplying the int8 ``kyotaku`` wrapped them.
+        from mahjax.no_red_mahjong import env as m
+
+        base = default_state()
+        state = _replace_state(
+            base,
+            current_player=jnp.int8(1),
+            last_player=jnp.int8(2),
+            kyotaku=jnp.int8(13),
+            next_deck_ix=jnp.int32(50),
+            score=jnp.array([250, 250, 250, 250], dtype=jnp.int32),
+            fan=base.players.fan.at[1, 0].set(jnp.int32(1)),
+            fu=base.players.fu.at[1, 0].set(jnp.int32(30)),
+        )
+
+        self.assertEqual(float(_ron(state).rewards[1]), 10 + 130)  # 1 han 30 fu ron + the sticks
+        self.assertEqual(float(_tsumo(state).rewards[1]), 11 + 130)  # 300/500 tsumo + the sticks
+        self.assertEqual(int(m._final_score(state.round_state)[0]), 250 + 130)
+
     def test_draw_after_kan(self):
         # Ensure rinshan draws increment kan counts, enable after-kan actions, and clear ippatsu.
         state = self.state
