@@ -718,6 +718,24 @@ def test_red_sudden_death_runs_for_exactly_four_extra_rounds() -> None:
     assert terminated == [False, False, False, False, True]
 
 
+def test_red_last_extra_round_continues_when_the_dealer_keeps_the_deal() -> None:
+    """West-4 is the last round, but a dealer's renchan still comes first."""
+    env = RedMahjong(round_mode="half", next_round_style="auto")
+    state = _end_of_round_state(
+        env,
+        round=jnp.int8(11),
+        score=jnp.array([280, 250, 240, 230], dtype=jnp.int32),
+        can_win=jnp.zeros_like(env.init(jax.random.PRNGKey(7)).players.can_win).at[0, 0].set(True),  # dealer tenpai
+    )
+
+    out = _advance_to_next_round_auto(state, jax.random.PRNGKey(0))
+
+    assert not bool(out.terminated)
+    assert int(out.round_state.round) == 11
+    assert int(out.round_state.dealer) == 0
+    assert int(out.round_state.honba) == 1
+
+
 def test_red_uma_is_added_to_the_final_score() -> None:
     env = RedMahjong(round_mode="half", next_round_style="auto", order_points=[300, 100, -100, -300])
     before = jnp.array([310, 300, 200, 190], dtype=jnp.int32)

@@ -1818,7 +1818,8 @@ def _is_game_end(round_state, will_dealer_continue: Array) -> Array:
     deal_passes = ~will_dealer_continue | (_rank_order(round_state)[0] == round_state.dealer)
     return (
         (score < 0).any()
-        | is_last_extra_round
+        # The last extra round still gives way to the dealer's renchan.
+        | (is_last_extra_round & ~will_dealer_continue)
         | (is_final_round & deal_passes & (score.max() >= TARGET_SCORE))
     )
 
