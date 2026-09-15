@@ -1423,7 +1423,11 @@ def _draw_after_kan(state: State, game_config: Optional[GameConfig] = None):
     can_ron = jax.vmap(Hand.can_ron, in_axes=(None, 0))(state.players.hand[c_p], TILE_RANGE)
     state = _replace_state(state, can_win=state.players.can_win.at[c_p].set(can_ron))
     is_riichi = state.players.riichi[c_p]
-    draw_eval_state = _replace_state(state, is_haitei=is_haitei)
+    # For the masks only: a kan moves a live-wall tile to the dead wall, so once the
+    # live wall is empty this rinshan tile cannot be kanned, just like a haitei tile.
+    draw_eval_state = _replace_state(
+        state, is_haitei=state.round_state.next_deck_ix < _live_wall_end_ix(state)
+    )
     legal_action_mask_c_p = jax.lax.cond(
         is_riichi,
         lambda: _make_legal_action_mask_after_draw_w_riichi(draw_eval_state, hand_with_red, c_p, rinshan_tile),

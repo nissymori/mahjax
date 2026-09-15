@@ -338,6 +338,39 @@ def test_riichi_closed_kan_is_not_offered_once_four_kans_are_on_the_table() -> N
         assert bool(mask[Tile.NUM_TILE_TYPE_WITH_RED + 0]) == offered
 
 
+def test_no_kan_off_a_rinshan_draw_that_leaves_the_live_wall_empty() -> None:
+    """A kan moves a live-wall tile to the dead wall, so with none left no further kan is offered."""
+    from mahjax.red_mahjong import env as m
+
+    east, south = 27, 28
+    kan = jax.jit(m._kan)
+    draw_after_kan = jax.jit(m._draw_after_kan)
+    hand = jnp.zeros((37,), dtype=jnp.int8)
+    for tile in [east] * 4 + [south] * 3 + [0, 1, 2, 3, 4, 5, 6]:  # EEEE SSS 123m 456m 7m
+        hand = hand.at[tile].add(1)
+
+    for riichi in (False, True):
+        for live_draws_left, south_kan_offered in ((1, False), (2, True)):
+            state = m._init(jax.random.PRNGKey(5))
+            state = m._replace_state(
+                state,
+                current_player=jnp.int8(0),
+                hand_with_red=state.players.hand_with_red.at[0].set(hand),
+                hand=state.players.hand.at[0].set(Hand.to_34(hand)),
+                riichi=state.players.riichi.at[0].set(riichi),
+                deck=state.round_state.deck.at[10].set(south),  # the rinshan tile is the 4th South
+                n_kan=jnp.zeros(4, dtype=jnp.int8),
+            )
+            # P0 has just drawn, with ``live_draws_left`` live-wall draws still to come.
+            state = m._replace_state(
+                state, next_deck_ix=jnp.int32(int(m._live_wall_end_ix(state)) + live_draws_left - 1)
+            )
+
+            after = draw_after_kan(kan(state, jnp.int32(Tile.NUM_TILE_TYPE_WITH_RED + east)))
+
+            assert bool(after.players.legal_action_mask[0, Tile.NUM_TILE_TYPE_WITH_RED + south]) == south_kan_offered
+
+
 def test_four_winds_abortive_draw_sets_kyuushu_mask() -> None:
     state = default_state()
     river = state.players.river
