@@ -1646,11 +1646,10 @@ def _pon(state: State, action: Array):
     tar_type = Tile.to_tile_type(tar)
     pon = state.players.pon.at[(c_p, tar_type)].set(jnp.int8(src << 2 | state.players.meld_counts[c_p] - 1))
     river = River.add_meld(state.players.river, action, l_p, state.players.discard_counts[l_p] - 1, src)
+    # Kuikae is by tile type, so a pon of a five also forbids the other color of five.
     legal_action_mask_4p = (
         ZERO_MASK_2D.at[c_p, : Tile.NUM_TILE_TYPE_WITH_RED]
-        .set((hand_with_red[c_p] > 0).astype(jnp.bool_))
-        .at[c_p, tar]
-        .set(FALSE)
+        .set(_set_tile_type_action((hand_with_red[c_p] > 0).astype(jnp.bool_), tar, FALSE))
         .at[c_p, Action.PASS]
         .set(FALSE)
     )

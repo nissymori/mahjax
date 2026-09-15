@@ -86,6 +86,31 @@ def test_mask_for_chi_forbids_forced_kuikae() -> None:
     assert bool(mask_ok[Action.CHI_L])
 
 
+def test_red_pon_of_a_five_forbids_both_copies_as_the_next_discard() -> None:
+    """Kuikae after a pon is by tile type: calling a black five forbids the red one, and vice versa."""
+    from mahjax.red_mahjong import env as m
+
+    others = jnp.zeros(Tile.NUM_TILE_TYPE_WITH_RED, dtype=jnp.int8).at[9:17].set(1).at[18:20].set(1)  # 1p-8p 1s 2s
+    base = default_state()
+    for held, target in (
+        (others.at[4].set(2).at[34].set(1), 4),  # holding 5m 5m 0m, a black 5m is called
+        (others.at[4].set(3), 34),  # holding 5m 5m 5m, the red 0m is called
+    ):
+        state = m._replace_state(
+            base,
+            current_player=jnp.int8(1),
+            last_player=jnp.int8(0),
+            target=jnp.int8(target),
+            hand_with_red=base.players.hand_with_red.at[1].set(held),
+            hand=base.players.hand.at[1].set(Hand.to_34(held)),
+        )
+
+        mask = m._pon(state, jnp.int8(Action.PON)).legal_action_mask
+
+        assert not bool(mask[4]) and not bool(mask[34])
+        assert bool(mask[9])
+
+
 def test_next_meld_player_prioritizes_ron_then_distance() -> None:
     legal = jnp.zeros((4, Action.NUM_ACTION), dtype=jnp.bool_)
     legal = legal.at[0, Action.PON].set(True)
