@@ -107,6 +107,28 @@ class TestSpecialCase(unittest.TestCase):
         state = jitted_tsumo(state)
         self.assertEqual(jnp.all(state.rewards == jnp.array([960, -320, -320, -320])), True)
 
+    def test_dealer_can_tsumo_a_complete_first_draw_as_a_single_blessing_of_heaven(self):
+        # 123m 33m 444p 666p 77s drawing 7s: TSUMO is legal, and three concealed pons are not four.
+        from unittest import mock
+
+        from mahjax.no_red_mahjong import env as m
+        from mahjax.no_red_mahjong.state import default_state
+
+        dealt = [0, 4, 8, 9, 10, 48, 49, 50, 56, 57, 58, 96, 97]  # tile ids; the tile is id // 4
+        first_draw = 98  # 7s
+        ids = [None] * 136
+        ids[FIRST_DRAW_IDX] = first_draw  # the dealer's first draw
+        ids[-52:-39] = dealt  # player 0's starting hand
+        rest = iter(i for i in range(136) if i not in dealt and i != first_draw)
+        ids = jnp.array([i if i is not None else next(rest) for i in ids])
+
+        with mock.patch.object(jax.random, "permutation", lambda key, x: ids):
+            state = m._init_for_next_round(STEP_KEY, default_state())
+
+        self.assertEqual(int(state.current_player), 0)
+        self.assertTrue(bool(state.legal_action_mask[Action.TSUMO]))
+        self.assertTrue(bool(jnp.allclose(_tsumo(state).rewards, jnp.array([480.0, -160.0, -160.0, -160.0]))))
+
 
     def test_eight_consecutive_deals(self):
         """

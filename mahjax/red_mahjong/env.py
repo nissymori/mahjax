@@ -463,7 +463,10 @@ def _init(rng: PRNGKey, game_config: Optional[GameConfig] = None) -> State:
     new_tile_type = Tile.to_tile_type(new_tile)
     next_deck_ix = state.round_state.next_deck_ix - 1
     eval_state = _replace_state(state, last_draw=new_tile)
-    _, yakuman_num, _ = Yaku.judge_yakuman(
+    # The full judge: ``judge_yakuman`` has no meld decomposition and counts every
+    # three of a kind as a concealed pon. ``_tsumo`` adds the Blessing of Heaven
+    # to a cached yakuman (fu 0) and pays it alone otherwise.
+    _, fan, fu = Yaku.judge(
         state.players.hand_with_red[c_p],
         FALSE,
         c_p,
@@ -471,15 +474,16 @@ def _init(rng: PRNGKey, game_config: Optional[GameConfig] = None) -> State:
     )
     hand = state.players.hand.at[c_p].set(Hand.add(state.players.hand[c_p], new_tile))
     hand_with_red = state.players.hand_with_red.at[c_p].set(Hand.add(state.players.hand_with_red[c_p], new_tile))
+    # The mask reads ``can_win``, which is only written below.
     legal_action_mask_c_p = _make_legal_action_mask_after_draw(
-        state, hand_with_red, c_p, new_tile, game_config
+        _replace_state(state, can_win=can_ron), hand_with_red, c_p, new_tile, game_config
     )
     legal_action_mask_4p = ZERO_MASK_2D.at[c_p, :].set(legal_action_mask_c_p)
     state = _replace_state(
         state,
         has_yaku=state.players.has_yaku.at[c_p, 0].set(can_ron[c_p, new_tile_type]),
-        fan=state.players.fan.at[c_p, 0].set(jnp.int32(yakuman_num)),
-        fu=state.players.fu.at[c_p, 0].set(jnp.int32(0)),
+        fan=state.players.fan.at[c_p, 0].set(fan),
+        fu=state.players.fu.at[c_p, 0].set(fu),
         can_win=can_ron,
         legal_action_mask=legal_action_mask_4p,
         next_deck_ix=next_deck_ix,
@@ -540,7 +544,10 @@ def _init_for_next_round_from_prepared(
     new_tile_type = Tile.to_tile_type(new_tile)
     next_deck_ix = state.round_state.next_deck_ix - 1
     eval_state = _replace_state(state, last_draw=new_tile)
-    _, yakuman_num, _ = Yaku.judge_yakuman(
+    # The full judge: ``judge_yakuman`` has no meld decomposition and counts every
+    # three of a kind as a concealed pon. ``_tsumo`` adds the Blessing of Heaven
+    # to a cached yakuman (fu 0) and pays it alone otherwise.
+    _, fan, fu = Yaku.judge(
         state.players.hand_with_red[c_p],
         FALSE,
         c_p,
@@ -548,15 +555,16 @@ def _init_for_next_round_from_prepared(
     )
     hand = state.players.hand.at[c_p].set(Hand.add(state.players.hand[c_p], new_tile))
     hand_with_red = state.players.hand_with_red.at[c_p].set(Hand.add(state.players.hand_with_red[c_p], new_tile))
+    # The mask reads ``can_win``, which is only written below.
     legal_action_mask_c_p = _make_legal_action_mask_after_draw(
-        state, hand_with_red, c_p, new_tile, game_config
+        _replace_state(state, can_win=can_ron), hand_with_red, c_p, new_tile, game_config
     )
     legal_action_mask_4p = ZERO_MASK_2D.at[c_p, :].set(legal_action_mask_c_p)
     state = _replace_state(
         state,
         has_yaku=state.players.has_yaku.at[c_p, 0].set(can_ron[c_p, new_tile_type]),
-        fan=state.players.fan.at[c_p, 0].set(jnp.int32(yakuman_num)),
-        fu=state.players.fu.at[c_p, 0].set(jnp.int32(0)),
+        fan=state.players.fan.at[c_p, 0].set(fan),
+        fu=state.players.fu.at[c_p, 0].set(fu),
         can_win=can_ron,
         legal_action_mask=legal_action_mask_4p,
         next_deck_ix=next_deck_ix,

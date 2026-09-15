@@ -432,31 +432,33 @@ def _init(rng: PRNGKey) -> State:
     # legal ron illegal. Matches red (yaku.py) and the observation.
     prevalent_wind = state.round_state.round // 4
     dora = _dora_array(state)
-    _, yakuman_num, _ = Yaku.judge_yakuman(
-        state.players.hand[c_p],
-        state.players.melds[c_p],
-        state.players.meld_counts[c_p],
-        new_tile,
-        state.players.riichi[c_p],
-        FALSE,
-        prevalent_wind,
-        state.round_state.seat_wind[c_p],
-        dora,
+    # The full judge: ``judge_yakuman`` has no meld decomposition and counts every
+    # three of a kind as a concealed pon. ``_tsumo`` adds the Blessing of Heaven
+    # to a cached yakuman (fu 0) and pays it alone otherwise.
+    _, fan, fu = Yaku.judge(
+        hand=state.players.hand[c_p],
+        melds=state.players.melds[c_p],
+        n_meld=state.players.meld_counts[c_p],
+        last_tile=new_tile,
+        riichi=state.players.riichi[c_p],
+        is_ron=FALSE,
+        dora=dora,
+        prevalent_wind=prevalent_wind,
+        seat_wind=state.round_state.seat_wind[c_p],
     )
     hand = state.players.hand.at[c_p].set(Hand.add(state.players.hand[c_p], new_tile))
     # Generate the legal action for the player who drew the tile after the draw
+    # The mask reads ``can_win``, which is only written below.
     legal_action_mask_c_p = _make_legal_action_mask_after_draw(
-        state, hand, c_p, new_tile
+        _replace_state(state, can_win=can_ron), hand, c_p, new_tile
     )
     legal_action_mask_4p = ZERO_MASK_2D.at[c_p, :].set(legal_action_mask_c_p)
     state = _replace_state(state,   # type:ignore
         has_yaku=state.players.has_yaku.at[c_p, 0].set(
             can_ron[c_p, new_tile]
         ),  # If the combination is horable, the yaku is always attached (Blessing of Heaven).
-        fan=state.players.fan.at[c_p, 0].set(
-            jnp.int32(yakuman_num)
-        ),  # Only judge the Yakuman.
-        fu=state.players.fu.at[c_p, 0].set(jnp.int32(0)),  # If the player wins, the fu is 0.
+        fan=state.players.fan.at[c_p, 0].set(fan),
+        fu=state.players.fu.at[c_p, 0].set(fu),
         can_win=can_ron,
         legal_action_mask=legal_action_mask_4p,
         next_deck_ix=next_deck_ix,
@@ -507,22 +509,26 @@ def _init_for_next_round(rng: PRNGKey, state: State) -> State:
     # legal ron illegal. Matches red (yaku.py) and the observation.
     prevalent_wind = state.round_state.round // 4
     dora = _dora_array(state)
-    _, yakuman_num, _ = Yaku.judge_yakuman(
-        state.players.hand[c_p],
-        state.players.melds[c_p],
-        state.players.meld_counts[c_p],
-        new_tile,
-        state.players.riichi[c_p],
-        FALSE,
-        prevalent_wind,
-        state.round_state.seat_wind[c_p],
-        dora,
+    # The full judge: ``judge_yakuman`` has no meld decomposition and counts every
+    # three of a kind as a concealed pon. ``_tsumo`` adds the Blessing of Heaven
+    # to a cached yakuman (fu 0) and pays it alone otherwise.
+    _, fan, fu = Yaku.judge(
+        hand=state.players.hand[c_p],
+        melds=state.players.melds[c_p],
+        n_meld=state.players.meld_counts[c_p],
+        last_tile=new_tile,
+        riichi=state.players.riichi[c_p],
+        is_ron=FALSE,
+        dora=dora,
+        prevalent_wind=prevalent_wind,
+        seat_wind=state.round_state.seat_wind[c_p],
     )
 
     hand = state.players.hand.at[c_p].set(Hand.add(state.players.hand[c_p], new_tile))
     # Generate the legal action for the player who drew the tile after the draw
+    # The mask reads ``can_win``, which is only written below.
     legal_action_mask_c_p = _make_legal_action_mask_after_draw(
-        state, hand, c_p, new_tile
+        _replace_state(state, can_win=can_ron), hand, c_p, new_tile
     )
     legal_action_mask_4p = ZERO_MASK_2D.at[c_p, :].set(legal_action_mask_c_p)
 
@@ -530,10 +536,8 @@ def _init_for_next_round(rng: PRNGKey, state: State) -> State:
         has_yaku=state.players.has_yaku.at[c_p, 0].set(
             can_ron[c_p, new_tile]
         ),  # If the player wins, the yaku is always attached.
-        fan=state.players.fan.at[c_p, 0].set(
-            jnp.int32(yakuman_num)
-        ),  # Only judge the Yakuman.
-        fu=state.players.fu.at[c_p, 0].set(jnp.int32(0)),  # If the player wins, the fu is 0.
+        fan=state.players.fan.at[c_p, 0].set(fan),
+        fu=state.players.fu.at[c_p, 0].set(fu),
         can_win=can_ron,
         legal_action_mask=legal_action_mask_4p,
         next_deck_ix=next_deck_ix,
