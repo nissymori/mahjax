@@ -817,9 +817,10 @@ def _finalize_step_state(
         lambda: _abortive_draw_normal(state),
         lambda: state,
     )
-    return _replace_state(
-        state,
-        legal_action_mask=state.players.legal_action_mask[state.current_player],
+    # ``state.replace`` rather than ``_replace_state``: the latter writes a 1D mask
+    # back into the player's row, which would drop the calls still waiting there.
+    return state.replace(
+        legal_action_mask=_claims_open_to(state.players.legal_action_mask, state.current_player),
     )
 
 
@@ -1247,6 +1248,24 @@ def _next_meld_player(legal_action_mask_4p: Array, discarded_player: Array) -> A
 
     idx = jnp.where(can_multiple_ron, ron_case(), idx)
     return idx, can_any.any()
+
+
+def _claims_open_to(legal_action_mask_4p: Array, player: Array) -> Array:
+    """
+    The part of the player's row they may answer now.
+    - Every call on a discard is heard before one is carried out, so RON > PON, OPEN_KAN > CHI holds across players
+    - A PON or OPEN_KAN waits while another player can still RON; a CHI also waits while another player can still PON or OPEN_KAN
+    - A waiting call stays in ``legal_action_mask_4p`` and is offered once the claims above it are passed
+    """
+    others = jnp.arange(4) != player
+    other_ron = (legal_action_mask_4p[:, Action.RON] & others).any()
+    other_pon = (legal_action_mask_4p[:, Action.PON : Action.OPEN_KAN + 1].any(axis=1) & others).any()
+    mask = legal_action_mask_4p[player]
+    mask = mask.at[Action.PON : Action.OPEN_KAN + 1].set(mask[Action.PON : Action.OPEN_KAN + 1] & ~other_ron)
+    mask = mask.at[Action.CHI_L : Action.CHI_R_RED + 1].set(
+        mask[Action.CHI_L : Action.CHI_R_RED + 1] & ~(other_ron | other_pon)
+    )
+    return mask
 
 
 def _append_meld(state: State, meld: Array, player: Array) -> State:
@@ -1715,7 +1734,10 @@ def _pass(state: State, game_config: Optional[GameConfig] = None):
     # If the player who declared the KAN passes, set the next player from the legal action
     can_robbing_kan = state.round_state.kan_declared
     is_ron_player = jnp.bool_(state.players.legal_action_mask[c_p, Action.RON])
-    legal_action_mask_4p = state.players.legal_action_mask.at[c_p, :].set(FALSE)
+    # Only what was offered is declined; a call still waiting on a higher claim stays.
+    legal_action_mask_4p = state.players.legal_action_mask.at[c_p, :].set(
+        state.players.legal_action_mask[c_p] & ~_claims_open_to(state.players.legal_action_mask, c_p)
+    )
     post_ron_mask = ZERO_MASK_2D.at[:, Action.RON].set(legal_action_mask_4p[:, Action.RON])
     next_ron_player, can_any_ron = _next_ron_player(
         post_ron_mask, state.round_state.last_player

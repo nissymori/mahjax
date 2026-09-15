@@ -6,7 +6,9 @@ from mahjax.red_mahjong.constants import FIRST_DRAW_IDX
 from mahjax.red_mahjong.env import (
     RedMahjong,
     _abortive_draw_normal,
+    _claims_open_to,
     _draw,
+    _finalize_step_state,
     _init,
     _kan,
     _make_legal_action_mask_after_draw,
@@ -101,6 +103,61 @@ def test_next_ron_player_returns_closest() -> None:
     nxt, can_any = _next_ron_player(legal, jnp.int8(0))
     assert bool(can_any)
     assert int(nxt) == 1
+
+
+def test_claims_open_to_holds_a_call_while_another_player_claims_higher() -> None:
+    legal = jnp.zeros((4, Action.NUM_ACTION), dtype=jnp.bool_)
+    ron_pon = legal.at[1, Action.RON].set(True).at[1, Action.PON].set(True).at[1, Action.PASS].set(True)
+    # Nobody else claims: RON and PON are offered together, as before.
+    assert jnp.array_equal(_claims_open_to(ron_pon, jnp.int8(1)), ron_pon[1])
+    # Another player can RON: the PON waits.
+    offered = _claims_open_to(ron_pon.at[2, Action.RON].set(True), jnp.int8(1))
+    assert bool(offered[Action.RON]) and bool(offered[Action.PASS])
+    assert not bool(offered[Action.PON])
+    # Another player can PON: the CHI waits, the RON does not.
+    ron_chi = legal.at[1, Action.RON].set(True).at[1, Action.CHI_R].set(True).at[2, Action.PON].set(True)
+    offered = _claims_open_to(ron_chi, jnp.int8(1))
+    assert bool(offered[Action.RON])
+    assert not bool(offered[Action.CHI_R])
+
+
+def test_red_a_lower_call_waits_until_every_higher_claim_is_passed() -> None:
+    """P0 has just discarded; each prompt is (player, offered calls) while everyone passes."""
+    env = RedMahjong(round_mode="single", next_round_style="auto")
+    scenarios = [
+        # Nothing conflicts: RON and PON in one prompt, as before.
+        ({1: [Action.RON, Action.PON]}, [(1, {Action.RON, Action.PON})]),
+        # P1 must not be able to pon over P2's ron.
+        (
+            {1: [Action.RON, Action.PON], 2: [Action.RON]},
+            [(1, {Action.RON}), (2, {Action.RON}), (1, {Action.PON})],
+        ),
+        # P1 must not be able to chi over P2's pon.
+        (
+            {1: [Action.RON, Action.CHI_R], 2: [Action.PON]},
+            [(1, {Action.RON}), (2, {Action.PON}), (1, {Action.CHI_R})],
+        ),
+    ]
+    for rows, prompts in scenarios:
+        base = default_state()
+        legal = base.players.legal_action_mask.at[1, Action.PASS].set(True)
+        for player, actions in rows.items():
+            for action in actions:
+                legal = legal.at[player, action].set(True)
+        state = _finalize_step_state(
+            _replace_state(
+                base,
+                current_player=jnp.int8(1),
+                last_player=jnp.int8(0),
+                target=jnp.int8(1),
+                legal_action_mask=legal,
+            )
+        )
+        for i, (player, offered) in enumerate(prompts):
+            if i:
+                state = env.step(state, jnp.int8(Action.PASS), STEP_KEY)
+            assert int(state.current_player) == player
+            assert {int(a) for a in jnp.flatnonzero(state.legal_action_mask)} == offered | {Action.PASS}
 
 
 def test_abortive_draw_payments_shape() -> None:

@@ -3,7 +3,7 @@ import jax
 import jax.numpy as jnp
 from mahjax.no_red_mahjong.tile import Tile
 from mahjax.no_red_mahjong.action import Action
-from mahjax.no_red_mahjong.state import FIRST_DRAW_IDX
+from mahjax.no_red_mahjong.state import FIRST_DRAW_IDX, default_state
 from mahjax.no_red_mahjong.env import (
     _init,
     _step,
@@ -14,6 +14,8 @@ from mahjax.no_red_mahjong.env import (
     _make_legal_action_mask_after_discard,
     _next_meld_player,
     _next_ron_player,
+    _claims_open_to,
+    _finalize_step_state,
     _selfkan,
     _closed_kan,
     _added_kan,
@@ -365,6 +367,34 @@ class TestEnv(unittest.TestCase):
         legal_action_mask = jnp.zeros((4, Action.NUM_ACTION), dtype=jnp.bool_)
         next_player, can_any = jitted_next_ron_player(legal_action_mask, 0)
         self.assertEqual(can_any, False)
+
+    def test_a_lower_call_waits_until_every_higher_claim_is_passed(self):
+        # P0 has just discarded; each prompt is (player, offered calls) while everyone passes.
+        legal = jnp.zeros((4, Action.NUM_ACTION), dtype=jnp.bool_)
+        ron_pon = legal.at[1, Action.RON].set(True).at[1, Action.PON].set(True)
+        self.assertFalse(bool(_claims_open_to(ron_pon.at[2, Action.RON].set(True), 1)[Action.PON]))
+        scenarios = [
+            # Nothing conflicts: RON and PON in one prompt, as before.
+            ({1: [Action.RON, Action.PON]}, [(1, {Action.RON, Action.PON})]),
+            # P1 must not be able to pon over P2's ron.
+            ({1: [Action.RON, Action.PON], 2: [Action.RON]}, [(1, {Action.RON}), (2, {Action.RON}), (1, {Action.PON})]),
+            # P1 must not be able to chi over P2's pon.
+            ({1: [Action.RON, Action.CHI_R], 2: [Action.PON]}, [(1, {Action.RON}), (2, {Action.PON}), (1, {Action.CHI_R})]),
+        ]
+        for rows, prompts in scenarios:
+            base = default_state()
+            legal = base.players.legal_action_mask.at[1, Action.PASS].set(True)
+            for player, actions in rows.items():
+                for action in actions:
+                    legal = legal.at[player, action].set(True)
+            state = _finalize_step_state(
+                _replace_state(base, current_player=jnp.int8(1), last_player=jnp.int8(0), target=jnp.int8(1), legal_action_mask=legal)
+            )
+            for i, (player, offered) in enumerate(prompts):
+                if i:
+                    state = env.step(state, jnp.int8(Action.PASS), STEP_KEY)
+                self.assertEqual(int(state.current_player), player)
+                self.assertEqual({int(a) for a in jnp.flatnonzero(state.legal_action_mask)}, offered | {Action.PASS})
 
     def test_accept_riichi(self):
         # Validate riichi acceptance toggles flags, deducts points, and only sets double riichi when allowed.
