@@ -1876,8 +1876,9 @@ def _ron(state: State, game_config: Optional[GameConfig] = None) -> State:
     is_pao, pao_player = _pao(state, c_p)
     pao_reward = jnp.zeros(4, dtype=jnp.float32)
     pao_reward = pao_reward.at[c_p].set(score + honba)
-    pao_reward = pao_reward.at[pao_player].add(-score / 2)
-    pao_reward = pao_reward.at[state.round_state.last_player].add(-score / 2 - honba)
+    # The points are split with the discarder, but the honba is the liable player's alone.
+    pao_reward = pao_reward.at[pao_player].add(-score / 2 - honba)
+    pao_reward = pao_reward.at[state.round_state.last_player].add(-score / 2)
     reward = jnp.where(config.enable_pao & is_pao, pao_reward, normal_reward)
     # The Kyotaku is already paid when the RIICHI is declared, so we only need to add the Kyotaku to the winner
     kyotaku_bonus = 10 * state.round_state.kyotaku * is_first_ron

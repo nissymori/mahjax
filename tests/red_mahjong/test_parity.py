@@ -353,8 +353,9 @@ def test_pao_and_nagashi_mangan_scoring() -> None:
     ron_after = _ron(ron_state)
     basic = Yaku.score(jnp.int32(5), jnp.int32(30))
     ron_payment = jnp.ceil(basic * 4 / 100)
+    # P1 discarded and P2 is liable: the points are split, the honba is P2's alone.
     expected_ron = jnp.array(
-        [ron_payment + 3, -ron_payment / 2 - 3, -ron_payment / 2, 0],
+        [ron_payment + 3, -ron_payment / 2, -ron_payment / 2 - 3, 0],
         dtype=jnp.float32,
     )
 
