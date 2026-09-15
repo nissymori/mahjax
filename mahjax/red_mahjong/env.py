@@ -1003,6 +1003,8 @@ def _discard(state: State, tile: Array, game_config: Optional[GameConfig] = None
     - If the player can meld, set the next player (RON > KAN, PON > CHI)
     - Check if the game is ended (abortive_draw_normal (流局))
     """
+    # An open or added kan's new indicator turns over with the kanner's discard, so a ron on it counts.
+    state = _reveal_pending_kan_dora(state)
     c_p = state.current_player
     config = _resolve_game_config(game_config)
     had_after_kan = state.round_state.can_after_kan
@@ -1334,19 +1336,42 @@ def _is_waiting_tile(can_ron: Array, tile: int) -> bool:
     return (tile != -1) & can_ron[tile_type]
 
 
+def _reveal_pending_kan_dora(state: State) -> State:
+    """
+    Turn over the new indicator of an open or added kan if it is still face down
+    - A closed kan turns its indicator over at once in ``_kan``
+    - An open or added kan's waits for the kanner's discard or next kan, and while it waits ``n_kan_doras`` is one behind the completed kans
+    """
+    n_kan_doras = state.round_state.n_kan_doras
+    return jax.lax.cond(
+        n_kan_doras.astype(jnp.int32) < state.players.n_kan.sum().astype(jnp.int32),
+        lambda s: _replace_state(
+            s,
+            n_kan_doras=n_kan_doras + 1,
+            dora_indicators=s.round_state.dora_indicators.at[n_kan_doras + 1].set(
+                s.round_state.deck[9 - 2 * (n_kan_doras + 1)]
+            ),
+            ura_dora_indicators=s.round_state.ura_dora_indicators.at[n_kan_doras + 1].set(
+                s.round_state.deck[8 - 2 * (n_kan_doras + 1)]
+            ),
+        ),
+        lambda s: s,
+        state,
+    )
+
+
 def _draw_after_kan(state: State, game_config: Optional[GameConfig] = None):
     """
     Process when a KAN is Accepted
     - Disable Ippatsu
     - Disable Double Riichi
-    - Update the KAN dora (except 暗槓は ``_kan`` で既にめくり済み)
     - Update the last deck index (王牌の繰り / 海底位置の調整; 本手牌の next は進めない)
     - Disable the kan flag
     - Draw the rinshan tile
     - Calculate legal_action_mask for the player who drew the tile
     - Set the AfterKan flag (嶺上開花)
 
-    大明槓・加槓は槍槓のため ``_kan`` では槓ドラをめくらず、不成立後にここでめくる。
+    大明槓・加槓の槓ドラはここでもめくらず、その打牌か続く槓でめくる（``_reveal_pending_kan_dora``）。
     暗槓は槍槓がないため ``_kan`` で槓ドラを先にめくる（``n_kan_doras > n_kan.sum()`` の間だけ一時的に不整合）。
     """
     c_p = state.current_player
@@ -1356,24 +1381,14 @@ def _draw_after_kan(state: State, game_config: Optional[GameConfig] = None):
     kan_dora_pre_flipped = state.round_state.n_kan_doras.astype(jnp.int32) > n_kan.astype(
         jnp.int32
     )
-    n_kan_doras = state.round_state.n_kan_doras
-    next_kan_dora = state.round_state.deck[9 - 2 * (n_kan_doras + 1)]
-    next_kan_ura = state.round_state.deck[8 - 2 * (n_kan_doras + 1)]
 
-    def _after_kan_flip_dora(s: State) -> State:
+    def _after_open_or_added_kan(s: State) -> State:
         return _replace_state(
             s,
             ippatsu=jnp.zeros(4, dtype=jnp.bool_),
             can_after_kan=TRUE,
             n_kan=s.players.n_kan.at[c_p].add(1),
             kan_declared=FALSE,
-            n_kan_doras=s.round_state.n_kan_doras + 1,
-            dora_indicators=s.round_state.dora_indicators.at[s.round_state.n_kan_doras + 1].set(
-                next_kan_dora
-            ),
-            ura_dora_indicators=s.round_state.ura_dora_indicators.at[
-                s.round_state.n_kan_doras + 1
-            ].set(next_kan_ura),
             last_deck_ix=s.round_state.last_deck_ix + 1,
         )
 
@@ -1387,7 +1402,7 @@ def _draw_after_kan(state: State, game_config: Optional[GameConfig] = None):
         )
 
     state = jax.lax.cond(
-        kan_dora_pre_flipped, _after_kan_dora_already_done, _after_kan_flip_dora, state
+        kan_dora_pre_flipped, _after_kan_dora_already_done, _after_open_or_added_kan, state
     )
     # Rinshan draws come from the dead wall and never qualify as Haitei.
     is_haitei = FALSE
@@ -1437,6 +1452,8 @@ def _kan(state: State, action, game_config: Optional[GameConfig] = None):
     - Apply KAN action
     - Disable Ippatsu
     """
+    # A kan made before discarding turns over the previous open or added kan's indicator first.
+    state = _reveal_pending_kan_dora(state)
     c_p = state.current_player
     config = _resolve_game_config(game_config)
     self_kan_tile_type = action - Tile.NUM_TILE_TYPE_WITH_RED

@@ -172,3 +172,65 @@ def test_rinshan_riichi_also_needs_1000_points():
     assert not bool(_draw_after_kan(poor).players.legal_action_mask[c_p, Action.RIICHI])
     exact = _replace_state(state, score=state.round_state.score.at[c_p].set(10))
     assert bool(_draw_after_kan(exact).players.legal_action_mask[c_p, Action.RIICHI])
+
+
+def test_open_and_added_kan_dora_turns_over_at_the_discard():
+    """A closed kan's new indicator shows at once; an open or added kan's only at the
+    kanner's discard or next kan, so it is hidden while deciding on the rinshan tile."""
+    from mahjax.red_mahjong import env as m
+    from mahjax.red_mahjong.meld import Meld
+    from mahjax.red_mahjong.tile import Tile
+
+    kan = jax.jit(m._kan)
+    discard = jax.jit(m._discard)
+    draw_after_kan = jax.jit(_draw_after_kan)
+    north, west, east = 30, 29, 27
+
+    def counts(tiles):
+        hand = jnp.zeros(37, dtype=jnp.int8)
+        for tile in tiles:
+            hand = hand.at[tile].add(1)
+        return hand
+
+    def revealed(state):
+        return int((state.round_state.dora_indicators >= 0).sum())
+
+    base = _init(jax.random.PRNGKey(2))
+    others = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+    # Open kan: P0 discarded North and P1 holds NNN.
+    open_kan = _replace_state(
+        base,
+        current_player=jnp.int8(1),
+        last_player=jnp.int8(0),
+        target=jnp.int8(north),
+        hand_with_red=base.players.hand_with_red.at[1].set(counts([north] * 3 + others)),
+        hand=base.players.hand.at[1].set(Hand.to_34(counts([north] * 3 + others))),
+        n_kan=jnp.zeros(4, dtype=jnp.int8),
+        discard_counts=base.players.discard_counts.at[0].set(1),
+    )
+    # Added kan: P1 has a pon of West and holds the fourth.
+    added_kan = _replace_state(
+        base,
+        current_player=jnp.int8(1),
+        hand_with_red=base.players.hand_with_red.at[1].set(counts([west] + others)),
+        hand=base.players.hand.at[1].set(Hand.to_34(counts([west] + others))),
+        n_kan=jnp.zeros(4, dtype=jnp.int8),
+        melds=base.players.melds.at[1, 0].set(Meld.init(Action.PON, west, 1)),
+        meld_counts=base.players.meld_counts.at[1].set(1),
+        pon=base.players.pon.at[1, west].set(jnp.int8(1 << 2)),
+    )
+
+    for state, action in ((open_kan, Action.OPEN_KAN), (added_kan, Tile.NUM_TILE_TYPE_WITH_RED + west)):
+        rinshan = draw_after_kan(kan(state, jnp.int32(action)))
+        assert revealed(rinshan) == 1  # still only the round's first indicator
+        assert revealed(discard(rinshan, jnp.int8(Action.TSUMOGIRI))) == 2
+
+    # A closed kan right after the open kan turns over both indicators before its rinshan draw.
+    rinshan = draw_after_kan(kan(open_kan, jnp.int32(Action.OPEN_KAN)))
+    hand = rinshan.players.hand_with_red[1].at[east].set(4)
+    second = _replace_state(
+        rinshan,
+        hand_with_red=rinshan.players.hand_with_red.at[1].set(hand),
+        hand=rinshan.players.hand.at[1].set(Hand.to_34(hand)),
+    )
+    assert revealed(draw_after_kan(kan(second, jnp.int32(Tile.NUM_TILE_TYPE_WITH_RED + east)))) == 3
