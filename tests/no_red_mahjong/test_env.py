@@ -527,6 +527,44 @@ class TestEnv(unittest.TestCase):
         self.assertEqual(float(_tsumo(state).rewards[1]), 11 + 130)  # 300/500 tsumo + the sticks
         self.assertEqual(int(m._final_score(state.round_state)[0]), 250 + 130)
 
+    def test_tied_players_are_ranked_by_their_starting_wind(self):
+        # On equal score East-1's seat order decides, not the player index.
+        from mahjax.no_red_mahjong import env as m
+
+        # P2 was the first dealer: P2 started East, P3 South, P0 West, P1 North.
+        round_state = default_state().round_state.replace(
+            init_wind=jnp.array([2, 3, 0, 1], dtype=jnp.int8),
+            score=jnp.array([180, 320, 180, 320], dtype=jnp.int32),
+            order_points=jnp.array([300, 100, -100, -300], dtype=jnp.int32),
+            kyotaku=jnp.int8(1),
+            round=jnp.int8(7),
+            round_limit=jnp.int8(7),
+            dealer=jnp.int8(1),
+        )
+
+        # P3 outranks P1 and P2 outranks P0, so P3 takes the top uma and the stick.
+        self.assertTrue(bool(jnp.array_equal(m._final_score(round_state), jnp.array([180 - 300, 320 + 100, 180 - 100, 320 + 300 + 10]))))
+        # The dealer P1 is not top on a tie with P3, so the dealer's renchan keeps the game going.
+        self.assertFalse(bool(m._is_game_end(round_state, jnp.bool_(True))))
+
+        # The starting winds survive a round change.
+        state = _replace_state(
+            _init(jax.random.PRNGKey(7)),
+            dealer=jnp.int8(0),
+            current_player=jnp.int8(0),
+            round=jnp.int8(0),
+            honba=jnp.int8(0),
+            kyotaku=jnp.int8(0),
+            has_won=jnp.zeros(4, dtype=jnp.bool_),
+            can_win=jnp.zeros((4, Tile.NUM_TILE_TYPE), dtype=jnp.bool_),
+            terminated_round=jnp.bool_(True),
+            init_wind=jnp.array([2, 3, 0, 1], dtype=jnp.int8),
+            score=jnp.array([250, 250, 250, 250], dtype=jnp.int32),
+        )
+        out = _advance_to_next_round_auto(state, STEP_KEY)
+        self.assertEqual(int(out.round_state.round), 1)
+        self.assertTrue(bool(jnp.array_equal(out.round_state.init_wind, jnp.array([2, 3, 0, 1]))))
+
     def test_draw_after_kan(self):
         # Ensure rinshan draws increment kan counts, enable after-kan actions, and clear ippatsu.
         state = self.state

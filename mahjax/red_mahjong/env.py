@@ -2206,12 +2206,17 @@ def _mangan_tsumo(winner: Array, dealer: Array, honba: Array) -> Array:
     )
 
 
+def _rank_order(round_state) -> Array:
+    """Players from first place to last: by score, and on equal score by the seat wind they started the game with."""
+    return jnp.lexsort((round_state.init_wind, -round_state.score))
+
+
 def _final_score(round_state) -> Array:
     """Score at game end: raw score plus uma, with the riichi sticks to the top."""
-    order = jnp.argsort(-round_state.score)
+    order = _rank_order(round_state)
     rank_points = jnp.zeros_like(round_state.score).at[order].set(round_state.order_points)
     score = round_state.score + rank_points
-    return score.at[jnp.argmax(score)].add(10 * round_state.kyotaku.astype(jnp.int32))
+    return score.at[order[0]].add(10 * round_state.kyotaku.astype(jnp.int32))
 
 
 def _is_game_end(round_state, will_dealer_continue: Array) -> Array:
@@ -2227,7 +2232,7 @@ def _is_game_end(round_state, will_dealer_continue: Array) -> Array:
     is_final_round = round_state.round >= round_state.round_limit
     is_last_extra_round = round_state.round >= round_state.round_limit + SUDDEN_DEATH_ROUNDS
     # The deal leaves the current dealer, or it stays but they are top and stop.
-    deal_passes = ~will_dealer_continue | (jnp.argmax(score) == round_state.dealer)
+    deal_passes = ~will_dealer_continue | (_rank_order(round_state)[0] == round_state.dealer)
     return (
         (score < 0).any()
         | is_last_extra_round
@@ -2316,6 +2321,7 @@ def _next_round(
             # run past its intended end and the observation would report the wrong
             # round_limit from the second kyoku onward.
             round_limit=s.round_state.round_limit,
+            init_wind=s.round_state.init_wind,
             honba=next_honba,
             kyotaku=s.round_state.kyotaku,
             score=s.round_state.score,
@@ -2396,6 +2402,7 @@ def _advance_to_next_round_auto(
         seat_wind=_calc_wind(next_dealer),
         round=next_round,
         round_limit=state.round_state.round_limit,
+        init_wind=state.round_state.init_wind,
         order_points=state.round_state.order_points,
         honba=next_honba,
         kyotaku=state.round_state.kyotaku,

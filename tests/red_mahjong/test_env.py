@@ -776,6 +776,39 @@ def test_red_thirteen_riichi_sticks_do_not_wrap_negative() -> None:
     assert int(m._final_score(state.round_state)[0]) == 250 + 130
 
 
+def test_red_tied_players_are_ranked_by_their_starting_wind() -> None:
+    """On equal score East-1's seat order decides, not the player index."""
+    from mahjax.red_mahjong import env as m
+
+    # P2 was the first dealer: P2 started East, P3 South, P0 West, P1 North.
+    round_state = default_state().round_state.replace(
+        init_wind=jnp.array([2, 3, 0, 1], dtype=jnp.int8),
+        score=jnp.array([180, 320, 180, 320], dtype=jnp.int32),
+        order_points=jnp.array([300, 100, -100, -300], dtype=jnp.int32),
+        kyotaku=jnp.int8(1),
+        round=jnp.int8(7),
+        round_limit=jnp.int8(7),
+        dealer=jnp.int8(1),
+    )
+
+    # P3 outranks P1 and P2 outranks P0, so P3 takes the top uma and the stick.
+    assert jnp.array_equal(m._final_score(round_state), jnp.array([180 - 300, 320 + 100, 180 - 100, 320 + 300 + 10]))
+    # The dealer P1 is not top on a tie with P3, so the dealer's renchan keeps the game going.
+    assert not bool(m._is_game_end(round_state, jnp.bool_(True)))
+
+    # The starting winds survive a round change.
+    env = RedMahjong(round_mode="half", next_round_style="auto")
+    state = _end_of_round_state(
+        env,
+        round=jnp.int8(0),
+        init_wind=jnp.array([2, 3, 0, 1], dtype=jnp.int8),
+        score=jnp.array([250, 250, 250, 250], dtype=jnp.int32),
+    )
+    out = _advance_to_next_round_auto(state, jax.random.PRNGKey(0))
+    assert int(out.round_state.round) == 1
+    assert jnp.array_equal(out.round_state.init_wind, jnp.array([2, 3, 0, 1]))
+
+
 def _furiten_by_pass_after_declining_then_an_unrelated_pass(m, Action):
     """X declines a winning discard, then passes on an unrelated PON before drawing."""
     base = m.default_state()
