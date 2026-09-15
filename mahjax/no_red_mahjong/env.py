@@ -1560,7 +1560,7 @@ def _pass(state: State):
             ),  # If the player who declared the KAN passes, set the last player
             target=jnp.int8(-1),
             furiten_by_pass=state.players.furiten_by_pass.at[c_p].set(
-                state.players.furiten_by_pass[c_p] | (is_ron_player & ~can_robbing_kan)
+                state.players.furiten_by_pass[c_p] | is_ron_player
             ),  # If the player who RON passes, set the furiten
             draw_next=TRUE
             & ~can_robbing_kan,  # If no next player for robbing KAN, draw the rinshan tile
@@ -1576,7 +1576,7 @@ def _pass(state: State):
                 TRUE
             ),  # Add the pass action to the legal action
             furiten_by_pass=state.players.furiten_by_pass.at[c_p].set(
-                state.players.furiten_by_pass[c_p] | (is_ron_player & ~can_robbing_kan)
+                state.players.furiten_by_pass[c_p] | is_ron_player
             ),  # If the player who RON passes, set the furiten
         ),
     )

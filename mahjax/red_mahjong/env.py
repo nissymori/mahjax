@@ -1763,7 +1763,7 @@ def _pass(state: State, game_config: Optional[GameConfig] = None):
             current_player=jnp.int8(next_ron_player),
             legal_action_mask=post_ron_mask.at[next_ron_player, Action.PASS].set(TRUE),
             furiten_by_pass=state.players.furiten_by_pass.at[c_p].set(
-                state.players.furiten_by_pass[c_p] | (is_ron_player & ~can_robbing_kan)
+                state.players.furiten_by_pass[c_p] | is_ron_player
             ),
             draw_next=FALSE,
         ),
@@ -1771,7 +1771,7 @@ def _pass(state: State, game_config: Optional[GameConfig] = None):
             state,
             target=jnp.int8(-1),
             furiten_by_pass=state.players.furiten_by_pass.at[c_p].set(
-                state.players.furiten_by_pass[c_p] | (is_ron_player & ~can_robbing_kan)
+                state.players.furiten_by_pass[c_p] | is_ron_player
             ),
             # Every ron of the chain already settled into ``score``; declining the
             # last one just closes the round, so it moves no points.
@@ -1797,7 +1797,7 @@ def _pass(state: State, game_config: Optional[GameConfig] = None):
                 ),
                 target=jnp.int8(-1),
                 furiten_by_pass=state.players.furiten_by_pass.at[c_p].set(
-                    state.players.furiten_by_pass[c_p] | (is_ron_player & ~can_robbing_kan)
+                    state.players.furiten_by_pass[c_p] | is_ron_player
                 ),
                 draw_next=TRUE & ~can_robbing_kan,
                 is_abortive_draw_normal=is_abortive_draw_normal,
@@ -1810,7 +1810,7 @@ def _pass(state: State, game_config: Optional[GameConfig] = None):
                     next_meld_player, Action.PASS
                 ].set(TRUE),
                 furiten_by_pass=state.players.furiten_by_pass.at[c_p].set(
-                    state.players.furiten_by_pass[c_p] | (is_ron_player & ~can_robbing_kan)
+                    state.players.furiten_by_pass[c_p] | is_ron_player
                 ),
             ),
         ),

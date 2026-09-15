@@ -396,6 +396,49 @@ class TestEnv(unittest.TestCase):
                 self.assertEqual(int(state.current_player), player)
                 self.assertEqual({int(a) for a in jnp.flatnonzero(state.legal_action_mask)}, offered | {Action.PASS})
 
+    def test_declining_a_robbing_kan_ron_makes_the_player_furiten(self):
+        # Skipping a ron on an added kan is still skipping a win: furiten, for the round if in riichi.
+        from mahjax.no_red_mahjong import env as m
+        from mahjax.no_red_mahjong.meld import Meld
+
+        six_s = 23
+
+        def counts(tiles):
+            hand = jnp.zeros(Tile.NUM_TILE_TYPE, dtype=jnp.int8)
+            for tile in tiles:
+                hand = hand.at[tile].add(1)
+            return hand
+
+        filler = counts([27, 27, 28, 28, 29, 29, 30, 30, 31, 31, 32, 32, 33])
+        hands = jnp.stack(
+            [
+                filler,
+                counts([0, 1, 2, 3, 4, 5, 15, 16, 17, 18, 18, 21, 22]),  # P1: 123m 456m 789p 11s 45s, waits 3s/6s
+                counts([six_s, 6, 7, 8, 9, 10, 11, 12, 13, 14, 27]),  # P2 holds the fourth 6s
+                filler,
+            ]
+        )
+        base = default_state()
+        for riichi in (False, True):
+            state = _replace_state(
+                base,
+                current_player=jnp.int8(2),
+                hand=hands,
+                can_win=m.v_can_win(hands, m.TILE_RANGE),
+                melds=base.players.melds.at[2, 0].set(Meld.init(Action.PON, six_s, 1)),
+                meld_counts=base.players.meld_counts.at[2].set(1),
+                pon=base.players.pon.at[2, six_s].set(jnp.int8(1 << 2)),
+                riichi=base.players.riichi.at[1].set(riichi),
+                next_deck_ix=jnp.int32(60),
+            )
+
+            robbable = _kan(state, jnp.int32(34 + six_s))  # P2 adds the 6s
+            declined = _pass(robbable)
+
+            self.assertEqual(int(robbable.current_player), 1)
+            self.assertTrue(bool(robbable.players.legal_action_mask[1, Action.RON]))
+            self.assertTrue(bool(declined.players.furiten_by_pass[1]))
+
     def test_accept_riichi(self):
         # Validate riichi acceptance toggles flags, deducts points, and only sets double riichi when allowed.
         state = self.set_state(
