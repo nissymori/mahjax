@@ -158,6 +158,21 @@ def test_pinfu_is_rejected_on_honor_tanki_wait() -> None:
     assert int(fu) == 40
 
 
+def test_big_four_winds_is_a_single_yakuman() -> None:
+    """Every yakuman counts once; only different yakuman in one hand add up."""
+    base = default_state()
+    state = base.replace(round_state=base.round_state.replace(target=jnp.int8(30)))  # ron on North
+    for pair, expected_fan in ((0, 1), (31, 2)):  # 11m pair; White pair also makes All Honors
+        hand = jnp.zeros((34,), dtype=jnp.int8)
+        hand = hand.at[27].set(3).at[28].set(3).at[29].set(3).at[30].set(2).at[pair].set(2)
+
+        yaku, fan, fu = Yaku.judge(hand, jnp.bool_(True), jnp.int8(1), state)
+
+        assert bool(yaku[Yaku.BigFourWinds])
+        assert int(fu) == 0
+        assert int(fan) == expected_fan
+
+
 def test_pinfu_is_rejected_when_closed_kan_exists() -> None:
     hand = jnp.zeros((34,), dtype=jnp.int8)
     for tile in (3, 4, 5, 11, 12, 13, 22, 23, 24, 15):

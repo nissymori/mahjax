@@ -160,7 +160,7 @@ class _Internal:
     YAKUMAN = YAKUMAN.at[PureNineGates].set(1)
     YAKUMAN = YAKUMAN.at[ThirteenOrphans].set(1)
     YAKUMAN = YAKUMAN.at[CompletedThirteenOrphans].set(1)
-    YAKUMAN = YAKUMAN.at[BigFourWinds].set(2)
+    YAKUMAN = YAKUMAN.at[BigFourWinds].set(1)
     YAKUMAN = YAKUMAN.at[LittleFourWinds].set(1)
     YAKUMAN = YAKUMAN.at[FourKans].set(1)
 
