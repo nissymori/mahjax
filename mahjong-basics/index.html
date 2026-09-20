@@ -1,0 +1,1372 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="GPU-accelerated Riichi Mahjong simulators for reinforcement learning">
+      
+      
+        <meta name="author" content="Soichiro Nishimori">
+      
+      
+        <link rel="canonical" href="https://nissymori.github.io/mahjax/mahjong-basics/">
+      
+      
+        <link rel="prev" href="..">
+      
+      
+        <link rel="next" href="../rule/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/logo.svg">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Mahjong Basics - MahJax Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Noto+Sans:300,300i,400,400i,700,700i%7CInconsolata:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Noto Sans";--md-code-font:"Inconsolata"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="light-blue" data-md-color-accent="cyan">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#mahjong-basics" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="MahJax Documentation" class="md-header__button md-logo" aria-label="MahJax Documentation" data-md-component="logo">
+      
+  <img src="../assets/logo.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            MahJax Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Mahjong Basics
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/nissymori/mahjax" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    nissymori/mahjax
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="MahJax Documentation" class="md-nav__button md-logo" aria-label="MahJax Documentation" data-md-component="logo">
+      
+  <img src="../assets/logo.svg" alt="logo">
+
+    </a>
+    MahJax Documentation
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/nissymori/mahjax" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    nissymori/mahjax
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Overview
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mahjong Basics
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mahjong Basics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-reading-the-tiles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Reading the tiles
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1. Reading the tiles">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-three-suits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The three suits
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#honor-tiles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Honor tiles
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#red-fives" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Red fives
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-building-combinations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Building combinations
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. Building combinations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-a-turn-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How a turn works
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-winning-hands-and-yaku" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Winning hands and yaku
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. Winning hands and yaku">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#all-simples-tanyao" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        All simples (tanyao)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#value-honor-triplet-yakuhai" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Value honor triplet (yakuhai)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#riichi-closed-hand-in-ready-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Riichi: closed hand in ready state
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#two-core-ideas-to-remember" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Two core ideas to remember
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-where-to-learn-the-full-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Where to learn the full rules
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-where-to-play-online" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Where to play online
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../rule/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Supported Rules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../visualization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Visualization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    UI Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Available Games
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Available Games
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../no_red_mahjong/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    No-Red Mahjong
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../red_mahjong/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Red Mahjong
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://github.com/nissymori/mahjax" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GitHub
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-reading-the-tiles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Reading the tiles
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1. Reading the tiles">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-three-suits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The three suits
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#honor-tiles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Honor tiles
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#red-fives" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Red fives
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-building-combinations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Building combinations
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. Building combinations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-a-turn-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How a turn works
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-winning-hands-and-yaku" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Winning hands and yaku
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. Winning hands and yaku">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#all-simples-tanyao" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        All simples (tanyao)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#value-honor-triplet-yakuhai" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Value honor triplet (yakuhai)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#riichi-closed-hand-in-ready-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Riichi: closed hand in ready state
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#two-core-ideas-to-remember" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Two core ideas to remember
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-where-to-learn-the-full-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Where to learn the full rules
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-where-to-play-online" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Where to play online
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="mahjong-basics">Mahjong Basics</h1>
+<p>This page is a short introduction to Japanese riichi mahjong for newcomers.
+MahJax ships with two tile sets:</p>
+<ul>
+<li><code>standard</code>: the original tile faces</li>
+<li><code>bilingual</code>: an English-friendly tile set with the same game information</li>
+</ul>
+<p>The first half of this page shows both side by side, so you can learn the game and the tile notation at the same time.</p>
+<style>
+img[src*="assets/tiles/"] {
+  background: #fff;
+  border-radius: 4px;
+  padding: 2px;
+}
+</style>
+
+<h2 id="1-reading-the-tiles">1. Reading the tiles</h2>
+<p>Riichi mahjong uses <strong>34 tile types</strong>.
+There are <strong>4 copies</strong> of each type, so a full set has <strong>136 tiles</strong>.</p>
+<h3 id="the-three-suits">The three suits</h3>
+<p>The numbered suits are:</p>
+<ul>
+<li><strong>Characters (manzu)</strong> (<code>m</code>)</li>
+<li><strong>Circles (pinzu)</strong> (<code>p</code>)</li>
+<li><strong>Bamboos (souzu)</strong> (<code>s</code>)</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Group</th>
+<th>Standard tiles</th>
+<th>Bilingual tiles</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Characters (manzu)</td>
+<td><img alt="1m" src="../assets/tiles/ja/1m.svg" width="34" /> <img alt="2m" src="../assets/tiles/ja/2m.svg" width="34" /> <img alt="3m" src="../assets/tiles/ja/3m.svg" width="34" /> <img alt="4m" src="../assets/tiles/ja/4m.svg" width="34" /> <img alt="5m" src="../assets/tiles/ja/5m.svg" width="34" /> <img alt="6m" src="../assets/tiles/ja/6m.svg" width="34" /> <img alt="7m" src="../assets/tiles/ja/7m.svg" width="34" /> <img alt="8m" src="../assets/tiles/ja/8m.svg" width="34" /> <img alt="9m" src="../assets/tiles/ja/9m.svg" width="34" /></td>
+<td><img alt="1m" src="../assets/tiles/en/1m.svg" width="34" /> <img alt="2m" src="../assets/tiles/en/2m.svg" width="34" /> <img alt="3m" src="../assets/tiles/en/3m.svg" width="34" /> <img alt="4m" src="../assets/tiles/en/4m.svg" width="34" /> <img alt="5m" src="../assets/tiles/en/5m.svg" width="34" /> <img alt="6m" src="../assets/tiles/en/6m.svg" width="34" /> <img alt="7m" src="../assets/tiles/en/7m.svg" width="34" /> <img alt="8m" src="../assets/tiles/en/8m.svg" width="34" /> <img alt="9m" src="../assets/tiles/en/9m.svg" width="34" /></td>
+</tr>
+<tr>
+<td>Circles (pinzu)</td>
+<td><img alt="1p" src="../assets/tiles/ja/1p.svg" width="34" /> <img alt="2p" src="../assets/tiles/ja/2p.svg" width="34" /> <img alt="3p" src="../assets/tiles/ja/3p.svg" width="34" /> <img alt="4p" src="../assets/tiles/ja/4p.svg" width="34" /> <img alt="5p" src="../assets/tiles/ja/5p.svg" width="34" /> <img alt="6p" src="../assets/tiles/ja/6p.svg" width="34" /> <img alt="7p" src="../assets/tiles/ja/7p.svg" width="34" /> <img alt="8p" src="../assets/tiles/ja/8p.svg" width="34" /> <img alt="9p" src="../assets/tiles/ja/9p.svg" width="34" /></td>
+<td><img alt="1p" src="../assets/tiles/en/1p.svg" width="34" /> <img alt="2p" src="../assets/tiles/en/2p.svg" width="34" /> <img alt="3p" src="../assets/tiles/en/3p.svg" width="34" /> <img alt="4p" src="../assets/tiles/en/4p.svg" width="34" /> <img alt="5p" src="../assets/tiles/en/5p.svg" width="34" /> <img alt="6p" src="../assets/tiles/en/6p.svg" width="34" /> <img alt="7p" src="../assets/tiles/en/7p.svg" width="34" /> <img alt="8p" src="../assets/tiles/en/8p.svg" width="34" /> <img alt="9p" src="../assets/tiles/en/9p.svg" width="34" /></td>
+</tr>
+<tr>
+<td>Bamboos (souzu)</td>
+<td><img alt="1s" src="../assets/tiles/ja/1s.svg" width="34" /> <img alt="2s" src="../assets/tiles/ja/2s.svg" width="34" /> <img alt="3s" src="../assets/tiles/ja/3s.svg" width="34" /> <img alt="4s" src="../assets/tiles/ja/4s.svg" width="34" /> <img alt="5s" src="../assets/tiles/ja/5s.svg" width="34" /> <img alt="6s" src="../assets/tiles/ja/6s.svg" width="34" /> <img alt="7s" src="../assets/tiles/ja/7s.svg" width="34" /> <img alt="8s" src="../assets/tiles/ja/8s.svg" width="34" /> <img alt="9s" src="../assets/tiles/ja/9s.svg" width="34" /></td>
+<td><img alt="1s" src="../assets/tiles/en/1s.svg" width="34" /> <img alt="2s" src="../assets/tiles/en/2s.svg" width="34" /> <img alt="3s" src="../assets/tiles/en/3s.svg" width="34" /> <img alt="4s" src="../assets/tiles/en/4s.svg" width="34" /> <img alt="5s" src="../assets/tiles/en/5s.svg" width="34" /> <img alt="6s" src="../assets/tiles/en/6s.svg" width="34" /> <img alt="7s" src="../assets/tiles/en/7s.svg" width="34" /> <img alt="8s" src="../assets/tiles/en/8s.svg" width="34" /> <img alt="9s" src="../assets/tiles/en/9s.svg" width="34" /></td>
+</tr>
+</tbody>
+</table>
+<h3 id="honor-tiles">Honor tiles</h3>
+<p>Honor tiles are not numbered.
+They are the four winds and the three dragons.</p>
+<table>
+<thead>
+<tr>
+<th>Group</th>
+<th>Standard tiles</th>
+<th>Bilingual tiles</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Winds</td>
+<td><img alt="east" src="../assets/tiles/ja/east.svg" width="34" /> <img alt="south" src="../assets/tiles/ja/south.svg" width="34" /> <img alt="west" src="../assets/tiles/ja/west.svg" width="34" /> <img alt="north" src="../assets/tiles/ja/north.svg" width="34" /></td>
+<td><img alt="east" src="../assets/tiles/en/east.svg" width="34" /> <img alt="south" src="../assets/tiles/en/south.svg" width="34" /> <img alt="west" src="../assets/tiles/en/west.svg" width="34" /> <img alt="north" src="../assets/tiles/en/north.svg" width="34" /></td>
+</tr>
+<tr>
+<td>Dragons</td>
+<td><img alt="white" src="../assets/tiles/ja/white.svg" width="34" /> <img alt="green" src="../assets/tiles/ja/gd.svg" width="34" /> <img alt="red" src="../assets/tiles/ja/rd.svg" width="34" /></td>
+<td><img alt="white" src="../assets/tiles/en/white.svg" width="34" /> <img alt="green" src="../assets/tiles/en/gd.svg" width="34" /> <img alt="red" src="../assets/tiles/en/rd.svg" width="34" /></td>
+</tr>
+</tbody>
+</table>
+<h3 id="red-fives">Red fives</h3>
+<p>Some rulesets include one special red 5 in each suit.
+MahJax can visualize those too.</p>
+<table>
+<thead>
+<tr>
+<th>Group</th>
+<th>Standard tiles</th>
+<th>Bilingual tiles</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Red fives</td>
+<td><img alt="5mr" src="../assets/tiles/ja/5mr.svg" width="34" /> <img alt="5pr" src="../assets/tiles/ja/5pr.svg" width="34" /> <img alt="5sr" src="../assets/tiles/ja/5sr.svg" width="34" /></td>
+<td><img alt="5mr" src="../assets/tiles/en/5mr.svg" width="34" /> <img alt="5pr" src="../assets/tiles/en/5pr.svg" width="34" /> <img alt="5sr" src="../assets/tiles/en/5sr.svg" width="34" /></td>
+</tr>
+</tbody>
+</table>
+<h2 id="2-building-combinations">2. Building combinations</h2>
+<p>Most winning hands in riichi mahjong are built from:</p>
+<ul>
+<li><strong>4 sets</strong> (3 tiles)</li>
+<li><strong>1 pair</strong> (2 tiles)</li>
+</ul>
+<p>The three basic building blocks are:</p>
+<table>
+<thead>
+<tr>
+<th>Unit</th>
+<th>Standard tiles</th>
+<th>Bilingual tiles</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Sequence</td>
+<td><nobr><img alt="4m" src="../assets/tiles/ja/4m.svg" width="34" /> <img alt="5m" src="../assets/tiles/ja/5m.svg" width="34" /> <img alt="6m" src="../assets/tiles/ja/6m.svg" width="34" /></nobr></td>
+<td><nobr><img alt="4m" src="../assets/tiles/en/4m.svg" width="34" /> <img alt="5m" src="../assets/tiles/en/5m.svg" width="34" /> <img alt="6m" src="../assets/tiles/en/6m.svg" width="34" /></nobr></td>
+<td>Three consecutive suit tiles. Honors cannot make sequences.</td>
+</tr>
+<tr>
+<td>Triplet</td>
+<td><nobr><img alt="7p" src="../assets/tiles/ja/7p.svg" width="34" /> <img alt="7p" src="../assets/tiles/ja/7p.svg" width="34" /> <img alt="7p" src="../assets/tiles/ja/7p.svg" width="34" /></nobr></td>
+<td><nobr><img alt="7p" src="../assets/tiles/en/7p.svg" width="34" /> <img alt="7p" src="../assets/tiles/en/7p.svg" width="34" /> <img alt="7p" src="../assets/tiles/en/7p.svg" width="34" /></nobr></td>
+<td>Three identical tiles.</td>
+</tr>
+<tr>
+<td>Pair</td>
+<td><nobr><img alt="north" src="../assets/tiles/ja/north.svg" width="34" /> <img alt="north" src="../assets/tiles/ja/north.svg" width="34" /></nobr></td>
+<td><nobr><img alt="north" src="../assets/tiles/en/north.svg" width="34" /> <img alt="north" src="../assets/tiles/en/north.svg" width="34" /></nobr></td>
+<td>Two identical tiles. A regular winning hand needs exactly one pair.</td>
+</tr>
+</tbody>
+</table>
+<p>Here is a complete standard hand:</p>
+<table>
+<thead>
+<tr>
+<th>Tile set</th>
+<th>Hand</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Std.</td>
+<td><nobr><img alt="1m" src="../assets/tiles/ja/1m.svg" width="34" /> <img alt="2m" src="../assets/tiles/ja/2m.svg" width="34" /> <img alt="3m" src="../assets/tiles/ja/3m.svg" width="34" /> <img alt="4m" src="../assets/tiles/ja/4m.svg" width="34" /> <img alt="5m" src="../assets/tiles/ja/5m.svg" width="34" /> <img alt="6m" src="../assets/tiles/ja/6m.svg" width="34" /> <img alt="7p" src="../assets/tiles/ja/7p.svg" width="34" /> <img alt="8p" src="../assets/tiles/ja/8p.svg" width="34" /> <img alt="9p" src="../assets/tiles/ja/9p.svg" width="34" /> <img alt="7s" src="../assets/tiles/ja/7s.svg" width="34" /> <img alt="7s" src="../assets/tiles/ja/7s.svg" width="34" /> <img alt="7s" src="../assets/tiles/ja/7s.svg" width="34" /> <img alt="east" src="../assets/tiles/ja/east.svg" width="34" /> <img alt="east" src="../assets/tiles/ja/east.svg" width="34" /></nobr></td>
+</tr>
+<tr>
+<td>Biling.</td>
+<td><nobr><img alt="1m" src="../assets/tiles/en/1m.svg" width="34" /> <img alt="2m" src="../assets/tiles/en/2m.svg" width="34" /> <img alt="3m" src="../assets/tiles/en/3m.svg" width="34" /> <img alt="4m" src="../assets/tiles/en/4m.svg" width="34" /> <img alt="5m" src="../assets/tiles/en/5m.svg" width="34" /> <img alt="6m" src="../assets/tiles/en/6m.svg" width="34" /> <img alt="7p" src="../assets/tiles/en/7p.svg" width="34" /> <img alt="8p" src="../assets/tiles/en/8p.svg" width="34" /> <img alt="9p" src="../assets/tiles/en/9p.svg" width="34" /> <img alt="7s" src="../assets/tiles/en/7s.svg" width="34" /> <img alt="7s" src="../assets/tiles/en/7s.svg" width="34" /> <img alt="7s" src="../assets/tiles/en/7s.svg" width="34" /> <img alt="east" src="../assets/tiles/en/east.svg" width="34" /> <img alt="east" src="../assets/tiles/en/east.svg" width="34" /></nobr></td>
+</tr>
+</tbody>
+</table>
+<p>This hand is:</p>
+<ul>
+<li><code>123m</code></li>
+<li><code>456m</code></li>
+<li><code>789p</code></li>
+<li><code>777s</code></li>
+<li><code>east east</code></li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Exceptions exist</p>
+<p>The standard shape is <code>4 sets + 1 pair</code>, but famous exceptions such as <strong>Seven Pairs</strong> and <strong>Thirteen Orphans</strong> also exist.</p>
+</div>
+<h3 id="how-a-turn-works">How a turn works</h3>
+<p>At a high level, every turn is simple:</p>
+<ol>
+<li>Draw one tile.</li>
+<li>Check whether the hand is now ready or complete.</li>
+<li>Discard one tile.</li>
+</ol>
+<p>Other players may claim the discard:</p>
+<ul>
+<li><strong>chi</strong>: take the previous player's discard to make a sequence</li>
+<li><strong>pon</strong>: take any player's discard to make a triplet</li>
+<li><strong>kan</strong>: make a four-of-a-kind</li>
+<li><strong>ron</strong>: win on another player's discard</li>
+</ul>
+<p>If you complete your own hand on your draw, that win is <strong>tsumo</strong>.</p>
+<h2 id="3-winning-hands-and-yaku">3. Winning hands and yaku</h2>
+<p>In riichi mahjong, a complete shape is <strong>not enough</strong>.
+To win, you normally need:</p>
+<ul>
+<li>a complete hand</li>
+<li>at least one <strong>yaku</strong> (a scoring pattern or winning condition)</li>
+</ul>
+<p>For beginners, the three most useful yaku to learn first are:</p>
+<ul>
+<li><strong>riichi</strong></li>
+<li><strong>All simples (tanyao)</strong></li>
+<li><strong>Value honor triplet (yakuhai)</strong></li>
+</ul>
+<p>From this section onward, the examples use the Bilingual tiles only.</p>
+<h3 id="all-simples-tanyao">All simples (tanyao)</h3>
+<p><img alt="2m" src="../assets/tiles/en/2m.svg" width="34" /> <img alt="3m" src="../assets/tiles/en/3m.svg" width="34" /> <img alt="4m" src="../assets/tiles/en/4m.svg" width="34" />
+<img alt="3p" src="../assets/tiles/en/3p.svg" width="34" /> <img alt="4p" src="../assets/tiles/en/4p.svg" width="34" /> <img alt="5p" src="../assets/tiles/en/5p.svg" width="34" />
+<img alt="4s" src="../assets/tiles/en/4s.svg" width="34" /> <img alt="5s" src="../assets/tiles/en/5s.svg" width="34" /> <img alt="6s" src="../assets/tiles/en/6s.svg" width="34" />
+<img alt="6s" src="../assets/tiles/en/6s.svg" width="34" /> <img alt="7s" src="../assets/tiles/en/7s.svg" width="34" /> <img alt="8s" src="../assets/tiles/en/8s.svg" width="34" />
+<img alt="8s" src="../assets/tiles/en/8s.svg" width="34" /> <img alt="8s" src="../assets/tiles/en/8s.svg" width="34" /></p>
+<p>This hand contains only suit tiles from <strong>2 to 8</strong>.
+No terminals (<code>1</code> or <code>9</code>) and no honors appear, so it qualifies for <strong>tanyao</strong>.</p>
+<h3 id="value-honor-triplet-yakuhai">Value honor triplet (yakuhai)</h3>
+<p><img alt="rd" src="../assets/tiles/en/rd.svg" width="34" /> <img alt="rd" src="../assets/tiles/en/rd.svg" width="34" /> <img alt="rd" src="../assets/tiles/en/rd.svg" width="34" />
+<img alt="2m" src="../assets/tiles/en/2m.svg" width="34" /> <img alt="3m" src="../assets/tiles/en/3m.svg" width="34" /> <img alt="4m" src="../assets/tiles/en/4m.svg" width="34" />
+<img alt="4p" src="../assets/tiles/en/4p.svg" width="34" /> <img alt="5p" src="../assets/tiles/en/5p.svg" width="34" /> <img alt="6p" src="../assets/tiles/en/6p.svg" width="34" />
+<img alt="5s" src="../assets/tiles/en/5s.svg" width="34" /> <img alt="6s" src="../assets/tiles/en/6s.svg" width="34" /> <img alt="7s" src="../assets/tiles/en/7s.svg" width="34" />
+<img alt="9s" src="../assets/tiles/en/9s.svg" width="34" /> <img alt="9s" src="../assets/tiles/en/9s.svg" width="34" /></p>
+<p>A triplet of dragons is a basic yaku.
+This is one of the easiest yaku to recognize at a glance.</p>
+<h3 id="riichi-closed-hand-in-ready-state">Riichi: closed hand in ready state</h3>
+<p>Tenpai shape:</p>
+<p><img alt="1m" src="../assets/tiles/en/1m.svg" width="34" /> <img alt="2m" src="../assets/tiles/en/2m.svg" width="34" /> <img alt="3m" src="../assets/tiles/en/3m.svg" width="34" />
+<img alt="4m" src="../assets/tiles/en/4m.svg" width="34" /> <img alt="5m" src="../assets/tiles/en/5m.svg" width="34" /> <img alt="6m" src="../assets/tiles/en/6m.svg" width="34" />
+<img alt="2p" src="../assets/tiles/en/2p.svg" width="34" /> <img alt="3p" src="../assets/tiles/en/3p.svg" width="34" /> 
+<img alt="6s" src="../assets/tiles/en/6s.svg" width="34" /> <img alt="7s" src="../assets/tiles/en/7s.svg" width="34" /> <img alt="8s" src="../assets/tiles/en/8s.svg" width="34" />
+<img alt="east" src="../assets/tiles/en/east.svg" width="34" /> <img alt="east" src="../assets/tiles/en/east.svg" width="34" /></p>
+<p>Waiting tile:</p>
+<p><img alt="1p" src="../assets/tiles/en/1p.svg" width="34" /> and <img alt="4p" src="../assets/tiles/en/4p.svg" width="34" /></p>
+<p>If this hand is <strong>closed</strong> and you declare <strong>riichi</strong> while waiting on <code>1p</code> or <code>4p</code>, then a later win on <code>1p</code> or <code>4p</code> is legal because riichi itself is the yaku.</p>
+<h3 id="two-core-ideas-to-remember">Two core ideas to remember</h3>
+<ul>
+<li>A hand can look complete, but it still needs a yaku.</li>
+<li>Calling tiles makes some hands easier to finish, but it also removes some yaku. For example, <strong>riichi</strong> only works with a closed hand.</li>
+</ul>
+<h2 id="4-where-to-learn-the-full-rules">4. Where to learn the full rules</h2>
+<p>This page only covers the core ideas.
+For the full rules, scoring details, and corner cases, the best next reference is:</p>
+<ul>
+<li><a href="http://mahjong-europe.org/portal/images/docs/Riichi-rules-2025-EN.pdf">European Mahjong Association: Riichi Rules 2025 (official PDF)</a></li>
+</ul>
+<p>If you want the MahJax-specific summary of supported rules, see <a href="../rule/">Rules</a>.</p>
+<h2 id="5-where-to-play-online">5. Where to play online</h2>
+<p>If you want to practice after reading the basics, these are good starting points:</p>
+<ul>
+<li><a href="https://tenhou.net/">Tenhou</a>: long-running competitive platform. The interface is still Japanese-first, but it is one of the most established places to play riichi mahjong online.</li>
+<li><a href="https://store.steampowered.com/app/2739990/Mahjong_Soul/">Mahjong Soul on Steam</a>: polished client, native English interface, and a built-in tutorial.</li>
+<li><a href="https://store.steampowered.com/app/1954420/RiichiCity/">Riichi City on Steam</a>: another English-friendly client with ranked play.</li>
+<li><a href="https://riichi.wiki/index.php?mobileaction=toggle_view_desktop&amp;title=Playing_online">Riichi.Wiki: Playing online</a>: practical English notes comparing online clients, including Tenhou, Mahjong Soul, and Riichi City.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright © MahJax Authors
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "header.autohide"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
