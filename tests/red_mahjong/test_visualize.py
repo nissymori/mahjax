@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import jax.numpy as jnp
+
 from mahjax.red_mahjong.state import default_state
 from mahjax.red_mahjong.visualization import (
     render_round_svg,
@@ -27,6 +29,13 @@ def test_render_round_svg_supports_bilingual_tile_style() -> None:
     assert "東1局" in svg_standard
     assert "East 1" in svg_bilingual
     assert svg_standard != svg_bilingual
+
+
+def test_render_round_svg_labels_the_extra_west_rounds() -> None:
+    state = default_state()
+    west = state.replace(round_state=state.round_state.replace(round=jnp.int8(8)))
+    assert "西1局" in render_round_svg(west, tile_style="standard")
+    assert "West 1" in render_round_svg(west, tile_style="bilingual")
 
 
 def test_save_play_history_svg_for_10_steps() -> None:
