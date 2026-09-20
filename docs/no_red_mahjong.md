@@ -101,6 +101,7 @@ The semantics match `red_mahjong`:
 - For discards, row `1` stores the **actual discarded tile**
 - For non-discard actions, row `1` stores the raw action id
 - Row `2` is `1` for tsumogiri, `0` for a non-tsumogiri discard, and `-1` for non-discard actions
+- `PASS` is not recorded: a declined call or ron is not public
 
 For `no_red_mahjong`, discard tiles are in `[0, 33]` and raw action ids are in `[0, 78]`.
 

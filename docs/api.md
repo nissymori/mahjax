@@ -100,7 +100,7 @@ Held common across all four players.
 
 | Field | Shape | Type | Meaning |
 | :--- | :---: | :--- | :--- |
-| `action_history` | `(3, 200)` | `int8` | Per-step action history for the **current round**. Row 0 acting player, row 1 action payload (discarded tile for discards, raw action id otherwise), row 2 tsumogiri flag. Unused slots are `-1`. |
+| `action_history` | `(3, 200)` | `int8` | Per-step action history for the **current round**. Row 0 acting player, row 1 action payload (discarded tile for discards, raw action id otherwise), row 2 tsumogiri flag. Unused slots are `-1`. `PASS` is not recorded. |
 | `round_step` | `()` | `int32` | Write cursor into `action_history`, reset to 0 each round. Do **not** index the history with `state.step_count`: that counter is hanchan-global, so it walks past the end of this per-round buffer and JAX drops the out-of-bounds scatter silently. |
 | `history_overflow` | `()` | `bool` | `True` once a round produced more actions than `action_history` can hold; the newest action then overwrites the last slot. Makes truncation observable instead of silent. |
 | `round` | `()` | `int8` | Round index (`0`-based). |

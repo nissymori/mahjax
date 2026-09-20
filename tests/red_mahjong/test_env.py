@@ -993,6 +993,53 @@ def test_red_declining_a_robbing_kan_ron_makes_the_player_furiten() -> None:
         assert bool(declined.players.furiten_by_pass[1])
 
 
+def test_red_added_kan_hides_whether_anyone_could_rob_it() -> None:
+    """Neither ``last_player`` nor the action history may show that a chankan was declined."""
+    from mahjax.red_mahjong import env as m
+
+    six_s = 23
+
+    def counts(tiles):
+        hand = jnp.zeros(Tile.NUM_TILE_TYPE_WITH_RED, dtype=jnp.int8)
+        for tile in tiles:
+            hand = hand.at[tile].add(1)
+        return hand
+
+    filler = counts([27, 27, 28, 28, 29, 29, 30, 30, 31, 31, 32, 32, 33])
+    waits_on_6s = counts([0, 1, 2, 3, 4, 5, 15, 16, 17, 18, 18, 21, 22])  # 123m 456m 789p 11s 45s
+    declarer = counts([six_s, 6, 7, 8, 9, 10, 11, 12, 13, 14, 27])  # P2 holds the fourth 6s
+    base = default_state()
+    kan_action = jnp.int32(Tile.NUM_TILE_TYPE_WITH_RED + six_s)
+
+    def after_kan(p1_hand):
+        hands = jnp.stack([filler, p1_hand, declarer, filler])
+        hands34 = jax.vmap(Hand.to_34)(hands)
+        state = _replace_state(
+            base,
+            current_player=jnp.int8(2),
+            last_player=jnp.int8(1),  # P1 discarded before P2 drew
+            hand_with_red=hands,
+            hand=hands34,
+            can_win=m.v_can_win(hands34, m.TILE_RANGE),
+            melds=base.players.melds.at[2, 0].set(Meld.init(Action.PON, six_s, 1)),
+            meld_counts=base.players.meld_counts.at[2].set(1),
+            pon=base.players.pon.at[2, six_s].set(jnp.int8(1 << 2)),
+            legal_action_mask=base.players.legal_action_mask.at[2, kan_action].set(True),
+            next_deck_ix=jnp.int32(60),
+        )
+        return _step(state, kan_action, STEP_KEY)
+
+    robbable = after_kan(waits_on_6s)
+    assert int(robbable.current_player) == 1
+    declined = _step(robbable, jnp.int32(Action.PASS), STEP_KEY)
+    not_robbable = after_kan(filler)
+
+    assert int(declined.current_player) == int(not_robbable.current_player) == 2
+    assert int(declined.round_state.last_player) == int(not_robbable.round_state.last_player) == 2
+    assert int(declined.round_state.round_step) == int(not_robbable.round_state.round_step) == 1
+    assert bool(jnp.all(declined.round_state.action_history == not_robbable.round_state.action_history))
+
+
 def test_red_robbing_kan_on_a_red_five_keeps_the_red_dora() -> None:
     """A chankan must score and report the robbed five's redness."""
     from mahjax.red_mahjong.meld import Meld as RedMeld

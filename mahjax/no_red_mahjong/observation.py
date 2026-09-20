@@ -87,6 +87,7 @@ def _observe_dict(state: State) -> Dict:
       [player, action, tsumogiri]; player is relative to the observer (0 == me),
       discards store the tile and other actions the raw action id, told apart by the
       tsumogiri channel (0/1 for discards, -1 otherwise). Unused slots are -1.
+      PASS is never recorded: a declined call or ron is not public.
 
     GLOBAL -- table context that is not about any one tile or event.
     - scores: (4,) int32, seat-rotated

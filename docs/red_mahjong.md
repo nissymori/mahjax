@@ -147,6 +147,7 @@ The semantics are:
 - For discards, row `1` stores the **actual discarded tile**
 - For non-discard actions, row `1` stores the raw action id
 - Row `2` is `1` for tsumogiri, `0` for a non-tsumogiri discard, and `-1` for non-discard actions
+- `PASS` is not recorded: a declined call or ron is not public
 
 For `red_mahjong`, discard tiles are in `[0, 36]` because red fives have dedicated tile ids in the action space, while raw action ids are in `[0, 86]`.
 

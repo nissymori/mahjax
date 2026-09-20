@@ -579,8 +579,12 @@ def _append_action_history(state: State, action: Array) -> State:
     hanchan-global counter walked past the end of the buffer, and JAX drops
     out-of-bounds scatters silently, so the observation saw an all -1 history for
     most of a game.
+
+    PASS is not recorded. A declined call or ron is invisible at a real table, and
+    a recorded PASS would tell the others that its seat could have called or won.
     """
     action_i8 = jnp.int8(action)
+    is_recorded = action_i8 != Action.PASS
     is_tsumogiri = action_i8 == Action.TSUMOGIRI
     is_discard = ((0 <= action_i8) & (action_i8 < Tile.NUM_TILE_TYPE)) | is_tsumogiri
     recorded_action = jnp.where(
@@ -603,9 +607,9 @@ def _append_action_history(state: State, action: Array) -> State:
     action_history = action_history.at[2, idx].set(tsumogiri_flag)
     return _replace_state(
         state,
-        action_history=action_history,
-        round_step=jnp.minimum(cursor + 1, capacity),
-        history_overflow=state.round_state.history_overflow | (cursor >= capacity),
+        action_history=jnp.where(is_recorded, action_history, state.round_state.action_history),
+        round_step=jnp.where(is_recorded, jnp.minimum(cursor + 1, capacity), cursor),
+        history_overflow=state.round_state.history_overflow | (is_recorded & (cursor >= capacity)),
     )
 
 
@@ -1338,6 +1342,9 @@ def _kan(state: State, action):
         ),
         lambda: _replace_state(state,   # type:ignore
             target=jnp.int8(-1),
+            # Same as the branch above, so that whether anyone could rob the kan
+            # does not show in ``last_player``.
+            last_player=jnp.where(is_added_kan, c_p, state.round_state.last_player),
             legal_action_mask=ZERO_MASK_2D,
             kan_declared=TRUE,  # KAN is declared
             draw_next=FALSE,

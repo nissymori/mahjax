@@ -121,7 +121,7 @@ def _observe_dict(state: State) -> Dict:
           otherwise; the two are told apart by the tsumogiri channel
         * tsumogiri is 0/1 for discards and -1 for everything else
       Unused slots are -1. The buffer is per-round and is cleared at every round
-      boundary.
+      boundary. PASS is never recorded: a declined call or ron is not public.
 
     GLOBAL -- table context that is not about any one tile or event.
     - scores: (4,) int32, scores ordered from the current player's seat
