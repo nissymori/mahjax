@@ -226,13 +226,25 @@ def _trigger_special_abortive_draw(state: State) -> State:
 
 @jax.jit
 def yaku_judge_for_discarded_or_kanned_tile_and_next_draw_tile(
-    state: State, tile: Array, next_tile: Array
+    state: State,
+    tile: Array,
+    next_tile: Array,
+    ron_dora_indicators: Optional[Array] = None,
+    ron_ura_dora_indicators: Optional[Array] = None,
 ) -> Tuple[Array, Array, Array]:
     """
     Calculate YAKU for the discarded tile and the next drawn tile.
     Returns per-player cached values for RON on ``tile`` and TSUMO on ``next_tile``.
+    ``ron_(ura_)dora_indicators`` score the RON with other indicators than the TSUMO:
+    a robbed added kan is scored before the previous kan's indicator turns over.
     """
     ron_state = _replace_state(state, target=jnp.int8(tile))
+    if ron_dora_indicators is not None:
+        ron_state = _replace_state(
+            ron_state,
+            dora_indicators=ron_dora_indicators,
+            ura_dora_indicators=ron_ura_dora_indicators,
+        )
     tsumo_state = _replace_state(state, last_draw=jnp.int8(next_tile))
     is_rons2 = jnp.array([True, False], dtype=jnp.bool_)
     idx = jnp.arange(8)
@@ -1393,6 +1405,9 @@ def _draw_after_kan(state: State, game_config: Optional[GameConfig] = None):
     大明槓・加槓の槓ドラはここでもめくらず、その打牌か続く槓でめくる（``_reveal_pending_kan_dora``）。
     暗槓は槍槓がないため ``_kan`` で槓ドラを先にめくる（``n_kan_doras > n_kan.sum()`` の間だけ一時的に不整合）。
     """
+    # A previous open or added kan's indicator turns over just before this rinshan draw,
+    # once no one has robbed the added kan that led here (see ``_kan``).
+    state = _reveal_pending_kan_dora(state)
     c_p = state.current_player
     config = _resolve_game_config(game_config)
     n_kan = state.players.n_kan.sum()
@@ -1475,7 +1490,11 @@ def _kan(state: State, action, game_config: Optional[GameConfig] = None):
     - Apply KAN action
     - Disable Ippatsu
     """
-    # A kan made before discarding turns over the previous open or added kan's indicator first.
+    # A kan made before discarding turns over the previous open or added kan's indicator
+    # before its own rinshan draw. An added kan can be robbed first, and that ron is
+    # scored, and seen, with the indicator still face down (tenhou: "明槓/加槓は後めくり
+    # （打牌または続く嶺上の直前）"); ``_draw_after_kan`` turns it over if nobody robs.
+    face_down = state.round_state
     state = _reveal_pending_kan_dora(state)
     c_p = state.current_player
     config = _resolve_game_config(game_config)
@@ -1526,8 +1545,8 @@ def _kan(state: State, action, game_config: Optional[GameConfig] = None):
         state,
     )
     has_yaku, fan, fu = yaku_judge_for_discarded_or_kanned_tile_and_next_draw_tile(
-        state, tile, rinshan_tile
-    )  # (4, 2)
+        state, tile, rinshan_tile, face_down.dora_indicators, face_down.ura_dora_indicators
+    )  # (4, 2); the RON half only matters for a robbed added kan
     state = _replace_state(state, 
         has_yaku=has_yaku,
         fan=fan,
@@ -1555,6 +1574,9 @@ def _kan(state: State, action, game_config: Optional[GameConfig] = None):
             legal_action_mask=chankan_mask.at[next_ron_player, Action.PASS].set(TRUE),
             kan_declared=TRUE,  # KAN is declared
             draw_next=FALSE,
+            dora_indicators=face_down.dora_indicators,
+            ura_dora_indicators=face_down.ura_dora_indicators,
+            n_kan_doras=face_down.n_kan_doras,
         ),
         lambda: _replace_state(state,   # type:ignore
             target=jnp.int8(-1),

@@ -234,3 +234,89 @@ def test_open_and_added_kan_dora_turns_over_at_the_discard():
         hand=rinshan.players.hand.at[1].set(Hand.to_34(hand)),
     )
     assert revealed(draw_after_kan(kan(second, jnp.int32(Tile.NUM_TILE_TYPE_WITH_RED + east)))) == 3
+
+
+def test_a_robbed_added_kan_is_scored_before_the_previous_kans_indicator_turns_over():
+    """Tenhou turns an open or added kan's indicator over at the kanner's discard or
+    just before the next rinshan draw. When a second kan in a row is an added kan
+    that is robbed, that draw never comes: the first kan's indicator stays face down,
+    for the robbing player's view and for the ron's score. If nobody robs it, the
+    indicator turns over before the rinshan draw and counts for a rinshan tsumo."""
+    from mahjax.red_mahjong import env as m
+    from mahjax.red_mahjong.meld import Meld
+    from mahjax.red_mahjong.tile import Tile
+
+    kan = jax.jit(m._kan)
+    draw_after_kan = jax.jit(_draw_after_kan)
+    west, seven_p, one_s, eight_m, eight_p, north, hatsu = 29, 15, 18, 7, 16, 30, 32
+
+    def counts(tiles):
+        hand = jnp.zeros(37, dtype=jnp.int8)
+        for tile in tiles:
+            hand = hand.at[tile].add(1)
+        return hand
+
+    def revealed(state):
+        return int((state.round_state.dora_indicators >= 0).sum())
+
+    # P0 waits on 4p-7p for tanyao. P1 has ponned West and 7p, holds the fourth of
+    # each and 111m 999m, and draws hatsu from both rinshan draws: the second is a
+    # rinshan tsumo (toitoi).
+    others = [9, 10, 11, 16, 17, 22, 24, 25, 26, 27, 28, 30, 31]
+    hands = jnp.stack([
+        counts([19, 20, 21, 3, 4, 5, 7, 7, 7, 23, 23, 13, 14]),
+        counts([west, seven_p, 0, 0, 0, 8, 8, 8]),
+        counts(others),
+        counts(others),
+    ])
+    base = _init(jax.random.PRNGKey(2))
+    melds = base.players.melds.at[1, 0].set(Meld.init(Action.PON, west, 2))
+    melds = melds.at[1, 1].set(Meld.init(Action.PON, seven_p, 2))
+
+    def before_the_kans(first_kan_indicator):
+        # The first kan's indicator is deck[7]: 1s makes P0's 2s a dora, 8m makes
+        # P1's 999m dora, 8p does nothing.
+        deck = base.round_state.deck.at[9].set(north).at[7].set(first_kan_indicator)
+        deck = deck.at[10].set(hatsu).at[11].set(hatsu)
+        hands34 = jax.vmap(Hand.to_34)(hands)
+        return _replace_state(
+            base,
+            current_player=jnp.int8(1),
+            deck=deck,
+            dora_indicators=jnp.array([north, -1, -1, -1, -1], dtype=jnp.int8),
+            ura_dora_indicators=jnp.array([deck[8], -1, -1, -1, -1], dtype=jnp.int8),
+            n_kan_doras=jnp.int8(0),
+            hand_with_red=hands,
+            hand=hands34,
+            can_win=m.v_can_win(hands34, m.TILE_RANGE),
+            furiten_by_discard=jnp.zeros(4, dtype=jnp.bool_),
+            furiten_by_pass=jnp.zeros(4, dtype=jnp.bool_),
+            n_kan=jnp.zeros(4, dtype=jnp.int8),
+            melds=melds,
+            meld_counts=base.players.meld_counts.at[1].set(2),
+            pon=base.players.pon.at[1, west].set(jnp.int8(2 << 2 | 0)).at[1, seven_p].set(jnp.int8(2 << 2 | 1)),
+            is_hand_concealed=base.players.is_hand_concealed.at[1].set(False),
+        )
+
+    def robbable_second_kan(first_kan_indicator):
+        state = draw_after_kan(kan(before_the_kans(first_kan_indicator), jnp.int32(Tile.NUM_TILE_TYPE_WITH_RED + west)))
+        assert revealed(state) == 1  # the first kan's indicator waits for the discard or the next kan
+        state = kan(state, jnp.int32(Tile.NUM_TILE_TYPE_WITH_RED + seven_p))
+        assert int(state.current_player) == 0 and bool(state.players.legal_action_mask[0, Action.RON])
+        return state
+
+    windows = {indicator: robbable_second_kan(indicator) for indicator in (one_s, eight_m, eight_p)}
+    for window in windows.values():
+        assert revealed(window) == 1  # still face down while the added kan can be robbed
+        # P0's non-dealer ron is tanyao + chankan, 2 han 40 fu, whatever the face-down indicator.
+        assert m._ron(window).rewards.tolist() == [26.0, -26.0, 0.0, 0.0]
+
+    # Nobody robs it: the first kan's indicator turns over before the rinshan draw,
+    # and P1's rinshan tsumo counts it: 8m makes 999m three dora.
+    drawn = {indicator: m._finalize_step_state(m._pass(window)) for indicator, window in windows.items()}
+    for state in drawn.values():
+        assert int(state.current_player) == 1 and int(state.round_state.last_draw) == hatsu
+        assert revealed(state) == 2
+        assert bool(state.players.legal_action_mask[1, Action.TSUMO])
+    fan = {indicator: int(state.players.fan[1, 0]) for indicator, state in drawn.items()}
+    assert fan[eight_m] == fan[eight_p] + 3 and fan[one_s] == fan[eight_p], fan
