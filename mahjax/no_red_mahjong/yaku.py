@@ -175,13 +175,15 @@ class Yaku:
         - For yakuman, the score is 8000 * fan
         - For other yaku, the score is fu << (fan + 2)
         """
-        score = fu << (fan + 2)
+        # 5 fan and up is read from SCORES, so the shift stops there; beyond ~22 fan it overflows int32.
+        score = fu << (jnp.minimum(fan, 5) + 2)
         return jax.lax.cond(
             fu == 0,
             lambda: jnp.int32(
                 8000 * fan
             ),  # In the case of yakuman, the fan contains the number of yakuman.
-            lambda: (score < 2000) * score + (score >= 2000) * SCORES[fan - 4],
+            # 3 fan 70 fu is a mangan too: fan - 4 < 0 must not index SCORES from the end.
+            lambda: (score < 2000) * score + (score >= 2000) * SCORES[jnp.clip(fan - 4, 0, 11)],
         )
 
     @staticmethod

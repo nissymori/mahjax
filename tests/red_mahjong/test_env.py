@@ -794,6 +794,25 @@ def test_red_thirteen_riichi_sticks_do_not_wrap_negative() -> None:
     assert int(m._final_score(state.round_state)[0]) == 250 + 130
 
 
+def test_red_limit_hand_rons_pay_the_limit() -> None:
+    """3 fan 70 fu is a mangan and 23 fan 100 fu a counted yakuman, not an int32 overflow."""
+    from mahjax.red_mahjong import env as m
+
+    base = default_state()
+    for fan, fu, points in ((3, 70, 80), (23, 100, 320)):
+        state = m._replace_state(
+            base,
+            current_player=jnp.int8(1),
+            last_player=jnp.int8(2),
+            next_deck_ix=jnp.int32(50),
+            score=jnp.array([250, 250, 250, 250], dtype=jnp.int32),
+            fan=base.players.fan.at[1, 0].set(jnp.int32(fan)),
+            fu=base.players.fu.at[1, 0].set(jnp.int32(fu)),
+        )
+
+        assert m._ron(state).rewards.tolist() == [0, points, -points, 0]
+
+
 def test_red_tied_players_are_ranked_by_their_starting_wind() -> None:
     """On equal score East-1's seat order decides, not the player index."""
     from mahjax.red_mahjong import env as m

@@ -232,6 +232,21 @@ def test_all_green_counts_the_four_tiles_of_a_kan() -> None:
         assert bool(yaku[Yaku.AllGreen]) == is_all_green
 
 
+def test_score_is_a_limit_hand_from_five_fan_whatever_the_fu() -> None:
+    """13 fan or more is a counted yakuman; a large fan used to overflow the int32 shift."""
+    score = jax.jit(jax.vmap(jax.vmap(Yaku.score, in_axes=(None, 0)), in_axes=(0, None)))
+    fus = jnp.array([20, 25, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130], dtype=jnp.int32)
+    limits = {5: 2000, 6: 3000, 7: 3000, 8: 4000, 9: 4000, 10: 4000, 11: 6000, 12: 6000}
+    fans = jnp.arange(5, 41, dtype=jnp.int32)
+    expected = jnp.array([limits.get(fan, 8000) for fan in range(5, 41)], dtype=jnp.int32)
+    assert jnp.array_equal(score(fans, fus), jnp.broadcast_to(expected[:, None], (fans.size, fus.size)))
+
+    # Up to 4 fan the basic points are fu << (fan + 2), capped at a mangan.
+    fans = jnp.arange(1, 5, dtype=jnp.int32)
+    assert jnp.array_equal(score(fans, fus), jnp.minimum(fus[None, :] << (fans[:, None] + 2), 2000))
+    assert int(Yaku.score(jnp.int32(2), jnp.int32(0))) == 16000  # a double yakuman
+
+
 def test_kyuushu_action_is_enabled_on_first_turn() -> None:
     state = default_state()
     hand_with_red = state.players.hand_with_red.at[0].set(

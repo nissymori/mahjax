@@ -358,7 +358,8 @@ class Yaku:
 
     @staticmethod
     def score(fan: Array, fu: Array) -> Array:
-        raw = fu * jnp.left_shift(1, fan + 2)
+        # 5 fan and up is read from SCORES, so the shift stops there; beyond ~22 fan it overflows int32.
+        raw = fu * jnp.left_shift(1, jnp.minimum(fan, 5) + 2)
         return jax.lax.cond(
             fu == 0,
             lambda: 8000 * fan,

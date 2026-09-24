@@ -575,6 +575,22 @@ class TestEnv(unittest.TestCase):
         self.assertEqual(float(_tsumo(state).rewards[1]), 11 + 130)  # 300/500 tsumo + the sticks
         self.assertEqual(int(m._final_score(state.round_state)[0]), 250 + 130)
 
+    def test_limit_hand_rons_pay_the_limit(self):
+        # 3 fan 70 fu is a mangan, not a yakuman, and 23 fan 100 fu a counted yakuman, not an int32 overflow.
+        base = default_state()
+        for fan, fu, points in ((3, 70, 80), (23, 100, 320)):
+            state = _replace_state(
+                base,
+                current_player=jnp.int8(1),
+                last_player=jnp.int8(2),
+                next_deck_ix=jnp.int32(50),
+                score=jnp.array([250, 250, 250, 250], dtype=jnp.int32),
+                fan=base.players.fan.at[1, 0].set(jnp.int32(fan)),
+                fu=base.players.fu.at[1, 0].set(jnp.int32(fu)),
+            )
+
+            self.assertEqual(_ron(state).rewards.tolist(), [0, points, -points, 0], (fan, fu))
+
     def test_tied_players_are_ranked_by_their_starting_wind(self):
         # On equal score East-1's seat order decides, not the player index.
         from mahjax.no_red_mahjong import env as m
