@@ -1115,6 +1115,7 @@ def _claims_open_to(legal_action_mask_4p: Array, player: Array) -> Array:
     The part of the player's row they may answer now.
     - Every call on a discard is heard before one is carried out, so RON > PON, OPEN_KAN > CHI holds across players
     - A PON or OPEN_KAN waits while another player can still RON; a CHI also waits while another player can still PON or OPEN_KAN
+    - A player who can RON answers RON or PASS before any call of their own, whoever else can claim the tile
     - A waiting call stays in ``legal_action_mask_4p`` and is offered once the claims above it are passed
     """
     others = jnp.arange(4) != player
@@ -1125,7 +1126,9 @@ def _claims_open_to(legal_action_mask_4p: Array, player: Array) -> Array:
     mask = mask.at[Action.CHI_L : Action.CHI_R + 1].set(
         mask[Action.CHI_L : Action.CHI_R + 1] & ~(other_ron | other_pon)
     )
-    return mask
+    # Otherwise the prompt would say whether anyone else can ron or pon the tile.
+    ron_or_pass = ZERO_MASK_1D.at[Action.RON].set(TRUE).at[Action.PASS].set(TRUE)
+    return jnp.where(mask[Action.RON], mask & ron_or_pass, mask)
 
 
 def _append_meld(state: State, meld: Array, player: Array) -> State:

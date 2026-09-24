@@ -398,8 +398,8 @@ class TestEnv(unittest.TestCase):
         ron_pon = legal.at[1, Action.RON].set(True).at[1, Action.PON].set(True)
         self.assertFalse(bool(_claims_open_to(ron_pon.at[2, Action.RON].set(True), 1)[Action.PON]))
         scenarios = [
-            # Nothing conflicts: RON and PON in one prompt, as before.
-            ({1: [Action.RON, Action.PON]}, [(1, {Action.RON, Action.PON})]),
+            # Nothing conflicts: RON is still answered before the PON.
+            ({1: [Action.RON, Action.PON]}, [(1, {Action.RON}), (1, {Action.PON})]),
             # P1 must not be able to pon over P2's ron.
             ({1: [Action.RON, Action.PON], 2: [Action.RON]}, [(1, {Action.RON}), (2, {Action.RON}), (1, {Action.PON})]),
             # P1 must not be able to chi over P2's pon.
@@ -419,6 +419,52 @@ class TestEnv(unittest.TestCase):
                     state = env.step(state, jnp.int8(Action.PASS), STEP_KEY)
                 self.assertEqual(int(state.current_player), player)
                 self.assertEqual({int(a) for a in jnp.flatnonzero(state.legal_action_mask)}, offered | {Action.PASS})
+
+    def test_a_ron_candidate_is_offered_the_same_calls_whoever_else_can_claim(self):
+        # P3 discards 4p and P0 answers first. Whether P1 can ron it, or pon it, is
+        # P1's hidden hand, and must not change what P0 is offered.
+        from mahjax.no_red_mahjong import env as m
+
+        four_p = 12
+
+        def counts(tiles):
+            hand = jnp.zeros(Tile.NUM_TILE_TYPE, dtype=jnp.int8)
+            for tile in tiles:
+                hand = hand.at[tile].add(1)
+            return hand
+
+        ron_or_pon = counts([*range(0, 9), four_p, four_p, 27, 27])  # 1m-9m 4p4p EE
+        ron_or_chi = counts([*range(18, 27), 13, 14, 28, 28])  # 1s-9s 5p6p SS
+        pon = counts([four_p, four_p, 15, 16, 17, 21, 22, 23, 27, 27, 27, 32, 33])
+        nothing = counts([15, 16, 17, 15, 16, 17, 24, 25, 26, 27, 28, 29, 33])
+        discarder = counts([four_p, 30, 30, 30, 31, 31, 31, 32, 32, 32, 33, 33, 9, 9])
+        step = jax.jit(env.step)
+        observe = jax.jit(env.observe)
+
+        def first_prompt(p0, p1):
+            hands = jnp.stack([p0, p1, nothing, discarder])
+            self.assertLessEqual(int(hands.sum(axis=0).max()), 4)
+            state = _replace_state(
+                default_state(),
+                current_player=jnp.int8(3),
+                dealer=jnp.int8(3),
+                seat_wind=m._calc_wind(3),
+                last_player=jnp.int8(2),
+                hand=hands,
+                can_win=m.v_can_win(hands, m.TILE_RANGE),
+                legal_action_mask=jnp.zeros((4, Action.NUM_ACTION), dtype=jnp.bool_).at[3, four_p].set(True),
+            )
+            return step(state, jnp.int32(four_p), STEP_KEY)
+
+        # P0 can ron or pon, and P1 can ron or not; P0 can ron or chi, and P1 can pon or not.
+        for p0, p1_hands in [(ron_or_pon, [ron_or_chi, nothing]), (ron_or_chi, [pon, nothing])]:
+            prompts = [first_prompt(p0, p1) for p1 in p1_hands]
+            for state in prompts:
+                self.assertEqual(int(state.current_player), 0)
+                self.assertEqual({int(a) for a in jnp.flatnonzero(state.legal_action_mask)}, {Action.RON, Action.PASS})
+            obs = [observe(state) for state in prompts]
+            for field in obs[0]:
+                self.assertTrue(bool(jnp.array_equal(obs[0][field], obs[1][field])), field)
 
     def test_declining_a_robbing_kan_ron_makes_the_player_furiten(self):
         # Skipping a ron on an added kan is still skipping a win: furiten, for the round if in riichi.

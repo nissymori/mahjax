@@ -148,6 +148,7 @@ The semantics are:
 - For non-discard actions, row `1` stores the raw action id
 - Row `2` is `1` for tsumogiri, `0` for a non-tsumogiri discard, and `-1` for non-discard actions
 - `PASS` is not recorded: a declined call or ron is not public
+- `RON` is recorded once everyone who can ron the tile has answered, one entry per winner in turn order from the discarder
 
 For `red_mahjong`, discard tiles are in `[0, 36]` because red fives have dedicated tile ids in the action space, while raw action ids are in `[0, 86]`.
 
@@ -161,7 +162,7 @@ Rewards are 4-player score deltas, represented in hundreds of points.
 
 This includes:
 
-- ron and tsumo score transfers
+- ron and tsumo score transfers; a double ron pays both winners on the step that closes it, the last candidate's `RON` or `PASS`
 - honba and kyotaku handling
 - exhaustive draw payments
 - pao when enabled in `GameConfig`

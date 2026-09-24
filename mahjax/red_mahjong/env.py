@@ -600,9 +600,17 @@ def _append_action_history(state: State, action: Array) -> State:
 
     PASS is not recorded. A declined call or ron is invisible at a real table, and
     a recorded PASS would tell the others that its seat could have called or won.
+
+    Nor is RON, yet: while others who can ron the same tile are still to answer, a
+    recorded RON would tell them how the ones before them did. ``_record_rons``
+    writes the RONs once they all have.
     """
     action_i32 = jnp.asarray(action, dtype=jnp.int32)
-    is_recorded = action_i32 != Action.PASS
+    is_recorded = (action_i32 != Action.PASS) & (action_i32 != Action.RON)
+    return _write_action_history(state, state.current_player, action_i32, is_recorded)
+
+
+def _write_action_history(state: State, player: Array, action_i32: Array, is_recorded: Array) -> State:
     is_tsumogiri = action_i32 == Action.TSUMOGIRI
     is_discard = ((0 <= action_i32) & (action_i32 < Tile.NUM_TILE_TYPE_WITH_RED)) | is_tsumogiri
     history_action = jnp.where(is_tsumogiri, state.round_state.last_draw, action_i32)
@@ -619,7 +627,7 @@ def _append_action_history(state: State, action: Array) -> State:
     # overwrites the last slot and ``history_overflow`` records that it happened.
     idx = jnp.minimum(cursor, capacity - 1)
 
-    action_history = state.round_state.action_history.at[0, idx].set(state.current_player)
+    action_history = state.round_state.action_history.at[0, idx].set(player)
     action_history = action_history.at[1, idx].set(history_action)
     action_history = action_history.at[2, idx].set(history_tsumogiri)
     return _replace_state(
@@ -1276,6 +1284,7 @@ def _claims_open_to(legal_action_mask_4p: Array, player: Array) -> Array:
     The part of the player's row they may answer now.
     - Every call on a discard is heard before one is carried out, so RON > PON, OPEN_KAN > CHI holds across players
     - A PON or OPEN_KAN waits while another player can still RON; a CHI also waits while another player can still PON or OPEN_KAN
+    - A player who can RON answers RON or PASS before any call of their own, whoever else can claim the tile
     - A waiting call stays in ``legal_action_mask_4p`` and is offered once the claims above it are passed
     """
     others = jnp.arange(4) != player
@@ -1286,7 +1295,10 @@ def _claims_open_to(legal_action_mask_4p: Array, player: Array) -> Array:
     mask = mask.at[Action.CHI_L : Action.CHI_R_RED + 1].set(
         mask[Action.CHI_L : Action.CHI_R_RED + 1] & ~(other_ron | other_pon)
     )
-    return mask
+    # Otherwise the prompt would say whether anyone else can ron or pon the tile,
+    # and in a double ron whether the player before this one declared RON.
+    ron_or_pass = ZERO_MASK_1D.at[Action.RON].set(TRUE).at[Action.PASS].set(TRUE)
+    return jnp.where(mask[Action.RON], mask & ron_or_pass, mask)
 
 
 def _append_meld(state: State, meld: Array, player: Array) -> State:
@@ -1784,7 +1796,7 @@ def _pass(state: State, game_config: Optional[GameConfig] = None):
     next_ron_player, can_any_ron = _next_ron_player(
         post_ron_mask, state.round_state.last_player
     )
-    is_post_ron = state.players.has_won.any()
+    is_post_ron = state.pending_winners.any()
     # Set the next player from the legal action
     next_meld_player, can_any = _next_meld_player(
         legal_action_mask_4p, state.round_state.last_player
@@ -1797,27 +1809,21 @@ def _pass(state: State, game_config: Optional[GameConfig] = None):
         lambda: _replace_state(
             state,
             current_player=jnp.int8(next_ron_player),
-            legal_action_mask=post_ron_mask.at[next_ron_player, Action.PASS].set(TRUE),
+            # Keep every row as a PASS before any RON leaves it, lower calls included:
+            # a stored row must not show whether an earlier candidate declared RON.
+            legal_action_mask=legal_action_mask_4p.at[next_ron_player, Action.PASS].set(TRUE),
             furiten_by_pass=state.players.furiten_by_pass.at[c_p].set(
                 state.players.furiten_by_pass[c_p] | is_ron_player
             ),
             draw_next=FALSE,
         ),
-        lambda: _replace_state(
-            state,
-            target=jnp.int8(-1),
-            furiten_by_pass=state.players.furiten_by_pass.at[c_p].set(
-                state.players.furiten_by_pass[c_p] | is_ron_player
-            ),
-            # Every ron of the chain already settled into ``score``; declining the
-            # last one just closes the round, so it moves no points.
-            pending_rewards=jnp.zeros_like(state.rewards),
-            pending_kyotaku=jnp.int8(0),
-            kyotaku=jnp.int8(0),
-            legal_action_mask=ZERO_MASK_2D.at[:, Action.DUMMY].set(TRUE),
-            terminated_round=TRUE,
-            kan_declared=FALSE,
-            draw_next=FALSE,
+        lambda: _settle_ron(
+            _replace_state(
+                state,
+                furiten_by_pass=state.players.furiten_by_pass.at[c_p].set(
+                    state.players.furiten_by_pass[c_p] | is_ron_player
+                ),
+            )
         ),
     )
     passed = jax.lax.cond(
@@ -1897,7 +1903,7 @@ def _ron(state: State, game_config: Optional[GameConfig] = None) -> State:
     """
     Apply RON
     - Calculate the score of the winner (consider only the remainder when divided by 100)
-    - Clear the Kyotaku
+    - Hold it back until everyone who can ron the tile has answered (``_settle_ron``)
     """
     c_p = state.current_player
     config = _resolve_game_config(game_config)
@@ -1923,7 +1929,7 @@ def _ron(state: State, game_config: Optional[GameConfig] = None) -> State:
     # Round up the score to the nearest multiple of 100
     score = jnp.ceil(score / 100)
     # In double-ron, honba and kyotaku are paid only once on the first ron.
-    is_first_ron = ~state.players.has_won.any()
+    is_first_ron = ~state.pending_winners.any()
     honba = jnp.where(is_first_ron, state.round_state.honba * 3, 0)
     # Build reward array more efficiently
     normal_reward = jnp.zeros(4, dtype=jnp.float32)
@@ -1939,14 +1945,11 @@ def _ron(state: State, game_config: Optional[GameConfig] = None) -> State:
     # The Kyotaku is already paid when the RIICHI is declared, so we only need to add the Kyotaku to the winner
     kyotaku_bonus = 10 * state.round_state.kyotaku.astype(jnp.int32) * is_first_ron  # int8 wraps at 13 sticks
     reward = reward.at[c_p].add(kyotaku_bonus)
-    # Each ron of a chain settles as it is declared, the way tenhou books it, so
-    # ``score`` never shows a win that has already happened as unpaid. ``pending``
-    # keeps the running total of the chain purely so 三家和 can undo the lot.
+    # Nothing is paid, recorded or cleared off the table until everyone who can
+    # ron this tile has answered: the ones still to answer must not learn how the
+    # ones before them did. ``_settle_ron`` pays the whole chain at once.
     pending = jnp.where(is_first_ron, jnp.zeros_like(state.rewards), state.pending_rewards) + reward
-    pending_kyotaku = jnp.where(
-        is_first_ron, state.round_state.kyotaku, state.pending_kyotaku
-    ).astype(jnp.int8)
-    score = state.round_state.score + reward
+    pending_winners = state.pending_winners.at[c_p].set(TRUE)
     remaining_ron_mask = ZERO_MASK_2D.at[:, Action.RON].set(
         state.players.legal_action_mask[:, Action.RON]
     )
@@ -1954,23 +1957,20 @@ def _ron(state: State, game_config: Optional[GameConfig] = None) -> State:
     next_ron_player, can_any_ron = _next_ron_player(
         remaining_ron_mask, state.round_state.last_player
     )
-    # 三家和: this is the 3rd RON declared on the same discard. Nobody wins, so
-    # the prior two RONs are rolled back — their payments come off ``score``, the
-    # riichi sticks go back on the table, and the has_won bits are dropped. The
-    # negative ``rewards`` is what that rollback costs the two winners this step.
-    is_triple_ron = (
-        config.enable_special_abortive_draw
-        & ((state.players.has_won.sum() + 1) >= 3)
+    # The rows a RON leaves are the rows a PASS leaves (see ``_pass``): only what was
+    # offered is answered. Calls left there never run, as the window has a winner.
+    answered_mask = state.players.legal_action_mask.at[c_p, :].set(
+        state.players.legal_action_mask[c_p] & ~_claims_open_to(state.players.legal_action_mask, c_p)
     )
+    # 三家和: this is the 3rd RON declared on the same discard. Nobody wins, and as
+    # nothing has been paid yet the round is abandoned as it stands; the window is
+    # closed, so the three RONs go into the history.
+    is_triple_ron = config.enable_special_abortive_draw & (pending_winners.sum() >= 3)
     triple_ron_state = _trigger_special_abortive_draw(
         _replace_state(
-            state,
-            score=jnp.int32(state.round_state.score - state.pending_rewards),
-            rewards=jnp.float32(-state.pending_rewards),
+            _record_rons(state, pending_winners),
             pending_rewards=jnp.zeros_like(state.rewards),
-            kyotaku=jnp.int8(state.pending_kyotaku),
-            pending_kyotaku=jnp.int8(0),
-            has_won=jnp.zeros_like(state.players.has_won),
+            pending_winners=jnp.zeros_like(pending_winners),
         )
     )
     # ``continue_ron`` covers both 2nd-RON (double) and 3rd-RON (triple) cases:
@@ -1981,27 +1981,13 @@ def _ron(state: State, game_config: Optional[GameConfig] = None) -> State:
     continue_state = _replace_state(
         state,
         current_player=jnp.int8(next_ron_player),
-        score=jnp.int32(score),
-        rewards=jnp.float32(reward),
         pending_rewards=jnp.float32(pending),
-        pending_kyotaku=jnp.int8(pending_kyotaku),
-        kyotaku=jnp.int8(0),
-        has_won=state.players.has_won.at[c_p].set(TRUE),
-        legal_action_mask=remaining_ron_mask.at[next_ron_player, Action.PASS].set(TRUE),
+        pending_winners=pending_winners,
+        legal_action_mask=answered_mask.at[next_ron_player, Action.PASS].set(TRUE),
         draw_next=FALSE,
     )
-    final_state = _replace_state(
-        state,
-        terminated_round=TRUE,
-        score=jnp.int32(score),
-        rewards=jnp.float32(reward),
-        pending_rewards=jnp.zeros_like(state.rewards),
-        pending_kyotaku=jnp.int8(0),
-        kyotaku=jnp.int8(0),
-        has_won=state.players.has_won.at[c_p].set(TRUE),
-        legal_action_mask=ZERO_MASK_2D.at[:, Action.DUMMY].set(TRUE),
-        kan_declared=FALSE,
-        draw_next=FALSE,
+    final_state = _settle_ron(
+        _replace_state(state, pending_rewards=jnp.float32(pending), pending_winners=pending_winners)
     )
     return jax.lax.cond(
         is_triple_ron,
@@ -2012,6 +1998,40 @@ def _ron(state: State, game_config: Optional[GameConfig] = None) -> State:
             lambda: final_state,
         ),
     )
+
+
+def _settle_ron(state: State) -> State:
+    """
+    Close a ron window once its last player has answered, RON or PASS
+    - Pay every ron declared on the tile at once, and record them
+    - Leave the turn with the last winner, so the closed round does not show whether anyone declined
+    """
+    winners = state.pending_winners
+    # The winner ``_next_ron_player`` asked last, i.e. the farthest from the discarder.
+    distance = (jnp.arange(4) - state.round_state.last_player) % 4
+    last_winner = jnp.argmax(jnp.where(winners, distance, -1))
+    return _replace_state(
+        _record_rons(state, winners),
+        current_player=jnp.int8(last_winner),
+        terminated_round=TRUE,
+        score=jnp.int32(state.round_state.score + state.pending_rewards),
+        rewards=jnp.float32(state.pending_rewards),
+        pending_rewards=jnp.zeros_like(state.rewards),
+        pending_winners=jnp.zeros_like(winners),
+        kyotaku=jnp.int8(0),
+        has_won=state.players.has_won | winners,
+        legal_action_mask=ZERO_MASK_2D.at[:, Action.DUMMY].set(TRUE),
+        kan_declared=FALSE,
+        draw_next=FALSE,
+    )
+
+
+def _record_rons(state: State, winners: Array) -> State:
+    """Record a RON for each of ``winners``, in the order ``_next_ron_player`` asked them."""
+    for distance in range(4):
+        seat = (state.round_state.last_player + distance) % 4
+        state = _write_action_history(state, seat, jnp.int32(Action.RON), winners[seat])
+    return state
 
 
 def _tsumo(state: State, game_config: Optional[GameConfig] = None) -> State:

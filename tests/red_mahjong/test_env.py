@@ -133,8 +133,9 @@ def test_next_ron_player_returns_closest() -> None:
 def test_claims_open_to_holds_a_call_while_another_player_claims_higher() -> None:
     legal = jnp.zeros((4, Action.NUM_ACTION), dtype=jnp.bool_)
     ron_pon = legal.at[1, Action.RON].set(True).at[1, Action.PON].set(True).at[1, Action.PASS].set(True)
-    # Nobody else claims: RON and PON are offered together, as before.
-    assert jnp.array_equal(_claims_open_to(ron_pon, jnp.int8(1)), ron_pon[1])
+    # Nobody else claims: RON is still answered before the PON.
+    offered = _claims_open_to(ron_pon, jnp.int8(1))
+    assert {int(a) for a in jnp.flatnonzero(offered)} == {Action.RON, Action.PASS}
     # Another player can RON: the PON waits.
     offered = _claims_open_to(ron_pon.at[2, Action.RON].set(True), jnp.int8(1))
     assert bool(offered[Action.RON]) and bool(offered[Action.PASS])
@@ -150,8 +151,8 @@ def test_red_a_lower_call_waits_until_every_higher_claim_is_passed() -> None:
     """P0 has just discarded; each prompt is (player, offered calls) while everyone passes."""
     env = RedMahjong(round_mode="single", next_round_style="auto")
     scenarios = [
-        # Nothing conflicts: RON and PON in one prompt, as before.
-        ({1: [Action.RON, Action.PON]}, [(1, {Action.RON, Action.PON})]),
+        # Nothing conflicts: RON is still answered before the PON.
+        ({1: [Action.RON, Action.PON]}, [(1, {Action.RON}), (1, {Action.PON})]),
         # P1 must not be able to pon over P2's ron.
         (
             {1: [Action.RON, Action.PON], 2: [Action.RON]},
