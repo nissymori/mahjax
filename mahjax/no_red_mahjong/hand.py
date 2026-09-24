@@ -224,8 +224,10 @@ class Hand:
         """
         Judge whether the hand can be won by the tile (hand has 14 tiles)
         It is done by checking if the hand added by the tile can be won by tsumo.
+        A tile the hand already holds four of is never a wait: there is no fifth copy,
+        and can_tsumo's base-5 code would carry it into the neighbouring tile.
         """
-        return Hand.can_tsumo(Hand.add(hand, tile))
+        return (hand[tile] < 4) & Hand.can_tsumo(Hand.add(hand, tile))
 
     @staticmethod
     def is_tenpai(hand: Array):

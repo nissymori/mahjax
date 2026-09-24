@@ -239,8 +239,10 @@ class Hand:
 
     @staticmethod
     def can_ron(hand: Array, tile: Array):
+        # A tile the hand already holds four of is never a wait: there is no fifth copy,
+        # and can_tsumo's base-5 code would carry it into the neighbouring tile.
         tile_for_hand = tile if hand.shape[0] == Tile.NUM_TILE_TYPE_WITH_RED else Tile.to_tile_type(tile)
-        return Hand.can_tsumo(Hand.add(hand, tile_for_hand))
+        return (Hand.to_34(hand)[Tile.to_tile_type(tile)] < 4) & Hand.can_tsumo(Hand.add(hand, tile_for_hand))
 
     @staticmethod
     def is_tenpai(hand: Array):

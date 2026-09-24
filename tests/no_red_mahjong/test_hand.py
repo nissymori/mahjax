@@ -122,6 +122,32 @@ class TestHand(unittest.TestCase):
         self.assertTrue(jitted_can_win(hand, 1)) # 2m can be ron
         self.assertFalse(jitted_can_win(hand, 25)) # 8s cannot be ron
 
+    def test_can_win_is_false_on_a_fifth_copy(self):
+        # 66 7777 99m EEE CC holds every 7m; a fifth one would carry into 6m and read 666 99m EEE CC.
+        hand = jnp.zeros(Tile.NUM_TILE_TYPE, dtype=jnp.int8)
+        hand = hand.at[5].set(2).at[6].set(4).at[8].set(2).at[27].set(3).at[33].set(2)
+        self.assertFalse(jax.vmap(jitted_can_win, in_axes=(None, 0))(hand, jnp.arange(Tile.NUM_TILE_TYPE)).any())
+        # Melded copies are not in the hand: a 7m single wait next to a pon of 7m still counts, as on Tenhou.
+        hand = jnp.zeros(Tile.NUM_TILE_TYPE, dtype=jnp.int8).at[6].set(1).at[9:18].set(1)  # 7m 123456789p
+        self.assertTrue(jitted_can_win(hand, 6))
+
+    def test_can_win_never_waits_on_a_tile_held_four_times(self):
+        # Every one-suit shape with a quad, padded to 13 tiles with honor pons and a pair.
+        shapes = np.stack(np.meshgrid(*[np.arange(5, dtype=np.int8)] * 9, indexing="ij"), axis=-1).reshape(-1, 9)
+        n = shapes.sum(axis=1)
+        shapes = shapes[(shapes == 4).any(axis=1) & (n % 3 != 0) & (n <= 13)]
+        n = shapes.sum(axis=1)
+        hands = np.zeros((len(shapes), Tile.NUM_TILE_TYPE), dtype=np.int8)
+        hands[:, :9] = shapes
+        hands[:, 27:31] = 3 * (np.arange(4) < ((13 - n) // 3)[:, None])  # EEE SSS WWW NNN
+        hands[:, 33] = 2 * (n % 3 == 2)  # CC
+        self.assertTrue((hands.sum(axis=1) == 13).all())
+
+        can_win = jax.jit(jax.vmap(jax.vmap(Hand.can_ron, in_axes=(None, 0)), in_axes=(0, None)))(
+            jnp.asarray(hands), jnp.arange(9)
+        )
+
+        self.assertFalse((can_win & (hands[:, :9] == 4)).any())
 
     def test_is_tenpai(self):
         # Test seven pairs

@@ -1954,3 +1954,38 @@ def test_no_red_rewards_report_only_the_current_transition() -> None:
         )
         if bool(state.terminated) or bool(state.truncated):
             break
+
+
+def test_no_red_a_wait_only_on_a_fifth_copy_is_noten_at_an_exhaustive_draw() -> None:
+    """66 7777 99m EEE CC only 'waits' on a fifth 7m: nobody is tenpai, so nobody pays and the deal passes."""
+    from mahjax.no_red_mahjong import env as m
+
+    def counts(tiles):
+        hand = jnp.zeros(Tile.NUM_TILE_TYPE, dtype=jnp.int8)
+        for tile in tiles:
+            hand = hand.at[tile].add(1)
+        return hand
+
+    north = 30
+    noten = counts([0, 2, 4, 9, 11, 13, 15, 17, 18, 20, 22, 24, 26])  # 135m 13579p 13579s
+    dealer_hand = counts([5, 5, 6, 6, 6, 6, 8, 8, 27, 27, 27, 33, 33, north])  # 66 7777 99m EEE CC + N
+    env = NoRedMahjong(round_mode="half")
+    state = env.init(jax.random.PRNGKey(0))
+    dealer = int(state.round_state.dealer)
+    hands = jnp.stack([dealer_hand if p == dealer else noten for p in range(4)])
+    state = _replace_state(
+        state,
+        current_player=jnp.int8(dealer),
+        hand=hands,
+        can_win=m.v_can_win(hands, m.TILE_RANGE),
+        last_draw=jnp.int8(north),
+        next_deck_ix=(state.round_state.last_deck_ix - 1).astype(jnp.int32),  # N was the last live tile
+        is_haitei=jnp.bool_(True),
+        legal_action_mask=jnp.zeros((4, Action.NUM_ACTION), dtype=jnp.bool_).at[dealer, north].set(True),
+    )
+
+    out = env.step(state, jnp.int32(north), STEP_KEY)
+
+    assert bool(jnp.all(out.rewards == 0))
+    assert int(out.round_state.dealer) == (dealer + 1) % 4
+    assert int(out.round_state.honba) == 1

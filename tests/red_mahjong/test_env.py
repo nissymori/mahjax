@@ -197,6 +197,44 @@ def test_abortive_draw_payments_shape() -> None:
     assert next_state.rewards.shape == (4,)
 
 
+def test_red_a_wait_only_on_a_fifth_copy_is_noten_at_an_exhaustive_draw() -> None:
+    """66 7777 99m EEE CC only 'waits' on a fifth 7m: nobody is tenpai, so nobody pays and the deal passes."""
+    from mahjax.red_mahjong import env as m
+
+    def counts(tiles):
+        hand = jnp.zeros(Tile.NUM_TILE_TYPE_WITH_RED, dtype=jnp.int8)
+        for tile in tiles:
+            hand = hand.at[tile].add(1)
+        return hand
+
+    north = 30
+    noten = counts([0, 2, 4, 9, 11, 13, 15, 17, 18, 20, 22, 24, 26])  # 135m 13579p 13579s
+    dealer_hand = counts([5, 5, 6, 6, 6, 6, 8, 8, 27, 27, 27, 33, 33, north])  # 66 7777 99m EEE CC + N
+    env = RedMahjong(round_mode="half")
+    state = env.init(jax.random.PRNGKey(0))
+    dealer = int(state.round_state.dealer)
+    hands = jnp.stack([dealer_hand if p == dealer else noten for p in range(4)])
+    hands34 = jax.vmap(Hand.to_34)(hands)
+    state = _replace_state(
+        state,
+        current_player=jnp.int8(dealer),
+        hand_with_red=hands,
+        hand=hands34,
+        can_win=m.v_can_win(hands34, m.TILE_RANGE),
+        last_draw=jnp.int8(north),
+        next_deck_ix=(state.round_state.last_deck_ix - 1).astype(jnp.int32),  # N was the last live tile
+        is_haitei=jnp.bool_(True),
+        has_nagashi_mangan=jnp.zeros(4, dtype=jnp.bool_),  # nobody is on course for a nagashi mangan
+        legal_action_mask=jnp.zeros((4, Action.NUM_ACTION), dtype=jnp.bool_).at[dealer, north].set(True),
+    )
+
+    out = env.step(state, jnp.int32(north), STEP_KEY)
+
+    assert bool(jnp.all(out.rewards == 0))
+    assert int(out.round_state.dealer) == (dealer + 1) % 4
+    assert int(out.round_state.honba) == 1
+
+
 def test_robbing_kan_mask_drops_stale_self_turn_actions() -> None:
     tile_ids = {
         **{f"{n}m": n - 1 for n in range(1, 10)},
