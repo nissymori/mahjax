@@ -933,6 +933,13 @@ def _discard(state: State, tile: Array) -> State:
     legal_action_mask_4p = legal_action_mask_4p.at[c_p, :].set(
         FALSE
     )  # Set the legal action for the player who discarded the tile to False
+    # A hand this tile completes without a yaku is not offered RON, but letting the win go by still makes it furiten.
+    missed_win = (
+        (jnp.arange(4) != c_p)
+        & state.players.can_win[:, tile]
+        & ~legal_action_mask_4p[:, Action.RON]
+    )
+    state = _replace_state(state, furiten_by_pass=state.players.furiten_by_pass | missed_win)
 
     next_meld_player, can_any = _next_meld_player(
         legal_action_mask_4p, c_p

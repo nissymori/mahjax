@@ -88,7 +88,7 @@ All entries are leading-axis-`4` arrays indexed by absolute player id (seat 0..3
 | `double_riichi` | `(4,)` | `bool` | Double-riichi flag per player. |
 | `ippatsu` | `(4,)` | `bool` | Ippatsu still live per player. |
 | `furiten_by_discard` | `(4,)` | `bool` | Furiten because of own discard. |
-| `furiten_by_pass` | `(4,)` | `bool` | Furiten because of passed RON. |
+| `furiten_by_pass` | `(4,)` | `bool` | Furiten because of a passed winning tile: a declined RON, or one the hand had no yaku for. |
 | `is_hand_concealed` | `(4,)` | `bool` | Hand still closed (no open melds). |
 | `pon` | `(4, 34)` | `int32` | Bookkeeping for pon-related calls per tile type. |
 | `has_won` | `(4,)` | `bool` | Whether each player won this round (set on RON / TSUMO). |

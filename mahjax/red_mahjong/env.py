@@ -1068,6 +1068,13 @@ def _discard(state: State, tile: Array, game_config: Optional[GameConfig] = None
     legal_action_mask_4p = legal_action_mask_4p.at[c_p, :].set(
         FALSE
     )  # Set the legal action for the player who discarded the tile to False
+    # A hand this tile completes without a yaku is not offered RON, but letting the win go by still makes it furiten.
+    missed_win = (
+        (jnp.arange(4) != c_p)
+        & state.players.can_win[:, Tile.to_tile_type(tile)]
+        & ~legal_action_mask_4p[:, Action.RON]
+    )
+    state = _replace_state(state, furiten_by_pass=state.players.furiten_by_pass | missed_win)
     # 三家和 (triple ron) is decided in ``_ron`` itself when the third player
     # actually declares RON. Counting RON candidates pre-emptively here would
     # mis-fire when one of the three candidates ends up passing.

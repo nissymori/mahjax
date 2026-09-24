@@ -463,6 +463,65 @@ class TestEnv(unittest.TestCase):
             self.assertTrue(bool(robbable.players.legal_action_mask[1, Action.RON]))
             self.assertTrue(bool(declined.players.furiten_by_pass[1]))
 
+    def test_letting_a_winning_tile_without_a_yaku_go_by_makes_the_player_furiten(self):
+        # Not offered a ron for want of a yaku, the player still let a win go by: no ron until their own draw.
+        from mahjax.no_red_mahjong import env as m
+
+        six_m, nine_m, one_p, nine_p = 5, 8, 9, 17
+
+        def counts(tiles):
+            hand = jnp.zeros(Tile.NUM_TILE_TYPE, dtype=jnp.int8)
+            for tile in tiles:
+                hand = hand.at[tile].add(1)
+            return hand
+
+        hands = jnp.stack(
+            [
+                counts([nine_m, one_p, 27, 27, 27, 28, 28, 28, 29, 29, 29, 30, 30, 30]),  # P0 is about to discard
+                counts([31, 31, 31, 32, 32, 32, 33, 33, 33, 18, 18, 18, 26]),
+                counts([27, 28, 29, 30, 31, 32, 33, 24, 24, 24, 25, 25, 25]),
+                counts([1, 2, 3, 13, 13, 13, 20, 21, 22, 23, 23, 6, 7]),  # P3: 234m 555p 345s 66s 78m, dama
+            ]
+        )  # P3 waits on 6m (tanyao) and 9m (no yaku)
+        base = default_state()
+        # The live wall in draw order: P1 draws 6m, P2 9p, P3 9p, P0 6m.
+        deck = base.round_state.deck.at[60].set(six_m).at[59].set(nine_p).at[58].set(nine_p).at[57].set(six_m)
+        step = jax.jit(env.step)
+
+        def after_p1_discards_6m(p0_discard):
+            state = _replace_state(
+                base,
+                current_player=jnp.int8(0),
+                hand=hands,
+                can_win=m.v_can_win(hands, m.TILE_RANGE),
+                deck=deck,
+                next_deck_ix=jnp.int32(60),
+                legal_action_mask=base.players.legal_action_mask.at[0, p0_discard].set(True),
+            )
+            state = step(state, jnp.int32(p0_discard), STEP_KEY)
+            self.assertEqual(int(state.current_player), 1)  # nobody is asked about P0's discard
+            return step(state, jnp.int32(Action.TSUMOGIRI), STEP_KEY)
+
+        # P0 discards 1p: P1's 6m is P3's ron.
+        control = after_p1_discards_6m(one_p)
+        self.assertEqual(int(control.current_player), 3)
+        self.assertTrue(bool(control.legal_action_mask[Action.RON]))
+
+        # P0 discards 9m, a win for P3 with no yaku: P1's 6m in the same go-around is no ron either.
+        state = after_p1_discards_6m(nine_m)
+        self.assertFalse(bool(state.players.legal_action_mask[3, Action.RON]))
+        self.assertTrue(bool(state.players.furiten_by_pass[3]))
+        self.assertEqual(int(state.current_player), 2)
+
+        # P3's own draw ends it, so P0's 6m after that is a ron again.
+        state = step(state, jnp.int32(Action.TSUMOGIRI), STEP_KEY)  # P2 discards 9p, P3 draws 9p
+        self.assertEqual(int(state.current_player), 3)
+        self.assertFalse(bool(state.players.furiten_by_pass[3]))
+        state = step(state, jnp.int32(Action.TSUMOGIRI), STEP_KEY)  # P3 discards 9p, P0 draws 6m
+        state = step(state, jnp.int32(Action.TSUMOGIRI), STEP_KEY)  # P0 discards 6m
+        self.assertEqual(int(state.current_player), 3)
+        self.assertTrue(bool(state.legal_action_mask[Action.RON]))
+
     def test_added_kan_hides_whether_anyone_could_rob_it(self):
         # Neither ``last_player`` nor the action history may show that a chankan was declined.
         from mahjax.no_red_mahjong import env as m
