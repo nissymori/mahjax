@@ -655,7 +655,7 @@ def _end_of_round_state(env, **overrides):
         current_player=jnp.int8(0),
         round=jnp.int8(7),
         round_limit=jnp.int8(7),
-        honba=jnp.int8(0),
+        honba=jnp.int32(0),
         kyotaku=jnp.int8(0),
         dummy_count=jnp.int8(0),
         has_won=jnp.zeros(4, dtype=jnp.bool_),
@@ -734,6 +734,93 @@ def test_red_last_extra_round_continues_when_the_dealer_keeps_the_deal() -> None
     assert int(out.round_state.round) == 11
     assert int(out.round_state.dealer) == 0
     assert int(out.round_state.honba) == 1
+
+
+def test_red_the_dealer_keeps_the_deal_at_eight_honba() -> None:
+    """There is no renchan limit: a dealer win or a tenpai draw keeps the deal however many honba are up."""
+    env = RedMahjong(round_mode="half", next_round_style="auto")
+    dealer_won = dict(has_won=jnp.zeros(4, dtype=jnp.bool_).at[0].set(True))
+    dealer_tenpai = dict(can_win=jnp.zeros_like(env.init(jax.random.PRNGKey(7)).players.can_win).at[0, 0].set(True))
+    for renchan in (dealer_won, dealer_tenpai):
+        state = _end_of_round_state(
+            env, round=jnp.int8(0), honba=jnp.int8(8), score=jnp.array([250, 250, 250, 250], dtype=jnp.int32), **renchan
+        )
+
+        out = _advance_to_next_round_auto(state, jax.random.PRNGKey(0))
+
+        assert int(out.round_state.round) == 0
+        assert int(out.round_state.dealer) == 0
+        assert int(out.round_state.honba) == 9
+
+
+def test_red_a_dealer_win_in_second_place_does_not_end_south_four_at_eight_honba() -> None:
+    """P1 is past 30000, but the dealer is not top, so the dealer's win is a renchan and the game goes on."""
+    for style in ("auto", "dummy_share"):
+        env = RedMahjong(round_mode="half", next_round_style=style)
+        state = _end_of_round_state(
+            env,
+            honba=jnp.int8(8),
+            score=jnp.array([290, 320, 200, 190], dtype=jnp.int32),
+            has_won=jnp.zeros(4, dtype=jnp.bool_).at[0].set(True),
+        )
+
+        if style == "auto":
+            out = _advance_to_next_round_auto(state, jax.random.PRNGKey(0))
+        else:
+            step = jax.jit(env.step)
+            out = state
+            for _ in range(4):  # the DUMMY share phase
+                out = step(out, jnp.int32(Action.DUMMY), STEP_KEY)
+
+        assert not bool(out.terminated)
+        assert int(out.round_state.round) == 7
+        assert int(out.round_state.dealer) == 0
+        assert int(out.round_state.honba) == 9
+
+
+def test_red_honba_does_not_wrap_after_127() -> None:
+    """With no renchan limit honba can keep growing, and a renchan at 127 honba makes 128, not -128."""
+    for style in ("auto", "dummy_share"):
+        env = RedMahjong(round_mode="half", next_round_style=style)
+        state = _end_of_round_state(
+            env,
+            round=jnp.int8(0),
+            # In the env's own stored dtype, as honba would have reached 127 in play.
+            honba=jnp.asarray(127, env.init(jax.random.PRNGKey(7)).round_state.honba.dtype),
+            score=jnp.array([250, 250, 250, 250], dtype=jnp.int32),
+            can_win=jnp.zeros_like(env.init(jax.random.PRNGKey(7)).players.can_win).at[0, 0].set(True),
+        )
+
+        if style == "auto":
+            out = _advance_to_next_round_auto(state, jax.random.PRNGKey(0))
+        else:
+            step = jax.jit(env.step)
+            out = state
+            for _ in range(4):  # the DUMMY share phase
+                out = step(out, jnp.int32(Action.DUMMY), STEP_KEY)
+
+        assert int(out.round_state.dealer) == 0
+        assert int(out.round_state.honba) == 128
+
+
+def test_red_forty_three_honba_do_not_wrap_negative() -> None:
+    """43 honba are +12900 points; stored as int8, ``honba * 3`` wrapped them."""
+    from mahjax.red_mahjong import env as m
+
+    base = default_state()
+    state = m._replace_state(
+        base,
+        current_player=jnp.int8(1),
+        last_player=jnp.int8(2),
+        honba=jnp.asarray(43, base.round_state.honba.dtype),  # the env's own stored dtype
+        next_deck_ix=jnp.int32(50),
+        score=jnp.array([250, 250, 250, 250], dtype=jnp.int32),
+        fan=base.players.fan.at[1, 0].set(jnp.int32(1)),
+        fu=base.players.fu.at[1, 0].set(jnp.int32(30)),
+    )
+
+    assert float(m._ron(state).rewards[1]) == 10 + 129  # 1 han 30 fu ron + 300 a honba
+    assert float(m._tsumo(state).rewards[1]) == 11 + 129  # 300/500 tsumo + 100 a honba from each
 
 
 def test_red_uma_is_added_to_the_final_score() -> None:

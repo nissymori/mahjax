@@ -132,7 +132,7 @@ def _observe_dict(state: State) -> Dict:
     - round_limit: () int8, last REGULAR kyoku index of the game: 3 for 'east', 7
       for 'single'/'half'. With ``round`` it gives how much game is left, and
       ``round > round_limit`` means the game is in sudden death.
-    - honba: () int8
+    - honba: () int32
     - kyotaku: () int8
     - prevalent_wind: () int8, the round wind, round // 4. Reaches 2 (West), not
       just {0 East, 1 South}: sudden death runs ``round`` past ``round_limit``,

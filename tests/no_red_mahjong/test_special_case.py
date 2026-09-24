@@ -132,7 +132,7 @@ class TestSpecialCase(unittest.TestCase):
 
     def test_eight_consecutive_deals(self):
         """
-        Test if the round is terminated when the eight consecutive deals are made.
+        Test if the dealer keeps the deal after eight consecutive deals: there is no renchan limit.
         """
         state = self.state
         state = _replace_state(state, 
@@ -142,6 +142,6 @@ class TestSpecialCase(unittest.TestCase):
             has_won=jnp.array([True, False, False, False], dtype=jnp.bool_),
         )
         state = _advance_after_dummy(state)
-        self.assertEqual(state.round_state.round, 1)
-        self.assertEqual(state.round_state.honba, 0)
-        self.assertEqual(state.round_state.dealer, 1)
+        self.assertEqual(state.round_state.round, 0)
+        self.assertEqual(state.round_state.honba, 9)
+        self.assertEqual(state.round_state.dealer, 0)

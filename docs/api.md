@@ -106,7 +106,7 @@ Held common across all four players.
 | `round` | `()` | `int8` | Round index (`0`-based). |
 | `round_limit` | `()` | `int8` | Index of the last regular kyoku, derived from `round_mode`: `3` for `east`, `7` for `half`. Play continues past it while nobody has 30000 points. |
 | `terminated_round` | `()` | `bool` | `True` on the step that ends the round (RON / TSUMO / 流局). See the round-transition section for how `auto` vs `dummy_share` expose this. |
-| `honba` | `()` | `int8` | Honba count (renchan counter). |
+| `honba` | `()` | `int32` | Honba count (renchan counter). |
 | `kyotaku` | `()` | `int8` | Number of unclaimed riichi sticks on the table. |
 | `init_wind` | `(4,)` | `int8` | Initial seat winds at the start of the game. |
 | `seat_wind` | `(4,)` | `int8` | Current seat wind per player. |
@@ -164,7 +164,7 @@ the right / across / left.
 | `wall_remaining` | `()` | `int32` | Tiles still drawable from the live wall, `[0, 70]`. Drives haitei, the exhaustive draw and the riichi precondition. |
 | `round` | `()` | `int8` | Kyoku counter. Exceeds `round_limit` during sudden death, up to `round_limit + 4`. |
 | `round_limit` | `()` | `int8` | Index of the last regular kyoku: 3 for `east`, 7 for `single`/`half`. With `round`, how much game is left. |
-| `honba` | `()` | `int8` | Honba count. |
+| `honba` | `()` | `int32` | Honba count. |
 | `kyotaku` | `()` | `int8` | Riichi sticks on the table. |
 | `prevalent_wind` | `()` | `int8` | Round wind, `round // 4`. Reaches 2 (West) during the sudden-death kyoku of a `half` game. |
 | `seat_wind` | `()` | `int8` | Observer's seat wind `[0-3]`; 0 is the dealer. |

@@ -24,7 +24,7 @@ def test_game_config_flags_default_to_expected_values() -> None:
 def test_default_state_round_metadata_types() -> None:
     state = default_state()
     assert state.round_state.score.dtype == jnp.int32
-    assert state.round_state.honba.dtype == jnp.int8
+    assert state.round_state.honba.dtype == jnp.int32  # no renchan limit, so no int8 wrap at 127
     assert state.round_state.kyotaku.dtype == jnp.int8
 
 

@@ -1854,7 +1854,7 @@ def _next_round(state: State, key: PRNGKey) -> State:
         has_other_than_dealer_won = hora.any() & ~hora[dealer]
         will_dealer_continue = jnp.logical_or(
             is_tempai[dealer] & ~has_other_than_dealer_won, hora[dealer]
-        ) & ~(s.round_state.honba >= 8)
+        )
         final_score = _final_score(s.round_state)
 
         game_end = _is_game_end(s.round_state, will_dealer_continue)
@@ -1879,14 +1879,10 @@ def _next_round(state: State, key: PRNGKey) -> State:
         hora = s.players.has_won  # (4,)
         is_tempai = s.players.can_win.any(axis=-1)  # (4,)
         dealer = s.round_state.dealer
-        is_eight_consecutive_deals = (
-            s.round_state.honba >= 8
-        )  # 8 consecutive deals means the honba moves to the next round
         has_other_than_dealer_won = hora.any() & ~hora[dealer]
         will_dealer_continue = jnp.logical_or(
             is_tempai[dealer] & ~has_other_than_dealer_won, hora[dealer]
         )
-        will_dealer_continue = will_dealer_continue & ~is_eight_consecutive_deals
         next_round = jnp.where(will_dealer_continue, s.round_state.round, s.round_state.round + 1)
         has_winner = hora.any()
         next_honba = jnp.where(
@@ -1965,11 +1961,10 @@ def _advance_to_next_round_auto(state: State, key: PRNGKey) -> State:
     final_score = _final_score(state.round_state)
 
     # Round-end / game-end conditions (matches _rotate_once + _finalize_and_start_next)
-    is_eight_consecutive_deals = state.round_state.honba >= 8
     has_other_than_dealer_won = hora.any() & ~hora[dealer]
     will_dealer_continue = jnp.logical_or(
         is_tempai[dealer] & ~has_other_than_dealer_won, hora[dealer]
-    ) & ~is_eight_consecutive_deals
+    )
 
     game_end = _is_game_end(state.round_state, will_dealer_continue)
 

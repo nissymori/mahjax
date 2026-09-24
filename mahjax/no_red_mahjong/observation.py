@@ -97,7 +97,7 @@ def _observe_dict(state: State) -> Dict:
       kan leaves the hand concealed, so deriving it would mean reimplementing that
       rule. Gates riichi legality and menzen tsumo.
     - tiles_seen: (34,) int8, copies of each tile type already visible, [0, 4]
-    - round / honba / kyotaku: () int8
+    - round / kyotaku: () int8, honba: () int32
     - round_limit: () int8, last REGULAR kyoku index of the game; ``round`` runs
       past it, up to ``round_limit + SUDDEN_DEATH_ROUNDS``, during sudden death
     - wall_remaining: () int32, drawable tiles left in the live wall, [0, 70]

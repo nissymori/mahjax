@@ -121,7 +121,8 @@ class RoundState:
     round: Array = jnp.int8(0)
     round_limit: Array = jnp.int8(7)
     terminated_round: Array = FALSE
-    honba: Array = jnp.int8(0)
+    # int32: with no renchan limit, int8 would wrap from 127 honba.
+    honba: Array = jnp.int32(0)
     kyotaku: Array = jnp.int8(0)
     init_wind: Array = jnp.array([0, 1, 2, 3], dtype=jnp.int8)
     seat_wind: Array = jnp.array([0, 1, 2, 3], dtype=jnp.int8)
