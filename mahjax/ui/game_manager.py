@@ -32,6 +32,7 @@ from mahjax._src.visualizer import _to_red_env_state
 from mahjax.red_mahjong.action import Action as RedAction
 from mahjax.red_mahjong.env import RedMahjong
 from mahjax.red_mahjong.env import _dora_array as _red_dora_array
+from mahjax.red_mahjong.env import _is_first_turn as _red_is_first_turn
 from mahjax.red_mahjong.state import GameConfig as RedGameConfig
 from mahjax.red_mahjong.tile import Tile as RedTile
 from mahjax.red_mahjong.visualization import render_round_svg
@@ -447,9 +448,10 @@ class GameSession:
         self.env_id = env_id
         self.is_red = env_id == "red_mahjong"
         # The action space (and a few action enum values) differs between red
-        # and no-red. Use env_id to distinguish, not state attribute presence
-        # — both state classes now expose ``players``/``round_state``.
-        self._uses_red_state = self.is_red
+        # and no-red. Decide by the env class, not by env_id or state attribute
+        # presence: GameManager builds a RedMahjong env for "no_red_mahjong" too
+        # (with red fives turned off), so its states use the red action space.
+        self._uses_red_state = isinstance(env, RedMahjong)
         self.env = env
         self.state = jax.device_get(state)
         self.rng = rng
@@ -505,7 +507,11 @@ class GameSession:
         ):
             if self._uses_red_state:
                 summary = build_round_summary_red(
-                    prev_state, next_state, event, self.player_names
+                    prev_state,
+                    next_state,
+                    event,
+                    self.player_names,
+                    is_game_end=self._round_ends_game(next_state),
                 )
             else:
                 summary = build_round_summary(
@@ -514,6 +520,18 @@ class GameSession:
             self.round_summary = summary
             self.round_history.append(summary)
         return event
+
+    def _round_ends_game(self, state: Any) -> bool:
+        if bool(state.terminated):
+            return True
+        key = jax.random.PRNGKey(0)  # only deals the next wall, which is discarded
+        for _ in range(4):
+            if bool(state.terminated) or not self._is_terminated_round(state):
+                break
+            if not bool(state.legal_action_mask[RedAction.DUMMY]):
+                break
+            state = self._step_fn(state, jnp.int32(RedAction.DUMMY), key)
+        return bool(state.terminated)
 
     def ai_step(self) -> Optional[ActionEvent]:
         if self.state.terminated:
@@ -772,11 +790,12 @@ class GameSession:
                     "dummyOnly": True,
                 }
         if self.round_summary is not None:
+            is_final = self.round_summary.is_game_end
             advance_view = {
                 "enabled": True,
                 "action": None,
-                "label": "終局" if bool(state.terminated) else "次の局へ",
-                "isFinal": bool(state.terminated),
+                "label": "終局" if is_final else "次の局へ",
+                "isFinal": is_final,
                 "dummyOnly": True,
             }
         if is_human_turn and not state.terminated and self.round_summary is None:
@@ -1394,6 +1413,7 @@ def build_round_summary_red(
     next_state: Any,
     event: ActionEvent,
     player_names: List[str],
+    is_game_end: Optional[bool] = None,
 ) -> RoundSummary:
     rewards = [int(np.round(r * 100)) for r in np.array(next_state.rewards)]
     reason = "abortive_draw_normal"
@@ -1431,7 +1451,9 @@ def build_round_summary_red(
         round_count=int(prev_state.round_state.round),
         honba=int(prev_state.round_state.honba),
         kyotaku=int(prev_state.round_state.kyotaku),
-        is_game_end=bool(next_state.terminated),
+        # ``next_state.terminated`` is only final for envs that end the game on
+        # the round's last step (round_mode="single" or next_round_style="auto").
+        is_game_end=bool(next_state.terminated) if is_game_end is None else is_game_end,
     )
 
 
@@ -1555,6 +1577,27 @@ def summarise_winner(
     )
 
 
+def _red_extra_yaku(prev_state: Any, player: int, is_ron: bool) -> List[ExtraYakuDefinition]:
+    """The situational yaku that the red env adds on top of ``Yaku.judge`` when it
+    pays a win (``_ron`` / ``_tsumo``), under the same conditions it uses."""
+    players, round_state = prev_state.players, prev_state.round_state
+    riichi = bool(np.array(players.riichi[player]))
+    ippatsu = bool(np.array(players.ippatsu[player])) and riichi
+    double_riichi = bool(np.array(players.double_riichi[player]))
+    is_haitei = bool(np.array(round_state.is_haitei))
+    if is_ron:
+        robbing_kan = bool(np.array(round_state.kan_declared))
+        # EXTRA_RON_YAKU order: Ippatsu, Double Riichi, Robbing a Kan, Houtei
+        flags = (ippatsu, double_riichi, robbing_kan, is_haitei and not robbing_kan)
+        definitions = EXTRA_RON_YAKU
+    else:
+        after_kan = bool(np.array(round_state.can_after_kan))
+        # EXTRA_TSUMO_YAKU order: Rinshan, Ippatsu, Double Riichi, Haitei
+        flags = (after_kan, ippatsu, double_riichi, is_haitei and not after_kan)
+        definitions = EXTRA_TSUMO_YAKU
+    return [d for d, flag in zip(definitions, flags) if flag]
+
+
 def summarise_winner_red(
     prev_state: Any,
     next_state: Any,
@@ -1579,19 +1622,34 @@ def summarise_winner_red(
     ura_dora = int(np.dot(flatten_np, dora_np[1])) if riichi else 0
     dora_tile_list = resolve_dora_tiles(prev_state.round_state.dora_indicators)
     ura_dora_tile_list = resolve_dora_tiles(prev_state.round_state.ura_dora_indicators)
-    yaku_mask, fan, fu = RedYaku.judge(hand, jnp.bool_(is_ron), jnp.int32(player), prev_state)
+    judge_hand = hand
+    if not is_ron and 0 <= winning_tile < RedTile.NUM_TILE_TYPE_WITH_RED:
+        # judge() adds round_state.last_draw itself on a tsumo (that is how the env
+        # calls it, with the 3n+1 hand). Passing the hand that already holds the
+        # drawn tile counted it twice: a drawn dora, red five or ura dora showed
+        # one han more than the env paid.
+        judge_hand = hand.at[winning_tile].add(-1)
+    yaku_mask, fan, fu = RedYaku.judge(judge_hand, jnp.bool_(is_ron), jnp.int32(player), prev_state)
     yaku_mask_np = np.array(yaku_mask, dtype=bool)
     fan_val = int(np.array(fan))
     fu_val = int(np.array(fu))
     indices = [i for i, flag in enumerate(yaku_mask_np) if flag]
+    extras = _red_extra_yaku(prev_state, player, is_ron)
+    if any(d.english == "Double Riichi" for d in extras):
+        # judge() counts the riichi; the env adds one more for double riichi.
+        # Show the pair as ダブル立直 (2 han) rather than 立直 + ダブル立直.
+        indices = [i for i in indices if RED_YAKU_NAMES_EN[i] != "Riichi"]
     yaku_english = [RED_YAKU_NAMES_EN[i] for i in indices]
     yaku_japanese = [RED_YAKU_NAMES_JA[i] for i in indices]
     yaku_chinese = [RED_YAKU_NAMES_ZH_CN[i] for i in indices]
-    extra_definitions = EXTRA_RON_YAKU if is_ron else EXTRA_TSUMO_YAKU
-    yaku_english.extend(list_extra_yaku(prev_state, player, extra_definitions, language="en"))
-    yaku_japanese.extend(list_extra_yaku(prev_state, player, extra_definitions, language="ja"))
-    yaku_chinese.extend(list_extra_yaku(prev_state, player, extra_definitions, language="zh-CN"))
-    if not is_ron and is_first_turn(prev_state) and int(np.array(prev_state.players.meld_counts).sum()) == 0:
+    is_blessing = (
+        not is_ron
+        and bool(np.array(_red_is_first_turn(prev_state.round_state.next_deck_ix)))
+        and int(np.array(prev_state.players.meld_counts).sum()) == 0
+    )
+    if is_blessing:
+        # Tenhou / Chiihou: the env pays a yakuman (stacked on a hand yakuman) and
+        # adds no situational yaku.
         if player == int(prev_state.round_state.dealer):
             yaku_english.append("Heavenly Hand")
             yaku_japanese.append("天和")
@@ -1600,6 +1658,14 @@ def summarise_winner_red(
             yaku_english.append("Earthly Hand")
             yaku_japanese.append("地和")
             yaku_chinese.append("地和")
+        fan_val = fan_val + 1 if fu_val == 0 else 1
+        fu_val = 0
+    else:
+        yaku_english.extend(d.english for d in extras)
+        yaku_japanese.extend(d.japanese for d in extras)
+        yaku_chinese.extend(d.chinese for d in extras)
+        if fu_val > 0:  # a yakuman (fu 0) takes no situational yaku, as in the env
+            fan_val += len(extras)
     yakuman = 0
     if fu_val == 0 and fan_val > 0:
         yakuman = fan_val

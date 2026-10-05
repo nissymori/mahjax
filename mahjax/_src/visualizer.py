@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import math
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Optional, Sequence, Union
@@ -206,6 +207,19 @@ def _to_red_env_state(state: State):
     return to_red_visual_state(state)
 
 
+def _scale_root_svg(svg: str, scale: float) -> str:
+    if scale == 1.0:
+        return svg
+    head, sep, rest = svg.partition(">")
+    head = re.sub(
+        r'\b(width|height)="([0-9.]+)"',
+        lambda m: f'{m.group(1)}="{float(m.group(2)) * scale:g}"',
+        head,
+        count=2,
+    )
+    return head + sep + rest
+
+
 def _mahjong_svg_backend(env_id: str):
     if env_id == "red_mahjong":
         from mahjax.red_mahjong import visualization as backend
@@ -230,13 +244,14 @@ def save_svg(
 ) -> None:
     backend = _mahjong_svg_backend(state.env_id)
     if backend is not None:
-        backend.save_svg(
+        svg = backend.render_round_svg(
             state,
-            filename,
             show_all_hands=show_all_hands,
             visible_player=visible_player,
             tile_style=tile_style,
         )
+        scale = scale if scale is not None else global_config.scale
+        Path(filename).write_text(_scale_root_svg(svg, scale), encoding="utf-8")
         return
     v = Visualizer(color_theme=color_theme, scale=scale)
     v.get_dwg(states=state).saveas(filename)
@@ -255,15 +270,16 @@ def save_svg_animation(
 ) -> None:
     backend = _mahjong_svg_backend(states[0].env_id)
     if backend is not None:
-        backend.save_svg_animation(
-            states,
-            filename,
+        svg = backend.render_svg_animation(
+            list(states),
             frame_duration_seconds=frame_duration_seconds
             or global_config.frame_duration_seconds,
             show_all_hands=show_all_hands,
             visible_player=visible_player,
             tile_style=tile_style,
         )
+        scale = scale if scale is not None else global_config.scale
+        Path(filename).write_text(_scale_root_svg(svg, scale), encoding="utf-8")
         return
     v = Visualizer(color_theme=color_theme, scale=scale)
 
