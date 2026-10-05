@@ -44,9 +44,11 @@ _PLAYER_WIND_LABELS = {
     "ja": ("東", "南", "西", "北"),
     "en": ("E", "S", "W", "N"),
 }
+# Sudden death runs ``round`` past ``round_limit`` (up to round_limit + SUDDEN_DEATH_ROUNDS),
+# so ``round // 4`` reaches 2 (West) in a half game. North is listed for the same reason.
 _ROUND_WIND_LABELS = {
-    "ja": ("東", "南"),
-    "en": ("East", "South"),
+    "ja": ("東", "南", "西", "北"),
+    "en": ("East", "South", "West", "North"),
 }
 _JA_FONT_FAMILY = "'Noto Sans CJK JP', 'Noto Sans CJK', sans-serif"
 
