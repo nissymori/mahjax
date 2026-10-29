@@ -30,9 +30,9 @@ from mahjax.no_red_mahjong.tile import Tile
 from mahjax.no_red_mahjong.yaku import Yaku
 from mahjax._src.visualizer import _to_red_env_state
 from mahjax.red_mahjong.action import Action as RedAction
+from mahjax.red_mahjong.config import GameConfig as RedGameConfig
 from mahjax.red_mahjong.env import RedMahjong
 from mahjax.red_mahjong.env import _dora_array as _red_dora_array
-from mahjax.red_mahjong.state import GameConfig as RedGameConfig
 from mahjax.red_mahjong.tile import Tile as RedTile
 from mahjax.red_mahjong.visualization import render_round_svg
 from mahjax.red_mahjong.yaku import Yaku as RedYaku
@@ -840,7 +840,7 @@ class GameManager:
         else:
             env = RedMahjong(
                 round_mode=round_mode,
-                game_config=RedGameConfig(use_red_fives=jnp.bool_(False)),
+                game_config=RedGameConfig(use_red_fives=False),
                 next_round_style="dummy_share",
             )
         rng = jax.random.PRNGKey(seed)

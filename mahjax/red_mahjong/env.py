@@ -21,12 +21,13 @@ import jax.numpy as jnp
 from mahjax.core import Env
 
 from .action import Action
+from .config import RED, GameConfig
 from .constants import (DORA_ARRAY, FALSE, FIRST_DRAW_IDX, SUDDEN_DEATH_ROUNDS, TARGET_SCORE,
                         TILE_RANGE, TRUE, ZERO_MASK_1D, ZERO_MASK_2D)
 from .hand import Hand
 from .meld import Meld
 from .shanten import Shanten
-from .state import GameConfig, State, default_game_config, default_state
+from .state import State, default_state
 from .tile import River, Tile
 from .types import Array, PRNGKey
 from .yaku import Yaku
@@ -160,16 +161,13 @@ def _make_state(**updates) -> State:
 
 
 def _resolve_game_config(game_config: Optional[GameConfig]) -> GameConfig:
-    return default_game_config() if game_config is None else game_config
+    return RED if game_config is None else game_config
 
 
 def _apply_red_five_config(deck: Array, game_config: Optional[GameConfig] = None) -> Array:
-    config = _resolve_game_config(game_config)
-    return jax.lax.cond(
-        config.use_red_fives,
-        lambda: deck,
-        lambda: Tile.to_tile_type(deck).astype(jnp.int8),
-    )
+    if _resolve_game_config(game_config).use_red_fives:
+        return deck
+    return Tile.to_tile_type(deck).astype(jnp.int8)
 
 
 def _live_wall_end_ix(state: State) -> jnp.ndarray:
@@ -467,7 +465,7 @@ def _init(rng: PRNGKey, game_config: Optional[GameConfig] = None) -> State:
         ura_dora_indicators=ura_dora_indicators,
         hand=init_hand,
         hand_with_red=init_hand_with_red,
-        use_red_fives=_resolve_game_config(game_config).use_red_fives,
+        use_red_fives=jnp.bool_(_resolve_game_config(game_config).use_red_fives),
     )
     can_ron = v_can_win(state.players.hand, TILE_RANGE)
     c_p = state.current_player
@@ -549,7 +547,7 @@ def _init_for_next_round_from_prepared(
         ura_dora_indicators=ura_dora_indicators,
         hand=init_hand,
         hand_with_red=init_hand_with_red,
-        use_red_fives=_resolve_game_config(game_config).use_red_fives,
+        use_red_fives=jnp.bool_(_resolve_game_config(game_config).use_red_fives),
     )
     c_p = state.current_player
     new_tile = state.round_state.deck[state.round_state.next_deck_ix]

@@ -4,6 +4,7 @@ import jax
 import jax.numpy as jnp
 
 from mahjax.red_mahjong.action import Action
+from mahjax.red_mahjong.config import RED, GameConfig
 from mahjax.red_mahjong.constants import FIRST_DRAW_IDX
 from mahjax.red_mahjong.env import (
     _abortive_draw_normal,
@@ -18,14 +19,14 @@ from mahjax.red_mahjong.env import (
 )
 from mahjax.red_mahjong.hand import Hand
 from mahjax.red_mahjong.meld import Meld
-from mahjax.red_mahjong.state import GameConfig, default_game_config, default_state
+from mahjax.red_mahjong.state import default_state
 from mahjax.red_mahjong.tile import River, Tile
 from mahjax.red_mahjong.yaku import Yaku
 
 
 def test_public_state_layout_and_defaults_for_red_env() -> None:
     state = default_state()
-    config = default_game_config()
+    config = RED
 
     assert state.players.hand.shape == (4, 34)
     assert state.players.hand_with_red.shape == (4, 37)
@@ -337,7 +338,7 @@ def test_kyuushu_action_is_disabled_by_game_config() -> None:
         .add(1)
     )
     state = state.replace(players=state.players.replace(hand_with_red=hand_with_red))
-    config = GameConfig(enable_special_abortive_draw=jnp.bool_(False))
+    config = GameConfig(enable_special_abortive_draw=False)
 
     mask = _make_legal_action_mask_after_draw(
         state,
@@ -550,7 +551,7 @@ def test_double_ron_config_chains_ron_and_pass_resolution() -> None:
             score=jnp.array([250, 250, 250, 250], dtype=jnp.int32),
         ),
     )
-    config = GameConfig(allow_double_ron=jnp.bool_(True))
+    config = GameConfig(allow_double_ron=True)
 
     after_first_ron = _ron(ron_state, config)
 
@@ -597,7 +598,7 @@ def test_triple_ron_abandons_the_round_before_anything_is_paid() -> None:
             score=jnp.array([250, 250, 250, 250], dtype=jnp.int32),
         ),
     )
-    config = GameConfig(allow_double_ron=jnp.bool_(True))
+    config = GameConfig(allow_double_ron=True)
 
     after_first_ron = _ron(ron_state, config)
     after_second_ron = _ron(after_first_ron.replace(current_player=jnp.int8(1)), config)
@@ -636,7 +637,7 @@ def test_single_ron_when_double_ron_is_disabled() -> None:
             score=jnp.array([250, 250, 250, 250], dtype=jnp.int32),
         ),
     )
-    config = GameConfig(allow_double_ron=jnp.bool_(False))
+    config = GameConfig(allow_double_ron=False)
 
     after_ron = _ron(ron_state, config)
 
@@ -664,7 +665,7 @@ def test_pao_can_be_disabled_by_game_config() -> None:
             score=jnp.array([250, 250, 250, 250], dtype=jnp.int32),
         ),
     )
-    config = GameConfig(enable_pao=jnp.bool_(False))
+    config = GameConfig(enable_pao=False)
     basic = Yaku.score(jnp.int32(5), jnp.int32(30))
     ron_payment = jnp.ceil(basic * 4 / 100)
 

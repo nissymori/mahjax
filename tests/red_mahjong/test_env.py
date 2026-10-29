@@ -1250,7 +1250,7 @@ def test_red_added_kan_hides_whether_anyone_could_rob_it() -> None:
 def test_red_robbing_kan_on_a_red_five_keeps_the_red_dora() -> None:
     """A chankan must score and report the robbed five's redness."""
     from mahjax.red_mahjong.meld import Meld as RedMeld
-    from mahjax.red_mahjong.state import GameConfig as RedGameConfig  # noqa: F401
+    from mahjax.red_mahjong.config import GameConfig as RedGameConfig  # noqa: F401
 
     five_p, red_five_p = 13, Tile.RED_FIVE["p"]
 
@@ -1298,12 +1298,12 @@ def test_red_robbing_kan_on_a_red_five_keeps_the_red_dora() -> None:
 
 def test_red_kan_of_fives_scores_no_red_dora_without_red_fives() -> None:
     from mahjax.red_mahjong.meld import Meld as RedMeld
-    from mahjax.red_mahjong.state import GameConfig as RedGameConfig
+    from mahjax.red_mahjong.config import GameConfig as RedGameConfig
     from mahjax.red_mahjong.yaku import Yaku as RedYaku
 
     def fan_for(use_red_fives: bool) -> int:
         env = RedMahjong(
-            round_mode="half", game_config=RedGameConfig(use_red_fives=jnp.bool_(use_red_fives))
+            round_mode="half", game_config=RedGameConfig(use_red_fives=use_red_fives)
         )
         state = env.init(jax.random.PRNGKey(0))
         hand = jnp.zeros((37,), dtype=jnp.int8)
@@ -1325,11 +1325,11 @@ def test_red_kan_of_fives_scores_no_red_dora_without_red_fives() -> None:
 
 
 def test_red_use_red_fives_survives_round_transitions() -> None:
-    from mahjax.red_mahjong.state import GameConfig as RedGameConfig
+    from mahjax.red_mahjong.config import GameConfig as RedGameConfig
 
     env = RedMahjong(
         round_mode="half",
-        game_config=RedGameConfig(use_red_fives=jnp.bool_(False)),
+        game_config=RedGameConfig(use_red_fives=False),
         next_round_style="dummy_share",
     )
     step = jax.jit(env.step)

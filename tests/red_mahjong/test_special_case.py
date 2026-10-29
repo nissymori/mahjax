@@ -1,8 +1,9 @@
 import jax.numpy as jnp
 
 from mahjax.red_mahjong.action import Action
+from mahjax.red_mahjong.config import GameConfig
 from mahjax.red_mahjong.env import _next_meld_player
-from mahjax.red_mahjong.state import GameConfig, default_state
+from mahjax.red_mahjong.state import default_state
 
 
 def test_double_ron_priority_is_left_to_discarder() -> None:

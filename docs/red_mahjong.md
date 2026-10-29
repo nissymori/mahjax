@@ -11,13 +11,13 @@ env = mahjax.make("red_mahjong", observe_type="dict")
 or load the environment class directly:
 
 ```py
+from mahjax.red_mahjong.config import RED
 from mahjax.red_mahjong.env import RedMahjong
-from mahjax.red_mahjong.state import GameConfig
 
 env = RedMahjong(
     round_mode="half",
     observe_type="dict",
-    game_config=GameConfig(),
+    game_config=RED,
 )
 ```
 
@@ -42,7 +42,7 @@ The detailed external rule reference is:
 
 ### `GameConfig`
 
-The rule behavior is controlled through `GameConfig`. Advanced users can change settings such as red-fives usage, double ron, pao, and special abortive draws.
+The rule behavior is controlled through `GameConfig`, a frozen dataclass of Python bools. The env holds one config and compiles its functions for it, so a config cannot change inside a jitted or vmapped run.
 
 | Field | Default | Meaning |
 | :--- | :--- | :--- |
@@ -50,13 +50,8 @@ The rule behavior is controlled through `GameConfig`. Advanced users can change 
 | `allow_double_ron` | `True` | Allow two players to win simultaneously on the same discard. |
 | `enable_special_abortive_draw` | `True` | Enable 九種九牌 / 四風連打 / 四家立直 / 三家和 / 四開槓. |
 | `enable_pao` | `True` | Enable 包 (responsibility payment) for 大三元 / 大四喜. |
-| `allow_open_tanyao` | `True` | Allow tanyao with open melds (`喰いタン`). |
-| `allow_kuikae` | `False` | Allow swap-calling (`喰い替え`). |
-| `seed_wall_from_key` | `True` | Use the env's PRNG key to shuffle the wall. |
-| `starting_points` | `25000` | Starting score, in points. |
-| `target_points` | `30000` | Target score for ending sudden death overtime, in points. |
-| `honba_bonus` | `300` | Honba bonus payment. |
-| `riichi_bet` | `1000` | Riichi stick value. |
+
+Two presets are provided: `RED` (the default) turns every rule above on, and `NO_RED` turns them all off. Other combinations are built field by field, e.g. `GameConfig(enable_pao=False)`, and `dataclasses.asdict(env.game_config)` records the rules of a run.
 
 ## State
 

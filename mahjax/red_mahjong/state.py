@@ -4,7 +4,6 @@ import jax.numpy as jnp
 
 from .constants import (
     COPIES_PER_TILE,
-    HONBA_BONUS,
     LEGAL_ACTION_SIZE,
     MAX_DISCARDS_PER_PLAYER,
     MAX_DORA_INDICATORS,
@@ -14,12 +13,9 @@ from .constants import (
     NUM_PLAYERS,
     NUM_TILE_TYPES,
     NUM_TILE_TYPES_WITH_RED,
-    RIICHI_BET,
     SENTINEL_DISCARD_VALUE,
     SENTINEL_MELD_VALUE,
     SENTINEL_TILE_ID,
-    STARTING_POINTS,
-    TARGET_POINTS,
 )
 from .meld import EMPTY_MELD
 from .struct import dataclass
@@ -28,25 +24,6 @@ from .tile import EMPTY_RIVER
 
 FALSE = jnp.bool_(False)
 TRUE = jnp.bool_(True)
-
-
-@dataclass
-class GameConfig:
-    allow_open_tanyao: jnp.bool_ = TRUE
-    allow_kuikae: jnp.bool_ = FALSE
-    use_red_fives: jnp.bool_ = TRUE
-    allow_double_ron: jnp.bool_ = TRUE
-    enable_special_abortive_draw: jnp.bool_ = TRUE
-    enable_pao: jnp.bool_ = TRUE
-    seed_wall_from_key: jnp.bool_ = TRUE
-    starting_points: jnp.int32 = jnp.int32(STARTING_POINTS)
-    target_points: jnp.int32 = jnp.int32(TARGET_POINTS)
-    honba_bonus: jnp.int32 = jnp.int32(HONBA_BONUS)
-    riichi_bet: jnp.int32 = jnp.int32(RIICHI_BET)
-
-
-def default_game_config() -> GameConfig:
-    return GameConfig()
 
 
 @dataclass
