@@ -198,6 +198,32 @@ def test_thirteen_orphans_waiting_on_all_thirteen_is_completed_thirteen_orphans(
                 assert int(fu) == 0
 
 
+def test_nine_gates_waiting_on_all_nine_is_pure_nine_gates() -> None:
+    """1112345678999 of one suit waits on all nine; winning it is PureNineGates
+    instead of NineGates, and still one yakuman."""
+    shape = (0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 8, 8)  # 1112345678999m
+    base = default_state()
+    for tiles, winning_tile, nine_sided in (
+        (shape, 4, True),  # wins on 5m
+        (shape, 0, True),  # wins on 1m, the fourth one
+        ((0, 0, 0, 1, 2, 3, 4, 4, 5, 6, 7, 8, 8), 8, False),  # 1112345567899m wins on 9m
+    ):
+        hand = jnp.zeros((34,), dtype=jnp.int8)
+        for tile in tiles:
+            hand = hand.at[tile].add(1)
+        state = base.replace(  # by ron or by tsumo
+            round_state=base.round_state.replace(target=jnp.int8(winning_tile), last_draw=jnp.int8(winning_tile))
+        )
+        for judge in (Yaku.judge, Yaku.judge_yakuman):
+            for is_ron in (True, False):
+                yaku, fan, fu = judge(hand, jnp.bool_(is_ron), jnp.int8(1), state)
+
+                assert bool(yaku[Yaku.PureNineGates]) == nine_sided
+                assert bool(yaku[Yaku.NineGates]) != nine_sided
+                assert int(fan) == 1
+                assert int(fu) == 0
+
+
 def test_pinfu_is_rejected_when_closed_kan_exists() -> None:
     hand = jnp.zeros((34,), dtype=jnp.int8)
     for tile in (3, 4, 5, 11, 12, 13, 22, 23, 24, 15):
