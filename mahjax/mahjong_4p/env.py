@@ -27,8 +27,7 @@ from .logic import (
     _init,
     _replace_state,
     _resolve_game_config,
-    _step_auto,
-    _step_dummy_share,
+    _step,
     verify_step,
 )
 from .observation import _observe_2D, _observe_dict, _observe_privileged_2D, _observe_privileged_dict
@@ -66,7 +65,6 @@ class Mahjong4p(Env):
         self.order_points = order_points
         self.game_config = _resolve_game_config(game_config)
         self.round_end = round_end
-        self._step_fn = _step_auto if round_end == "auto" else _step_dummy_share
 
     def init(self, key: PRNGKey) -> State:
         """Return the initial state. Note that no internal state of
@@ -110,7 +108,7 @@ class Mahjong4p(Env):
 
 
         stepped_state = _replace_state(
-            self._step_fn(state, action, key, self.game_config),
+            _step(state, action, key, self.game_config, self.round_end),
             step_count=state.step_count + 1,
         )
         state = jax.lax.cond(

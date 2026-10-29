@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-from typing import Optional, Tuple
+from typing import Literal, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -181,10 +181,6 @@ def _set_tile_type_action(mask: Array, tile_type: Array, value: Array) -> Array:
     )
 
 
-def _has_red_discard_action(mask: Array) -> Array:
-    return mask[Action.PON] | mask[Action.PON_RED]
-
-
 def _set_player_hand(state: State, player: Array, hand_with_red_row: Array) -> State:
     hand_with_red = state.players.hand_with_red.at[player].set(hand_with_red_row)
     hand = state.players.hand.at[player].set(Hand.to_34(hand_with_red_row))
@@ -269,63 +265,14 @@ def _init(rng: PRNGKey, game_config: Optional[GameConfig] = None) -> State:
     not a deterministic function of the wall.
     """
     dealer_key, wall_key = jax.random.split(rng)
-    current_player = jnp.int8(jax.random.randint(dealer_key, (), 0, 4))
-    last_player = jnp.int8(-1)
-    deck = Tile.from_tile_id_to_tile(jax.random.permutation(wall_key, jnp.arange(136))).astype(jnp.int8)
-    deck = _apply_red_five_config(deck, game_config)
-    init_hand_with_red = Hand.make_init_hand(deck)
-    init_hand = jax.vmap(Hand.to_34)(init_hand_with_red)
-    dora_indicators = jnp.array([deck[9], -1, -1, -1, -1], dtype=jnp.int8)
-    ura_dora_indicators = jnp.array([deck[8], -1, -1, -1, -1], dtype=jnp.int8)
+    dealer = jnp.int8(jax.random.randint(dealer_key, (), 0, 4))
     state = _make_state(
-        current_player=current_player,
-        dealer=current_player,
-        init_wind=_calc_wind(current_player),
-        seat_wind=_calc_wind(current_player),
-        last_player=last_player,
-        deck=deck,
-        dora_indicators=dora_indicators,
-        ura_dora_indicators=ura_dora_indicators,
-        hand=init_hand,
-        hand_with_red=init_hand_with_red,
-        use_red_fives=jnp.bool_(_resolve_game_config(game_config).use_red_fives),
+        current_player=dealer,
+        dealer=dealer,
+        init_wind=_calc_wind(dealer),
+        seat_wind=_calc_wind(dealer),
     )
-    can_ron = v_can_win(state.players.hand, TILE_RANGE)
-    c_p = state.current_player
-    new_tile = state.round_state.deck[state.round_state.next_deck_ix]
-    new_tile_type = Tile.to_tile_type(new_tile)
-    next_deck_ix = state.round_state.next_deck_ix - 1
-    eval_state = _replace_state(state, last_draw=new_tile)
-    # The full judge: ``judge_yakuman`` has no meld decomposition and counts every
-    # three of a kind as a concealed pon. ``_tsumo`` adds the Blessing of Heaven
-    # to the cached yakuman count (fu stays 0, as before) and pays it alone otherwise.
-    _, fan, fu = Yaku.judge(
-        state.players.hand_with_red[c_p],
-        FALSE,
-        c_p,
-        eval_state,
-    )
-    hand = state.players.hand.at[c_p].set(Hand.add(state.players.hand[c_p], new_tile))
-    hand_with_red = state.players.hand_with_red.at[c_p].set(Hand.add(state.players.hand_with_red[c_p], new_tile))
-    # The mask reads ``can_win``, which is only written below.
-    legal_action_mask_c_p = _mask_after_draw(
-        _replace_state(state, can_win=can_ron), hand_with_red, c_p, new_tile, game_config
-    )
-    legal_action_mask_4p = ZERO_MASK_2D.at[c_p, :].set(legal_action_mask_c_p)
-    state = _replace_state(
-        state,
-        has_yaku=state.players.has_yaku.at[c_p, 0].set(can_ron[c_p, new_tile_type]),
-        fan=state.players.fan.at[c_p, 0].set(jnp.where(fu == 0, fan, 0)),
-        fu=state.players.fu.at[c_p, 0].set(jnp.int32(0)),
-        can_win=can_ron,
-        legal_action_mask=legal_action_mask_4p,
-        next_deck_ix=next_deck_ix,
-        hand=hand,
-        hand_with_red=hand_with_red,
-        last_draw=new_tile,
-        target=jnp.int8(-1),
-    )
-    return state
+    return _init_for_next_round(wall_key, state, game_config)
 
 
 def _init_for_next_round(
@@ -471,44 +418,33 @@ def _write_action_history(state: State, player: Array, action_i32: Array, is_rec
     )
 
 
-def _step_dummy_share(
-    state: State, action: Array, key: PRNGKey, game_config: Optional[GameConfig] = None
+def _step(
+    state: State,
+    action: Array,
+    key: PRNGKey,
+    game_config: Optional[GameConfig] = None,
+    round_end: Literal["auto", "confirm"] = "auto",
 ) -> State:
-    """Step used by ``round_end='confirm'``.
+    """Play ``action`` and advance to the next decision.
 
-    Dispatch table includes the dummy-rotation ``_next_round`` branch (selected
-    when ``action == DUMMY``) so that callers can drive the four-DUMMY share
-    phase explicitly. Heavier than ``_step_auto`` because both
-    ``_special_next_round`` and ``_next_round`` are pre-computed every step.
+    ``round_end`` is the env's. Under ``"confirm"`` every seat plays DUMMY to end a
+    round, so the dispatch table has the ``_next_round`` branch. Under ``"auto"``
+    ``Mahjong4p.step`` deals the next round itself and DUMMY is never legal, so
+    that branch is left out.
     """
     state = _append_action_history(state, action)
-    state = _dispatch_action_dummy_share(state, action, key, game_config)
+    state = _apply_action(state, action, key, game_config, round_end)
     return _advance_to_next_decision(state, game_config)
 
 
-def _step_auto(
-    state: State, action: Array, key: PRNGKey, game_config: Optional[GameConfig] = None
+def _apply_action(
+    state: State,
+    action: Array,
+    key: PRNGKey,
+    game_config: Optional[GameConfig] = None,
+    round_end: Literal["auto", "confirm"] = "auto",
 ) -> State:
-    """Step used by ``round_end='auto'`` (RL default).
-
-    Skips the dummy-rotation ``_next_round`` branch entirely — under ``auto``
-    the auto-advance in ``Mahjong4p.step`` is responsible for round
-    transitions, and ``DUMMY`` is never a legal action. The dispatch table
-    still keeps the ``_special_next_round`` branch for ``KYUUSHU``.
-    """
-    state = _append_action_history(state, action)
-    state = _dispatch_action_auto(state, action, key, game_config)
-    return _advance_to_next_decision(state, game_config)
-
-
-# Back-compat alias for internal tests that import ``_step`` directly. They
-# exercise the dummy-rotation flow, which is exactly ``_step_dummy_share``.
-_step = _step_dummy_share
-
-
-def _dispatch_action_dummy_share(
-    state: State, action: Array, key: PRNGKey, game_config: Optional[GameConfig] = None
-) -> State:
+    """Compute the state after each kind of action, then pick ``action``'s."""
     discard_state = _discard(state, action, game_config)
     kan_state = _kan(state, action, game_config)
     riichi_state = _riichi(state)
@@ -524,12 +460,15 @@ def _dispatch_action_dummy_share(
         game_config,
         prepared_next_round=prepared_next_round,
     )
-    next_round_state = _next_round(
-        state,
-        key,
-        game_config,
-        prepared_next_round=prepared_next_round,
-    )
+    if round_end == "confirm":
+        next_round_state = _next_round(
+            state,
+            key,
+            game_config,
+            prepared_next_round=prepared_next_round,
+        )
+    else:
+        next_round_state = state  # DUMMY: no-op; illegal under ``auto``, env.step catches it.
     fn_idx = ACTION_KIND[action]
     return jax.lax.switch(
         fn_idx,
@@ -548,42 +487,7 @@ def _dispatch_action_dummy_share(
     )
 
 
-def _dispatch_action_auto(
-    state: State, action: Array, key: PRNGKey, game_config: Optional[GameConfig] = None
-) -> State:
-    """Dispatch table for ``auto`` round_end. Drops the ``_next_round``
-    (dummy rotation) computation — its slot is a no-op since ``DUMMY`` is
-    never a legal action under ``auto`` (any erroneous DUMMY is caught by
-    ``env.step``'s ``is_illegal`` check).
-    """
-    discard_state = _discard(state, action, game_config)
-    kan_state = _kan(state, action, game_config)
-    riichi_state = _riichi(state)
-    ron_state = _ron(state, game_config)
-    tsumo_state = _tsumo(state, game_config)
-    pon_state = _pon(state, action)
-    chi_state = _chi(state, action)
-    pass_state = _pass(state, game_config)
-    special_next_round_state = _special_next_round(state, key, game_config)
-    fn_idx = ACTION_KIND[action]
-    return jax.lax.switch(
-        fn_idx,
-        [
-            lambda: discard_state,
-            lambda: kan_state,
-            lambda: riichi_state,
-            lambda: ron_state,
-            lambda: tsumo_state,
-            lambda: pon_state,
-            lambda: chi_state,
-            lambda: pass_state,
-            lambda: special_next_round_state,
-            lambda: state,  # DUMMY: no-op; illegal under ``auto``, env.step catches it.
-        ],
-    )
-
-
-def _dispatch_action_lazy(
+def _apply_action_lazily(
     state: State, action: Array, key: PRNGKey, game_config: Optional[GameConfig] = None
 ) -> State:
     """Lazy dispatcher used by :func:`verify_step` only. Avoids the eager
@@ -610,11 +514,11 @@ def _dispatch_action_lazy(
     )
 
 
-def _step_verify_lazy(
+def _step_lazily(
     state: State, action: Array, key: PRNGKey, game_config: Optional[GameConfig] = None
 ) -> State:
     state = _append_action_history(state, action)
-    state = _dispatch_action_lazy(state, action, key, game_config)
+    state = _apply_action_lazily(state, action, key, game_config)
     return _advance_to_next_decision(state, game_config)
 
 
@@ -638,7 +542,7 @@ def verify_step(
     """
     is_illegal = ~state.legal_action_mask[action]
     stepped_state = _replace_state(
-        _step_verify_lazy(state, action, key, game_config),
+        _step_lazily(state, action, key, game_config),
         step_count=state.step_count + 1,
     )
     state = jax.lax.cond(
@@ -2030,22 +1934,12 @@ def _special_next_round(
     *,
     prepared_next_round: Optional[Tuple[Array, Array, Array, Array, Array, Array]] = None,
 ) -> State:
+    """After a special abortive draw the dealer deals again, with one more honba."""
     if prepared_next_round is None:
         prepared_next_round = _prepare_next_round_assets(key, game_config)
-    dealer = state.round_state.dealer
-    base_next = _make_state(
-        current_player=dealer,
-        dealer=dealer,
-        init_wind=state.round_state.init_wind,
-        seat_wind=state.round_state.seat_wind,
-        round=state.round_state.round,
-        round_limit=state.round_state.round_limit,
-        honba=state.round_state.honba + 1,
-        kyotaku=state.round_state.kyotaku,
-        score=state.round_state.score,
-        order_points=state.round_state.order_points,
+    return _init_for_next_round_from_prepared(
+        _carry_over(state, will_dealer_continue=TRUE), prepared_next_round, game_config
     )
-    return _init_for_next_round_from_prepared(base_next, prepared_next_round, game_config)
 
 
 def _pao(state: State, winner: Array) -> Tuple[Array, Array]:
@@ -2130,6 +2024,45 @@ def _is_game_end(round_state, will_dealer_continue: Array) -> Array:
     )
 
 
+def _will_dealer_continue(state: State) -> Array:
+    """Whether the dealer deals the next round too: they won, or nobody won and they are tenpai."""
+    hora = state.players.has_won  # (4,)
+    is_tempai = state.players.can_win.any(axis=-1)  # (4,)
+    dealer = state.round_state.dealer
+    has_other_than_dealer_won = hora.any() & ~hora[dealer]
+    return jnp.logical_or(is_tempai[dealer] & ~has_other_than_dealer_won, hora[dealer])
+
+
+def _carry_over(state: State, will_dealer_continue: Array) -> State:
+    """The state the next round is dealt into.
+
+    If ``will_dealer_continue``, the dealer and the round stay; otherwise the deal
+    passes to the next seat. The honba goes up when nobody won or the dealer
+    continues, and resets otherwise. The round limit, the starting winds, the uma,
+    the scores and the riichi sticks carry over.
+    """
+    dealer = state.round_state.dealer
+    next_dealer = jnp.where(will_dealer_continue, dealer, (dealer + 1) % 4)
+    has_winner = state.players.has_won.any()
+    return _make_state(
+        current_player=next_dealer,  # Start from the dealer
+        dealer=next_dealer,
+        seat_wind=_calc_wind(next_dealer),
+        round=jnp.where(will_dealer_continue, state.round_state.round, state.round_state.round + 1),
+        # _make_state starts from default_state(), so ANY field not passed here
+        # silently reverts to the dataclass default -- round_limit would drop to 7
+        # regardless of the 4 ('east') or 8 the env configured, so the game would
+        # run past its intended end and the observation would report the wrong
+        # round_limit from the second kyoku onward.
+        round_limit=state.round_state.round_limit,
+        init_wind=state.round_state.init_wind,
+        order_points=state.round_state.order_points,
+        honba=jnp.where(~has_winner | will_dealer_continue, state.round_state.honba + 1, 0),
+        kyotaku=state.round_state.kyotaku,
+        score=state.round_state.score,
+    )
+
+
 def _next_round(
     state: State,
     key: PRNGKey,
@@ -2151,13 +2084,7 @@ def _next_round(
 
     # ---- During the DUMMY sharing phase, only rotate ----
     def _rotate_once(s: State):
-        is_tempai = s.players.can_win.any(axis=-1)  # (4,)
-        dealer = s.round_state.dealer
-        hora = s.players.has_won  # (4,)
-        has_other_than_dealer_won = hora.any() & ~hora[dealer]
-        will_dealer_continue = jnp.logical_or(
-            is_tempai[dealer] & ~has_other_than_dealer_won, hora[dealer]
-        )
+        will_dealer_continue = _will_dealer_continue(s)
         final_score = _final_score(s.round_state)
 
         game_end = _is_game_end(s.round_state, will_dealer_continue)
@@ -2179,41 +2106,9 @@ def _next_round(
 
     # ---- After the DUMMY sharing phase (=3), determine the next round or end the game ----
     def _finalize_and_start_next(s: State):
-        hora = s.players.has_won  # (4,)
-        is_tempai = s.players.can_win.any(axis=-1)  # (4,)
-        dealer = s.round_state.dealer
-        has_other_than_dealer_won = hora.any() & ~hora[dealer]
-        will_dealer_continue = jnp.logical_or(
-            is_tempai[dealer] & ~has_other_than_dealer_won, hora[dealer]
-        )
-        next_round = jnp.where(will_dealer_continue, s.round_state.round, s.round_state.round + 1)
-        has_winner = hora.any()
-        next_honba = jnp.where(
-            ~has_winner | will_dealer_continue, s.round_state.honba + 1, 0
-        )  # if there is no winner or the dealer continues, the honba is incremented
-        next_dealer = jnp.where(
-            will_dealer_continue, dealer, (dealer + 1) % 4
-        )  # if the dealer continues, the dealer is kept, otherwise the dealer is incremented
-
-        # ★ Initialize only at this timing
-        base_next = _make_state(  # type: ignore
-            current_player=next_dealer,  # Start from the dealer
-            dealer=next_dealer,
-            seat_wind=_calc_wind(next_dealer),
-            round=next_round,
-            # _make_state starts from default_state(), so ANY field not passed here
-            # silently reverts to the dataclass default -- round_limit would drop to 7
-            # regardless of the 4 ('east') or 8 the env configured, so the game would
-            # run past its intended end and the observation would report the wrong
-            # round_limit from the second kyoku onward.
-            round_limit=s.round_state.round_limit,
-            init_wind=s.round_state.init_wind,
-            honba=next_honba,
-            kyotaku=s.round_state.kyotaku,
-            score=s.round_state.score,
-        )
+        will_dealer_continue = _will_dealer_continue(s)
         next_round_state = _init_for_next_round_from_prepared(
-            base_next,
+            _carry_over(s, will_dealer_continue),
             prepared_next_round,
             game_config,
         )
@@ -2260,40 +2155,14 @@ def _start_next_round_or_end_game(
     ``single`` mode. Branches into game-end (terminated=True with final score) or
     next-round init state (rewards from the round-end step are preserved).
     """
-    hora = state.players.has_won  # (4,)
-    is_tempai = state.players.can_win.any(axis=-1)  # (4,)
-    dealer = state.round_state.dealer
-
     final_score = _final_score(state.round_state)
-
-    has_other_than_dealer_won = hora.any() & ~hora[dealer]
-    will_dealer_continue = jnp.logical_or(
-        is_tempai[dealer] & ~has_other_than_dealer_won, hora[dealer]
-    )
-
+    will_dealer_continue = _will_dealer_continue(state)
     game_end = _is_game_end(state.round_state, will_dealer_continue)
 
-    next_round = jnp.where(will_dealer_continue, state.round_state.round, state.round_state.round + 1)
-    has_winner = hora.any()
-    next_honba = jnp.where(
-        ~has_winner | will_dealer_continue, state.round_state.honba + 1, 0
-    )
-    next_dealer = jnp.where(will_dealer_continue, dealer, (dealer + 1) % 4)
-
     prepared = _prepare_next_round_assets(key, game_config)
-    base_next = _make_state(
-        current_player=next_dealer,
-        dealer=next_dealer,
-        seat_wind=_calc_wind(next_dealer),
-        round=next_round,
-        round_limit=state.round_state.round_limit,
-        init_wind=state.round_state.init_wind,
-        order_points=state.round_state.order_points,
-        honba=next_honba,
-        kyotaku=state.round_state.kyotaku,
-        score=state.round_state.score,
+    next_round_state = _init_for_next_round_from_prepared(
+        _carry_over(state, will_dealer_continue), prepared, game_config
     )
-    next_round_state = _init_for_next_round_from_prepared(base_next, prepared, game_config)
     next_round_state = _replace_state(next_round_state,
         current_player=jnp.int8(next_round_state.round_state.dealer),
         rewards=state.rewards,
