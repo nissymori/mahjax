@@ -6,12 +6,12 @@ import jax.numpy as jnp
 from mahjax.red_mahjong.action import Action
 from mahjax.red_mahjong.config import GameConfig
 from mahjax.red_mahjong.constants import FIRST_DRAW_IDX
-from mahjax.red_mahjong.env import RedMahjong, _abortive_draw_normal, _draw, _init, _make_legal_action_mask_after_draw, _replace_state, _ron, _special_next_round, _step
+from mahjax.red_mahjong.env import _abortive_draw_normal, _draw, _init, _make_legal_action_mask_after_draw, _replace_state, _ron, _special_next_round, _step
 from mahjax.red_mahjong.hand import Hand
 from mahjax.red_mahjong.state import default_state
 from mahjax.red_mahjong.tile import River, Tile
 
-from ..helpers import STEP_KEY
+from ..helpers import STEP_KEY, compiled_env
 
 
 def test_kyuushu_action_is_enabled_on_first_turn() -> None:
@@ -172,7 +172,7 @@ def test_red_a_wait_only_on_a_fifth_copy_is_noten_at_an_exhaustive_draw() -> Non
     north = 30
     noten = counts([0, 2, 4, 9, 11, 13, 15, 17, 18, 20, 22, 24, 26])  # 135m 13579p 13579s
     dealer_hand = counts([5, 5, 6, 6, 6, 6, 8, 8, 27, 27, 27, 33, 33, north])  # 66 7777 99m EEE CC + N
-    env = RedMahjong(round_mode="half")
+    env = compiled_env(round_mode="half")
     state = env.init(jax.random.PRNGKey(0))
     dealer = int(state.round_state.dealer)
     hands = jnp.stack([dealer_hand if p == dealer else noten for p in range(4)])

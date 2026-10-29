@@ -4,13 +4,13 @@ import jax
 import jax.numpy as jnp
 
 from mahjax.red_mahjong.action import Action
-from mahjax.red_mahjong.env import RedMahjong, _draw_after_kan, _init, _kan, _replace_state, _step
+from mahjax.red_mahjong.env import _draw_after_kan, _init, _kan, _replace_state, _step
 from mahjax.red_mahjong.hand import Hand
 from mahjax.red_mahjong.meld import Meld
 from mahjax.red_mahjong.state import default_state
 from mahjax.red_mahjong.tile import Tile
 
-from ..helpers import STEP_KEY, _post_ankan_state
+from ..helpers import STEP_KEY, _post_ankan_state, compiled_env
 
 
 def test_draw_after_kan_advances_only_the_dead_wall_boundary():
@@ -321,7 +321,7 @@ def test_robbing_kan_ron_finalizes_to_dummy_share_mask() -> None:
         dora_indicators=jnp.array([tile_ids["5s"], -1, -1, -1, -1], dtype=jnp.int8),
     )
 
-    env = RedMahjong(round_mode="half", next_round_style="dummy_share")
+    env = compiled_env(round_mode="half", next_round_style="dummy_share")
     kan_state = _kan(state, jnp.int32(action))
     ron_state = env.step(kan_state, jnp.int32(Action.RON), STEP_KEY)
 
@@ -375,7 +375,7 @@ def test_robbing_kan_second_candidate_pass_after_ron_does_not_draw_after_kan() -
         dora_indicators=jnp.array([tile_ids["5s"], -1, -1, -1, -1], dtype=jnp.int8),
     )
 
-    env = RedMahjong(round_mode="half", next_round_style="dummy_share")
+    env = compiled_env(round_mode="half", next_round_style="dummy_share")
     kan_state = _kan(state, jnp.int32(action))
     first_ron_state = env.step(kan_state, jnp.int32(Action.RON), STEP_KEY)
     pass_state = env.step(first_ron_state, jnp.int32(Action.PASS), STEP_KEY)

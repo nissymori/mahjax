@@ -4,11 +4,13 @@ import jax
 import jax.numpy as jnp
 
 from mahjax.red_mahjong.action import Action
-from mahjax.red_mahjong.env import RedMahjong
+
 from mahjax.red_mahjong.meld import Meld
 from mahjax.red_mahjong.state import default_state
 from mahjax.red_mahjong.tile import Tile
 from mahjax.red_mahjong.yaku import Yaku
+
+from ..helpers import compiled_env
 
 
 def test_yaku_red_dora_adds_one_fan_without_changing_fu() -> None:
@@ -225,7 +227,7 @@ def test_red_kan_of_fives_scores_no_red_dora_without_red_fives() -> None:
     from mahjax.red_mahjong.yaku import Yaku as RedYaku
 
     def fan_for(use_red_fives: bool) -> int:
-        env = RedMahjong(
+        env = compiled_env(
             round_mode="half", game_config=RedGameConfig(use_red_fives=use_red_fives)
         )
         state = env.init(jax.random.PRNGKey(0))

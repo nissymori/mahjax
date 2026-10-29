@@ -1,12 +1,12 @@
 import jax.numpy as jnp
 
 from mahjax.red_mahjong.action import Action
-from mahjax.red_mahjong.env import RedMahjong, _claims_open_to, _finalize_step_state, _mask_for_chi, _next_meld_player, _next_ron_player, _replace_state
+from mahjax.red_mahjong.env import _claims_open_to, _finalize_step_state, _mask_for_chi, _next_meld_player, _next_ron_player, _replace_state
 from mahjax.red_mahjong.hand import Hand
 from mahjax.red_mahjong.state import default_state
 from mahjax.red_mahjong.tile import Tile
 
-from ..helpers import STEP_KEY
+from ..helpers import STEP_KEY, compiled_env
 
 
 def test_mask_for_chi_forbids_forced_kuikae() -> None:
@@ -93,7 +93,7 @@ def test_claims_open_to_holds_a_call_while_another_player_claims_higher() -> Non
 
 def test_red_a_lower_call_waits_until_every_higher_claim_is_passed() -> None:
     """P0 has just discarded; each prompt is (player, offered calls) while everyone passes."""
-    env = RedMahjong(round_mode="single", next_round_style="auto")
+    env = compiled_env(round_mode="single", next_round_style="auto")
     scenarios = [
         # Nothing conflicts: RON is still answered before the PON.
         ({1: [Action.RON, Action.PON]}, [(1, {Action.RON}), (1, {Action.PON})]),

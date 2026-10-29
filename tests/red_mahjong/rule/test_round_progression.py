@@ -5,7 +5,7 @@ from mahjax.red_mahjong.action import Action
 from mahjax.red_mahjong.env import RedMahjong, _advance_to_next_round_auto, _replace_state
 from mahjax.red_mahjong.state import default_state
 
-from ..helpers import STEP_KEY
+from ..helpers import STEP_KEY, compiled_env
 
 
 # ----------------- next_round_style tests -----------------
@@ -19,7 +19,7 @@ def _ron_legal_mask(ron_player: int = 0):
 
 
 def test_red_auto_single_mode_terminates_like_legacy() -> None:
-    env_auto = RedMahjong(round_mode="single", next_round_style="auto")
+    env_auto = compiled_env(round_mode="single", next_round_style="auto")
     state = env_auto.init(jax.random.PRNGKey(11))
     state = _replace_state(
         state,
@@ -52,8 +52,8 @@ def test_red_auto_matches_dummy_share_at_mid_game_round_transition() -> None:
     - ``rewards`` (auto preserves the round-end vector from the RON step;
       dummy_share resets it to zero in the ``_make_state``-based init).
     """
-    env_auto = RedMahjong(round_mode="half", next_round_style="auto")
-    env_share = RedMahjong(round_mode="half", next_round_style="dummy_share")
+    env_auto = compiled_env(round_mode="half", next_round_style="auto")
+    env_share = compiled_env(round_mode="half", next_round_style="dummy_share")
     key = jax.random.PRNGKey(2026)
 
     state_auto = env_auto.step(_force_ron_state(env_auto, key), jnp.int32(Action.RON), STEP_KEY)
@@ -99,8 +99,8 @@ def test_red_auto_matches_dummy_share_at_game_end() -> None:
     Compare the two terminal states: same ``terminated``, same final ``score``
     (the expected one, uma included), same ``rewards``.
     """
-    env_auto = RedMahjong(round_mode="half", next_round_style="auto", order_points=[300, 100, -100, -300])
-    env_share = RedMahjong(round_mode="half", next_round_style="dummy_share", order_points=[300, 100, -100, -300])
+    env_auto = compiled_env(round_mode="half", next_round_style="auto", order_points=[300, 100, -100, -300])
+    env_share = compiled_env(round_mode="half", next_round_style="dummy_share", order_points=[300, 100, -100, -300])
     key = jax.random.PRNGKey(2026)
     forced = dict(
         dealer=jnp.int8(0),
@@ -178,7 +178,7 @@ def test_red_half_game_is_eight_kyoku_long() -> None:
 
 
 def test_red_final_round_ends_the_game_once_someone_has_30000() -> None:
-    env = RedMahjong(round_mode="half", next_round_style="auto")
+    env = compiled_env(round_mode="half", next_round_style="auto")
     state = _end_of_round_state(env, score=jnp.array([300, 250, 240, 210], dtype=jnp.int32))
 
     out = _advance_to_next_round_auto(state, jax.random.PRNGKey(0))
@@ -187,7 +187,7 @@ def test_red_final_round_ends_the_game_once_someone_has_30000() -> None:
 
 
 def test_red_final_round_runs_on_when_nobody_has_30000() -> None:
-    env = RedMahjong(round_mode="half", next_round_style="auto")
+    env = compiled_env(round_mode="half", next_round_style="auto")
     state = _end_of_round_state(env, score=jnp.array([280, 250, 240, 230], dtype=jnp.int32))
 
     out = _advance_to_next_round_auto(state, jax.random.PRNGKey(0))
@@ -197,7 +197,7 @@ def test_red_final_round_runs_on_when_nobody_has_30000() -> None:
 
 
 def test_red_sudden_death_ends_at_the_last_extra_round() -> None:
-    env = RedMahjong(round_mode="half", next_round_style="auto")
+    env = compiled_env(round_mode="half", next_round_style="auto")
     state = _end_of_round_state(
         env, round=jnp.int8(11), score=jnp.array([280, 250, 240, 230], dtype=jnp.int32)
     )
@@ -208,7 +208,7 @@ def test_red_sudden_death_ends_at_the_last_extra_round() -> None:
 
 
 def test_red_sudden_death_runs_for_exactly_four_extra_rounds() -> None:
-    env = RedMahjong(round_mode="half", next_round_style="auto")
+    env = compiled_env(round_mode="half", next_round_style="auto")
     below = jnp.array([280, 250, 240, 230], dtype=jnp.int32)
     terminated = [
         bool(
@@ -224,7 +224,7 @@ def test_red_sudden_death_runs_for_exactly_four_extra_rounds() -> None:
 
 def test_red_last_extra_round_continues_when_the_dealer_keeps_the_deal() -> None:
     """West-4 is the last round, but a dealer's renchan still comes first."""
-    env = RedMahjong(round_mode="half", next_round_style="auto")
+    env = compiled_env(round_mode="half", next_round_style="auto")
     state = _end_of_round_state(
         env,
         round=jnp.int8(11),
@@ -242,7 +242,7 @@ def test_red_last_extra_round_continues_when_the_dealer_keeps_the_deal() -> None
 
 def test_red_the_dealer_keeps_the_deal_at_eight_honba() -> None:
     """There is no renchan limit: a dealer win or a tenpai draw keeps the deal however many honba are up."""
-    env = RedMahjong(round_mode="half", next_round_style="auto")
+    env = compiled_env(round_mode="half", next_round_style="auto")
     dealer_won = dict(has_won=jnp.zeros(4, dtype=jnp.bool_).at[0].set(True))
     dealer_tenpai = dict(can_win=jnp.zeros_like(env.init(jax.random.PRNGKey(7)).players.can_win).at[0, 0].set(True))
     for renchan in (dealer_won, dealer_tenpai):
@@ -260,7 +260,7 @@ def test_red_the_dealer_keeps_the_deal_at_eight_honba() -> None:
 def test_red_a_dealer_win_in_second_place_does_not_end_south_four_at_eight_honba() -> None:
     """P1 is past 30000, but the dealer is not top, so the dealer's win is a renchan and the game goes on."""
     for style in ("auto", "dummy_share"):
-        env = RedMahjong(round_mode="half", next_round_style=style)
+        env = compiled_env(round_mode="half", next_round_style=style)
         state = _end_of_round_state(
             env,
             honba=jnp.int8(8),
@@ -271,7 +271,7 @@ def test_red_a_dealer_win_in_second_place_does_not_end_south_four_at_eight_honba
         if style == "auto":
             out = _advance_to_next_round_auto(state, jax.random.PRNGKey(0))
         else:
-            step = jax.jit(env.step)
+            step = env.step
             out = state
             for _ in range(4):  # the DUMMY share phase
                 out = step(out, jnp.int32(Action.DUMMY), STEP_KEY)
@@ -285,7 +285,7 @@ def test_red_a_dealer_win_in_second_place_does_not_end_south_four_at_eight_honba
 def test_red_honba_does_not_wrap_after_127() -> None:
     """With no renchan limit honba can keep growing, and a renchan at 127 honba makes 128, not -128."""
     for style in ("auto", "dummy_share"):
-        env = RedMahjong(round_mode="half", next_round_style=style)
+        env = compiled_env(round_mode="half", next_round_style=style)
         state = _end_of_round_state(
             env,
             round=jnp.int8(0),
@@ -298,7 +298,7 @@ def test_red_honba_does_not_wrap_after_127() -> None:
         if style == "auto":
             out = _advance_to_next_round_auto(state, jax.random.PRNGKey(0))
         else:
-            step = jax.jit(env.step)
+            step = env.step
             out = state
             for _ in range(4):  # the DUMMY share phase
                 out = step(out, jnp.int32(Action.DUMMY), STEP_KEY)
@@ -328,7 +328,7 @@ def test_red_forty_three_honba_do_not_wrap_negative() -> None:
 
 
 def test_red_uma_is_added_to_the_final_score() -> None:
-    env = RedMahjong(round_mode="half", next_round_style="auto", order_points=[300, 100, -100, -300])
+    env = compiled_env(round_mode="half", next_round_style="auto", order_points=[300, 100, -100, -300])
     before = jnp.array([310, 300, 200, 190], dtype=jnp.int32)
     state = _end_of_round_state(env, score=before)
 
@@ -339,7 +339,7 @@ def test_red_uma_is_added_to_the_final_score() -> None:
 
 
 def test_red_dummy_share_applies_uma_when_a_non_dealer_won_the_final_round() -> None:
-    env = RedMahjong(round_mode="half", next_round_style="dummy_share", order_points=[300, 100, -100, -300])
+    env = compiled_env(round_mode="half", next_round_style="dummy_share", order_points=[300, 100, -100, -300])
     state = _end_of_round_state(
         env,
         score=jnp.array([200, 300, 260, 240], dtype=jnp.int32),
@@ -355,7 +355,7 @@ def test_red_dummy_share_applies_uma_when_a_non_dealer_won_the_final_round() -> 
 
 
 def test_red_uma_scales_a_custom_order_points() -> None:
-    env = RedMahjong(round_mode="half", next_round_style="auto", order_points=[200, 50, -50, -200])
+    env = compiled_env(round_mode="half", next_round_style="auto", order_points=[200, 50, -50, -200])
     before = jnp.array([310, 300, 200, 190], dtype=jnp.int32)
     state = _end_of_round_state(env, score=before)
 
@@ -385,7 +385,7 @@ def test_red_tied_players_are_ranked_by_their_starting_wind() -> None:
     assert not bool(m._is_game_end(round_state, jnp.bool_(True)))
 
     # The starting winds survive a round change.
-    env = RedMahjong(round_mode="half", next_round_style="auto")
+    env = compiled_env(round_mode="half", next_round_style="auto")
     state = _end_of_round_state(
         env,
         round=jnp.int8(0),

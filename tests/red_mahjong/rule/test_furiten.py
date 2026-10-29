@@ -2,13 +2,13 @@ import jax
 import jax.numpy as jnp
 
 from mahjax.red_mahjong.action import Action
-from mahjax.red_mahjong.env import RedMahjong, _draw, _kan, _pass, _replace_state
+from mahjax.red_mahjong.env import _draw, _kan, _pass, _replace_state
 from mahjax.red_mahjong.hand import Hand
 from mahjax.red_mahjong.meld import Meld
 from mahjax.red_mahjong.state import default_state
 from mahjax.red_mahjong.tile import Tile
 
-from ..helpers import STEP_KEY
+from ..helpers import STEP_KEY, compiled_env
 
 
 def _furiten_by_pass_after_declining_then_an_unrelated_pass(m, Action):
@@ -147,7 +147,7 @@ def test_red_letting_a_winning_tile_without_a_yaku_go_by_makes_the_player_furite
     base = default_state()
     # The live wall in draw order: P1 draws 6m, P2 9p, P3 9p, P0 6m.
     deck = base.round_state.deck.at[60].set(six_m).at[59].set(nine_p).at[58].set(nine_p).at[57].set(six_m)
-    step = jax.jit(RedMahjong(round_mode="half").step)
+    step = compiled_env(round_mode="half").step
 
     def after_p1_discards_6m(p0_discard):
         state = _replace_state(

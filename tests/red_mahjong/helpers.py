@@ -1,13 +1,46 @@
 """State builders and constants shared by the red tests."""
 
+import functools
+
 import jax
 import jax.numpy as jnp
 
-from mahjax.red_mahjong.env import _init, _replace_state
+from mahjax.red_mahjong.config import RED
+from mahjax.red_mahjong.env import RedMahjong, _init, _replace_state
 from mahjax.red_mahjong.hand import Hand
 
 
 STEP_KEY = jax.random.PRNGKey(0)  # wall key for round transitions
+
+
+class _CompiledEnv:
+    """An env whose ``init`` and ``step`` are jitted; every other attribute is the env's."""
+
+    def __init__(self, env):
+        self._env = env
+        self.init = jax.jit(env.init)
+        self.step = jax.jit(env.step)
+
+    def __getattr__(self, name):
+        return getattr(self._env, name)
+
+
+@functools.lru_cache(maxsize=None)
+def _compiled_env(round_mode, next_round_style, order_points, game_config):
+    return _CompiledEnv(
+        RedMahjong(
+            round_mode=round_mode,
+            next_round_style=next_round_style,
+            order_points=list(order_points),
+            game_config=game_config,
+        )
+    )
+
+
+def compiled_env(round_mode="half", next_round_style="auto", order_points=(0, 0, 0, 0), game_config=None):
+    """``RedMahjong(...)`` with ``init`` and ``step`` jitted. Tests that build the same
+    env share one instance, so a configuration compiles once per test process."""
+    return _compiled_env(round_mode, next_round_style, tuple(order_points), RED if game_config is None else game_config)
 
 
 _RINSHAN_TILE = 12                                   # 4p

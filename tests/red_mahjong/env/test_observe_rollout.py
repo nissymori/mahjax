@@ -22,10 +22,12 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from mahjax.red_mahjong.env import RedMahjong, _observe_dict
+from mahjax.red_mahjong.env import _observe_dict
 from mahjax.red_mahjong.observation import _observe_privileged_dict
 from mahjax.red_mahjong.shanten import Shanten
 from mahjax.red_mahjong.constants import MAX_DORA_INDICATORS
+
+from ..helpers import compiled_env
 
 
 # Long enough to cross the old 200-slot ceiling and several round boundaries.
@@ -34,8 +36,8 @@ ROLLOUT_STEPS = 420
 
 def _rollout(seed: int, num_steps: int = ROLLOUT_STEPS):
     """Random-policy rollout. Yields (state, obs) before each action."""
-    env = RedMahjong(round_mode="half")
-    step = jax.jit(env.step)
+    env = compiled_env(round_mode="half")
+    step = env.step
     observe = jax.jit(_observe_dict)
 
     key = jax.random.PRNGKey(seed)
@@ -256,7 +258,7 @@ def test_last_draw_is_masked_during_a_robbing_kan_window():
 
 def test_last_draw_is_reported_to_the_player_who_drew_it():
     """The mask must not cost the drawer their own information."""
-    env = RedMahjong(round_mode="half")
+    env = compiled_env(round_mode="half")
     state = env.init(jax.random.PRNGKey(11))
     obs = _observe_dict(state)
     assert bool(obs["is_discard_node"]), "the dealer's opening node should allow a discard"
@@ -270,8 +272,8 @@ def test_is_discard_node_is_false_at_terminal_states():
     Read naively that makes every terminal observation look like a discard node,
     with a ``discard_shanten`` describing a hand nobody will ever play.
     """
-    env = RedMahjong(round_mode="single")
-    step = jax.jit(env.step)
+    env = compiled_env(round_mode="single")
+    step = env.step
     key = jax.random.PRNGKey(3)
     key, sub = jax.random.split(key)
     state = env.init(sub)
@@ -370,7 +372,7 @@ def test_meld_actions_are_valid_call_ids(rollout):
 
 def test_wall_remaining_starts_at_seventy():
     """A fresh round has exactly 70 drawable tiles (136 - 14 dead wall - 13*4 hands)."""
-    env = RedMahjong(round_mode="half")
+    env = compiled_env(round_mode="half")
     state = env.init(jax.random.PRNGKey(5))
     # init() already dealt and drew for the dealer, so one tile is off the wall.
     assert int(_observe_dict(state)["wall_remaining"]) == 69
@@ -580,7 +582,7 @@ def test_observation_module_imports_standalone():
 
 
 def test_observation_shape_property_does_not_raise():
-    env = RedMahjong(round_mode="half")
+    env = compiled_env(round_mode="half")
     shapes = env.observation_shape
     assert shapes["discard_shanten"] == (34, 3)
     assert shapes["target"] == ()

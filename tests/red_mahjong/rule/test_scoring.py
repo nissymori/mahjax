@@ -5,13 +5,13 @@ import jax.numpy as jnp
 
 from mahjax.red_mahjong.action import Action
 from mahjax.red_mahjong.config import GameConfig
-from mahjax.red_mahjong.env import RedMahjong, _abortive_draw_normal, _mangan_tsumo, _pao, _pass, _ron
+from mahjax.red_mahjong.env import _abortive_draw_normal, _mangan_tsumo, _pao, _pass, _ron
 from mahjax.red_mahjong.meld import Meld
 from mahjax.red_mahjong.state import default_state
 from mahjax.red_mahjong.tile import Tile
 from mahjax.red_mahjong.yaku import Yaku
 
-from ..helpers import STEP_KEY
+from ..helpers import STEP_KEY, compiled_env
 
 
 def test_pao_and_nagashi_mangan_scoring() -> None:
@@ -233,8 +233,8 @@ def test_red_limit_hand_rons_pay_the_limit() -> None:
 
 
 def test_red_rewards_report_only_the_current_transition() -> None:
-    env = RedMahjong(round_mode="east", next_round_style="dummy_share")
-    step = jax.jit(env.step)
+    env = compiled_env(round_mode="east", next_round_style="dummy_share")
+    step = env.step
     key = jax.random.PRNGKey(11)
     key, sub = jax.random.split(key)
     state = env.init(sub)
@@ -255,7 +255,7 @@ def test_red_rewards_report_only_the_current_transition() -> None:
 
 
 def test_red_multi_ron_reward_stream_matches_the_score_movement() -> None:
-    env = RedMahjong(round_mode="single", next_round_style="auto")
+    env = compiled_env(round_mode="single", next_round_style="auto")
     base = default_state()
     legal_action_mask = base.players.legal_action_mask
     for player in range(3):

@@ -8,6 +8,8 @@ from mahjax.red_mahjong.config import NO_RED, RED, GameConfig
 from mahjax.red_mahjong.env import RedMahjong
 from mahjax.red_mahjong.tile import Tile
 
+from ..helpers import compiled_env
+
 
 def test_presets_turn_every_optional_rule_on_or_off() -> None:
     assert GameConfig() == RED
@@ -40,8 +42,8 @@ def test_env_holds_its_config() -> None:
 
 def test_no_red_deals_no_red_fives() -> None:
     key = jax.random.PRNGKey(0)
-    red = RedMahjong(game_config=RED).init(key)
-    no_red = RedMahjong(game_config=NO_RED).init(key)
+    red = compiled_env(game_config=RED).init(key)
+    no_red = compiled_env(game_config=NO_RED).init(key)
 
     assert int((red.round_state.deck >= Tile.NUM_TILE_TYPE).sum()) == 3
     assert int((no_red.round_state.deck >= Tile.NUM_TILE_TYPE).sum()) == 0
@@ -51,12 +53,12 @@ def test_no_red_deals_no_red_fives() -> None:
 def test_red_use_red_fives_survives_round_transitions() -> None:
     from mahjax.red_mahjong.config import GameConfig as RedGameConfig
 
-    env = RedMahjong(
+    env = compiled_env(
         round_mode="half",
         game_config=RedGameConfig(use_red_fives=False),
         next_round_style="dummy_share",
     )
-    step = jax.jit(env.step)
+    step = env.step
     key = jax.random.PRNGKey(3)
     key, sub = jax.random.split(key)
     state = env.init(sub)

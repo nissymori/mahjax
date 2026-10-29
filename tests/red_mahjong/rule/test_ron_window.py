@@ -14,11 +14,13 @@ import numpy as np
 import pytest
 
 from mahjax.red_mahjong.action import Action
-from mahjax.red_mahjong.env import TILE_RANGE, RedMahjong, _calc_wind, _replace_state, v_can_win
+from mahjax.red_mahjong.env import TILE_RANGE, _calc_wind, _replace_state, v_can_win
 from mahjax.red_mahjong.hand import Hand
 from mahjax.red_mahjong.meld import Meld
 from mahjax.red_mahjong.state import default_state
 from mahjax.red_mahjong.tile import Tile
+
+from ..helpers import compiled_env
 
 KEY = jax.random.PRNGKey(0)
 FOUR_P = 12
@@ -33,10 +35,10 @@ KANNER = [FOUR_P, 30, 30, 30, 31, 31, 31, 32, 32, 32, 9]
 ADDED_KAN_4P = Tile.NUM_TILE_TYPE_WITH_RED + FOUR_P
 
 ENVS = {
-    (mode, style): RedMahjong(round_mode=mode, next_round_style=style)
+    (mode, style): compiled_env(round_mode=mode, next_round_style=style)
     for mode, style in [("single", "auto"), ("half", "auto"), ("half", "dummy_share")]
 }
-STEPS = {k: jax.jit(env.step) for k, env in ENVS.items()}
+STEPS = {k: env.step for k, env in ENVS.items()}
 OBSERVE = jax.jit(ENVS["single", "auto"].observe)
 
 
