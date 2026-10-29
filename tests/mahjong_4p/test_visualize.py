@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from mahjax.red_mahjong.state import default_state
-from mahjax.red_mahjong.visualization import (
+from mahjax.mahjong_4p.state import default_state
+from mahjax.mahjong_4p.visualization import (
     render_round_svg,
     render_svg_animation,
     save_play_history_svg,

@@ -5,7 +5,7 @@ import jax.numpy as jnp
 import json
 from pathlib import Path
 
-from mahjax.red_mahjong.shanten import Shanten
+from mahjax.mahjong_4p.shanten import Shanten
 import numpy as np
 
 jitted_number = jax.jit(Shanten.number)

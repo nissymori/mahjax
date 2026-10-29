@@ -1,12 +1,12 @@
 import numpy as np
 import jax.numpy as jnp
 
-from mahjax.red_mahjong.action import Action
-from mahjax.red_mahjong.env import _observe_dict
-from mahjax.red_mahjong.meld import Meld
-from mahjax.red_mahjong.shanten import Shanten
-from mahjax.red_mahjong.state import default_state
-from mahjax.red_mahjong.tile import River, Tile
+from mahjax.mahjong_4p.action import Action
+from mahjax.mahjong_4p.env import _observe_dict
+from mahjax.mahjong_4p.meld import Meld
+from mahjax.mahjong_4p.shanten import Shanten
+from mahjax.mahjong_4p.state import default_state
+from mahjax.mahjong_4p.tile import River, Tile
 
 
 HAND_END = 7
@@ -59,7 +59,7 @@ def _make_state():
     # player who can still act on it -- otherwise the field, which is round-level,
     # would hand a chankan responder the kan declarer's private draw. A seat holding a
     # draw with no legal action at all is not a reachable state.
-    # See tests/red_mahjong/test_observe_rollout.py for the leak itself.
+    # See tests/mahjong_4p/test_observe_rollout.py for the leak itself.
     legal_action_mask = legal_action_mask.at[1, 9].set(True)
 
     action_history = state.round_state.action_history

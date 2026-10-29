@@ -2,9 +2,9 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from mahjax.red_mahjong.action import Action
-from mahjax.red_mahjong.hand import Hand
-from mahjax.red_mahjong.tile import Tile
+from mahjax.mahjong_4p.action import Action
+from mahjax.mahjong_4p.hand import Hand
+from mahjax.mahjong_4p.tile import Tile
 
 
 def test_make_init_hand_returns_red_aware_shape() -> None:

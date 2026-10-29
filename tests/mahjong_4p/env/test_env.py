@@ -3,12 +3,13 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
-from mahjax.red_mahjong.action import Action
-from mahjax.red_mahjong.config import RED
-from mahjax.red_mahjong.constants import FIRST_DRAW_IDX
-from mahjax.red_mahjong.env import RedMahjong, _draw, _init, _make_legal_action_mask_after_draw, _step
-from mahjax.red_mahjong.state import default_state
-from mahjax.red_mahjong.tile import Tile
+from mahjax.mahjong_4p.action import Action
+from mahjax.mahjong_4p.config import RED
+from mahjax.mahjong_4p.constants import FIRST_DRAW_IDX
+from mahjax.mahjong_4p.env import RedMahjong
+from mahjax.mahjong_4p.logic import _draw, _init, _make_legal_action_mask_after_draw, _step
+from mahjax.mahjong_4p.state import default_state
+from mahjax.mahjong_4p.tile import Tile
 
 from ..helpers import STEP_KEY
 

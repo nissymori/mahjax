@@ -1,8 +1,8 @@
 import jax.numpy as jnp
 
-from mahjax.red_mahjong.action import Action
-from mahjax.red_mahjong.meld import Meld
-from mahjax.red_mahjong.tile import Tile
+from mahjax.mahjong_4p.action import Action
+from mahjax.mahjong_4p.meld import Meld
+from mahjax.mahjong_4p.tile import Tile
 
 
 def test_red_pon_meld_has_red_metadata() -> None:

@@ -35,4 +35,4 @@ jobs:
         env:
           PYTHONPATH: .
         run: |
-          pytest --ignore=tests/red_mahjong/test_visualize.py -vv
+          pytest --ignore=tests/mahjong_4p/test_visualize.py -vv

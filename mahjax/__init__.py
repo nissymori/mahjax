@@ -4,15 +4,15 @@ from mahjax._src.visualizer import (
     save_svg_animation,
     set_visualization_config,
 )
-from mahjax.red_mahjong.action import Action
+from mahjax.mahjong_4p.action import Action
 from mahjax.core import Env, EnvId, available_envs, make
-from mahjax.red_mahjong.config import NO_RED, RED, GameConfig
-from mahjax.red_mahjong.hand import Hand
-from mahjax.red_mahjong.meld import Meld
-from mahjax.red_mahjong.players import rule_based_player
-from mahjax.red_mahjong.state import State, default_state
-from mahjax.red_mahjong.tile import River, Tile
-from mahjax.red_mahjong.yaku import Yaku
+from mahjax.mahjong_4p.config import NO_RED, RED, GameConfig
+from mahjax.mahjong_4p.hand import Hand
+from mahjax.mahjong_4p.meld import Meld
+from mahjax.mahjong_4p.players import rule_based_player
+from mahjax.mahjong_4p.state import State, default_state
+from mahjax.mahjong_4p.tile import River, Tile
+from mahjax.mahjong_4p.yaku import Yaku
 
 __version__ = "0.1.6"
 

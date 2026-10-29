@@ -26,8 +26,8 @@ from typing import Callable, Dict, Optional
 import jax
 import jax.numpy as jnp
 
-from mahjax.red_mahjong.players import rule_based_player
-from mahjax.red_mahjong.state import State
+from mahjax.mahjong_4p.players import rule_based_player
+from mahjax.mahjong_4p.state import State
 
 AgentFn = Callable[[State, jnp.ndarray], jnp.ndarray]
 

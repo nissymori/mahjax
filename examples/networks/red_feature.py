@@ -1,4 +1,4 @@
-"""Observation -> token sequence for ``mahjax.red_mahjong``.
+"""Observation -> token sequence for ``mahjax.mahjong_4p``.
 
 This module knows about mahjong and about red fives. It turns the observation dict
 into a flat sequence of tokens plus a validity mask, and nothing else. ``network.py``
@@ -41,10 +41,10 @@ import flax.linen as nn
 import jax
 import jax.numpy as jnp
 
-from mahjax.red_mahjong.action import Action
-from mahjax.red_mahjong.shanten import Shanten
-from mahjax.red_mahjong.state import RoundState
-from mahjax.red_mahjong.tile import Tile
+from mahjax.mahjong_4p.action import Action
+from mahjax.mahjong_4p.shanten import Shanten
+from mahjax.mahjong_4p.state import RoundState
+from mahjax.mahjong_4p.tile import Tile
 
 try:
     from .transformer import orthogonal_init

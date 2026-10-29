@@ -13,7 +13,7 @@ The code covers three main steps:
 </div>
 
 ### Data Collection
-We collect training data using a hand-crafted rule-based agent (designed to minimize shanten, etc.). Please refer to [`mahjax/red_mahjong/players.py`](https://github.com/nissymori/mahjax/blob/main/mahjax/red_mahjong/players.py) for implementation details.
+We collect training data using a hand-crafted rule-based agent (designed to minimize shanten, etc.). Please refer to [`mahjax/mahjong_4p/players.py`](https://github.com/nissymori/mahjax/blob/main/mahjax/mahjong_4p/players.py) for implementation details.
 
 In this example, we adopt a Transformer architecture that utilizes dictionary-based observations.
 - **Network Architecture:** Refer to [`networks/`](https://github.com/nissymori/mahjax/blob/main/examples/networks/) for details.

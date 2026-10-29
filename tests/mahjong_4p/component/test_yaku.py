@@ -3,12 +3,12 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
-from mahjax.red_mahjong.action import Action
+from mahjax.mahjong_4p.action import Action
 
-from mahjax.red_mahjong.meld import Meld
-from mahjax.red_mahjong.state import default_state
-from mahjax.red_mahjong.tile import Tile
-from mahjax.red_mahjong.yaku import Yaku
+from mahjax.mahjong_4p.meld import Meld
+from mahjax.mahjong_4p.state import default_state
+from mahjax.mahjong_4p.tile import Tile
+from mahjax.mahjong_4p.yaku import Yaku
 
 from ..helpers import compiled_env
 
@@ -222,9 +222,9 @@ def test_score_is_a_limit_hand_from_five_fan_whatever_the_fu() -> None:
 
 
 def test_red_kan_of_fives_scores_no_red_dora_without_red_fives() -> None:
-    from mahjax.red_mahjong.meld import Meld as RedMeld
-    from mahjax.red_mahjong.config import GameConfig as RedGameConfig
-    from mahjax.red_mahjong.yaku import Yaku as RedYaku
+    from mahjax.mahjong_4p.meld import Meld as RedMeld
+    from mahjax.mahjong_4p.config import GameConfig as RedGameConfig
+    from mahjax.mahjong_4p.yaku import Yaku as RedYaku
 
     def fan_for(use_red_fives: bool) -> int:
         env = compiled_env(
@@ -255,7 +255,7 @@ def test_dealer_can_tsumo_a_complete_first_draw_as_a_single_blessing_of_heaven()
 
     import jax
 
-    from mahjax.red_mahjong import env as m
+    from mahjax.mahjong_4p import logic as m
 
     dealt = [0, 4, 8, 9, 10, 48, 49, 50, 56, 57, 58, 96, 97]  # tile ids; the tile is id // 4
     first_draw = 98  # 7s

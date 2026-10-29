@@ -95,7 +95,7 @@ class State(abc.ABC):
             str: SVG string
         """
         if self.env_id in ("mahjong", "red_mahjong", "no_red_mahjong"):
-            from mahjax.red_mahjong.visualization import render_round_svg
+            from mahjax.mahjong_4p.visualization import render_round_svg
 
             del color_theme, scale
             return render_round_svg(
@@ -265,8 +265,8 @@ def make(env_id: EnvId, **kwargs):  # noqa: C901
         )
         ```
     """
-    from mahjax.red_mahjong.config import NO_RED
-    from mahjax.red_mahjong.env import RedMahjong
+    from mahjax.mahjong_4p.config import NO_RED
+    from mahjax.mahjong_4p.env import RedMahjong
 
     if env_id == "no_red_mahjong":
         # red_mahjong with every optional rule off: no red fives, no double ron,

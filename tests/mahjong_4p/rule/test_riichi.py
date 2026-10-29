@@ -3,11 +3,11 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
-from mahjax.red_mahjong.action import Action
-from mahjax.red_mahjong.env import _draw_after_kan, _init, _make_legal_action_mask_after_draw, _make_legal_action_mask_after_draw_w_riichi, _replace_state
-from mahjax.red_mahjong.hand import Hand
-from mahjax.red_mahjong.state import default_state
-from mahjax.red_mahjong.tile import Tile
+from mahjax.mahjong_4p.action import Action
+from mahjax.mahjong_4p.logic import _draw_after_kan, _init, _make_legal_action_mask_after_draw, _make_legal_action_mask_after_draw_w_riichi, _replace_state
+from mahjax.mahjong_4p.hand import Hand
+from mahjax.mahjong_4p.state import default_state
+from mahjax.mahjong_4p.tile import Tile
 
 from ..helpers import _post_ankan_state
 

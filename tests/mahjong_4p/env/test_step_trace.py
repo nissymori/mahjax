@@ -2,8 +2,8 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from mahjax.red_mahjong.env import RedMahjong
-from mahjax.red_mahjong.yaku import Yaku
+from mahjax.mahjong_4p.env import RedMahjong
+from mahjax.mahjong_4p.yaku import Yaku
 
 
 def _count_calls(jaxpr, name: str) -> int:

@@ -4,10 +4,10 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from mahjax.red_mahjong.action import Action
-from mahjax.red_mahjong.config import NO_RED, RED, GameConfig
-from mahjax.red_mahjong.env import RedMahjong
-from mahjax.red_mahjong.tile import Tile
+from mahjax.mahjong_4p.action import Action
+from mahjax.mahjong_4p.config import NO_RED, RED, GameConfig
+from mahjax.mahjong_4p.env import RedMahjong
+from mahjax.mahjong_4p.tile import Tile
 
 from ..helpers import compiled_env
 
@@ -52,7 +52,7 @@ def test_no_red_deals_no_red_fives() -> None:
 
 
 def test_red_use_red_fives_survives_round_transitions() -> None:
-    from mahjax.red_mahjong.config import GameConfig as RedGameConfig
+    from mahjax.mahjong_4p.config import GameConfig as RedGameConfig
 
     env = compiled_env(
         round_mode="half",

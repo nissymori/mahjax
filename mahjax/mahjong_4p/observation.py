@@ -5,20 +5,20 @@ import jax
 import jax.numpy as jnp
 
 # Import from the leaf modules rather than from ``env``: ``env`` imports this
-# module, so ``import mahjax.red_mahjong.observation`` used to raise a circular
+# module, so ``import mahjax.mahjong_4p.observation`` used to raise a circular
 # ImportError unless ``env`` happened to have been imported first.
-from mahjax.red_mahjong.action import Action
-from mahjax.red_mahjong.constants import (
+from mahjax.mahjong_4p.action import Action
+from mahjax.mahjong_4p.constants import (
     MAX_DORA_INDICATORS,
     NUM_TILE_TYPES_WITH_RED,
     RED_FIVE_TILE_TYPES,
 )
-from mahjax.red_mahjong.hand import Hand
-from mahjax.red_mahjong.meld import EMPTY_MELD, Meld
-from mahjax.red_mahjong.shanten import Shanten
-from mahjax.red_mahjong.state import State
-from mahjax.red_mahjong.tile import River, Tile
-from mahjax.red_mahjong.types import Array
+from mahjax.mahjong_4p.hand import Hand
+from mahjax.mahjong_4p.meld import EMPTY_MELD, Meld
+from mahjax.mahjong_4p.shanten import Shanten
+from mahjax.mahjong_4p.state import State
+from mahjax.mahjong_4p.tile import River, Tile
+from mahjax.mahjong_4p.types import Array
 
 
 # ``fill`` and ``hand_size`` must be static: ``hand_size`` is a slice bound, so a

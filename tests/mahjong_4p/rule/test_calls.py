@@ -1,10 +1,10 @@
 import jax.numpy as jnp
 
-from mahjax.red_mahjong.action import Action
-from mahjax.red_mahjong.env import _claims_open_to, _finalize_step_state, _mask_for_chi, _next_meld_player, _next_ron_player, _replace_state
-from mahjax.red_mahjong.hand import Hand
-from mahjax.red_mahjong.state import default_state
-from mahjax.red_mahjong.tile import Tile
+from mahjax.mahjong_4p.action import Action
+from mahjax.mahjong_4p.logic import _claims_open_to, _finalize_step_state, _mask_for_chi, _next_meld_player, _next_ron_player, _replace_state
+from mahjax.mahjong_4p.hand import Hand
+from mahjax.mahjong_4p.state import default_state
+from mahjax.mahjong_4p.tile import Tile
 
 from ..helpers import STEP_KEY, compiled_env
 
@@ -32,7 +32,7 @@ def test_mask_for_chi_forbids_forced_kuikae() -> None:
 
 def test_red_pon_of_a_five_forbids_both_copies_as_the_next_discard() -> None:
     """Kuikae after a pon is by tile type: calling a black five forbids the red one, and vice versa."""
-    from mahjax.red_mahjong import env as m
+    from mahjax.mahjong_4p import logic as m
 
     others = jnp.zeros(Tile.NUM_TILE_TYPE_WITH_RED, dtype=jnp.int8).at[9:17].set(1).at[18:20].set(1)  # 1p-8p 1s 2s
     base = default_state()

@@ -3,13 +3,13 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
-from mahjax.red_mahjong.action import Action
-from mahjax.red_mahjong.config import GameConfig
-from mahjax.red_mahjong.constants import FIRST_DRAW_IDX
-from mahjax.red_mahjong.env import _abortive_draw_normal, _draw, _init, _make_legal_action_mask_after_draw, _replace_state, _ron, _special_next_round, _step
-from mahjax.red_mahjong.hand import Hand
-from mahjax.red_mahjong.state import default_state
-from mahjax.red_mahjong.tile import River, Tile
+from mahjax.mahjong_4p.action import Action
+from mahjax.mahjong_4p.config import GameConfig
+from mahjax.mahjong_4p.constants import FIRST_DRAW_IDX
+from mahjax.mahjong_4p.logic import _abortive_draw_normal, _draw, _init, _make_legal_action_mask_after_draw, _replace_state, _ron, _special_next_round, _step
+from mahjax.mahjong_4p.hand import Hand
+from mahjax.mahjong_4p.state import default_state
+from mahjax.mahjong_4p.tile import River, Tile
 
 from ..helpers import STEP_KEY, compiled_env
 
@@ -161,7 +161,7 @@ def test_abortive_draw_payments_shape() -> None:
 
 def test_red_a_wait_only_on_a_fifth_copy_is_noten_at_an_exhaustive_draw() -> None:
     """66 7777 99m EEE CC only 'waits' on a fifth 7m: nobody is tenpai, so nobody pays and the deal passes."""
-    from mahjax.red_mahjong import env as m
+    from mahjax.mahjong_4p import logic as m
 
     def counts(tiles):
         hand = jnp.zeros(Tile.NUM_TILE_TYPE_WITH_RED, dtype=jnp.int8)
@@ -199,7 +199,7 @@ def test_red_a_wait_only_on_a_fifth_copy_is_noten_at_an_exhaustive_draw() -> Non
 
 def test_red_four_kan_abortive_draw_after_a_passed_ron_keeps_the_riichi_stick() -> None:
     """After the fourth kan only a ron can take the discard; unclaimed, the round is drawn and a riichi on it stands."""
-    from mahjax.red_mahjong import env as m
+    from mahjax.mahjong_4p import logic as m
 
     five_s = 22
 

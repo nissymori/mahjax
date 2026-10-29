@@ -11,8 +11,8 @@ env = mahjax.make("no_red_mahjong", observe_type="dict")
 `no_red_mahjong` is `red_mahjong` with the `NO_RED` rule preset, so this is the same as:
 
 ```py
-from mahjax.red_mahjong.config import NO_RED
-from mahjax.red_mahjong.env import RedMahjong
+from mahjax.mahjong_4p.config import NO_RED
+from mahjax.mahjong_4p.env import RedMahjong
 
 env = RedMahjong(round_mode="half", observe_type="dict", game_config=NO_RED)
 ```

@@ -5,9 +5,10 @@ import functools
 import jax
 import jax.numpy as jnp
 
-from mahjax.red_mahjong.config import RED
-from mahjax.red_mahjong.env import RedMahjong, _init, _replace_state
-from mahjax.red_mahjong.hand import Hand
+from mahjax.mahjong_4p.config import RED
+from mahjax.mahjong_4p.env import RedMahjong
+from mahjax.mahjong_4p.logic import _init, _replace_state
+from mahjax.mahjong_4p.hand import Hand
 
 
 STEP_KEY = jax.random.PRNGKey(0)  # wall key for round transitions

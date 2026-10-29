@@ -126,8 +126,8 @@ Currently, MahJax supports the following rules:
 
 | Rule | id | Status | Code | Speed (steps/sec) |
 |------|------|--------|------|--------|
-| No-Red Mahjong | `no_red_mahjong` | ✅ | [red_mahjong](https://github.com/nissymori/mahjax/tree/main/mahjax/mahjax/red_mahjong) with `NO_RED` | ≈ `red_mahjong` |
-| Red Mahjong | `red_mahjong` | ✅ | [red_mahjong](https://github.com/nissymori/mahjax/tree/main/mahjax/mahjax/red_mahjong) | ~1M |
+| No-Red Mahjong | `no_red_mahjong` | ✅ | [red_mahjong](https://github.com/nissymori/mahjax/tree/main/mahjax/mahjax/mahjong_4p) with `NO_RED` | ≈ `red_mahjong` |
+| Red Mahjong | `red_mahjong` | ✅ | [red_mahjong](https://github.com/nissymori/mahjax/tree/main/mahjax/mahjax/mahjong_4p) | ~1M |
 | Selective Rules | - | 🚧 | - | - |
 | 3-player Mahjong | - | 🚧 | - | - |
 

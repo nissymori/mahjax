@@ -11,8 +11,8 @@ env = mahjax.make("red_mahjong", observe_type="dict")
 or load the environment class directly:
 
 ```py
-from mahjax.red_mahjong.config import RED
-from mahjax.red_mahjong.env import RedMahjong
+from mahjax.mahjong_4p.config import RED
+from mahjax.mahjong_4p.env import RedMahjong
 
 env = RedMahjong(
     round_mode="half",

@@ -1,12 +1,12 @@
 import jax
 import jax.numpy as jnp
 
-from mahjax.red_mahjong.action import Action
-from mahjax.red_mahjong.env import _draw, _kan, _pass, _replace_state
-from mahjax.red_mahjong.hand import Hand
-from mahjax.red_mahjong.meld import Meld
-from mahjax.red_mahjong.state import default_state
-from mahjax.red_mahjong.tile import Tile
+from mahjax.mahjong_4p.action import Action
+from mahjax.mahjong_4p.logic import _draw, _kan, _pass, _replace_state
+from mahjax.mahjong_4p.hand import Hand
+from mahjax.mahjong_4p.meld import Meld
+from mahjax.mahjong_4p.state import default_state
+from mahjax.mahjong_4p.tile import Tile
 
 from ..helpers import STEP_KEY, compiled_env
 
@@ -36,7 +36,7 @@ def _furiten_by_pass_after_declining_then_an_unrelated_pass(m, Action):
 
 
 def test_red_furiten_by_pass_survives_an_unrelated_pass() -> None:
-    from mahjax.red_mahjong import env as m
+    from mahjax.mahjong_4p import logic as m
 
     x, declined, unrelated = _furiten_by_pass_after_declining_then_an_unrelated_pass(m, Action)
 
@@ -58,7 +58,7 @@ def test_red_furiten_by_pass_survives_an_unrelated_pass() -> None:
 
 def test_red_furiten_by_pass_clears_when_a_meld_gives_the_turn() -> None:
     """A pon takes the turn without a draw, so it must clear the furiten by pass."""
-    from mahjax.red_mahjong import env as m
+    from mahjax.mahjong_4p import logic as m
 
     x, declined, _ = _furiten_by_pass_after_declining_then_an_unrelated_pass(m, Action)
     hand = jnp.zeros((37,), dtype=jnp.int8).at[0].set(3).at[1].set(3).at[2].set(3).at[3].set(3)
@@ -80,7 +80,7 @@ def test_red_furiten_by_pass_clears_when_a_meld_gives_the_turn() -> None:
 
 def test_red_declining_a_robbing_kan_ron_makes_the_player_furiten() -> None:
     """Skipping a ron on an added kan is still skipping a win: furiten, for the round if in riichi."""
-    from mahjax.red_mahjong import env as m
+    from mahjax.mahjong_4p import logic as m
 
     six_s = 23
 
@@ -125,7 +125,7 @@ def test_red_declining_a_robbing_kan_ron_makes_the_player_furiten() -> None:
 
 def test_red_letting_a_winning_tile_without_a_yaku_go_by_makes_the_player_furiten() -> None:
     """Not offered a ron for want of a yaku, the player still let a win go by: no ron until their own draw."""
-    from mahjax.red_mahjong import env as m
+    from mahjax.mahjong_4p import logic as m
 
     six_m, nine_m, one_p, nine_p = 5, 8, 9, 17
 

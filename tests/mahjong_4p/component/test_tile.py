@@ -1,12 +1,12 @@
 import unittest
 import jax.numpy as jnp
 
-from mahjax.red_mahjong.tile import (
+from mahjax.mahjong_4p.tile import (
     Tile,
     River,
     EMPTY_RIVER,
 )
-from mahjax.red_mahjong.action import Action
+from mahjax.mahjong_4p.action import Action
 
 
 class TestTile(unittest.TestCase):

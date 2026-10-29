@@ -13,12 +13,12 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from mahjax.red_mahjong.action import Action
-from mahjax.red_mahjong.env import TILE_RANGE, _calc_wind, _replace_state, v_can_win
-from mahjax.red_mahjong.hand import Hand
-from mahjax.red_mahjong.meld import Meld
-from mahjax.red_mahjong.state import default_state
-from mahjax.red_mahjong.tile import Tile
+from mahjax.mahjong_4p.action import Action
+from mahjax.mahjong_4p.logic import TILE_RANGE, _calc_wind, _replace_state, v_can_win
+from mahjax.mahjong_4p.hand import Hand
+from mahjax.mahjong_4p.meld import Meld
+from mahjax.mahjong_4p.state import default_state
+from mahjax.mahjong_4p.tile import Tile
 
 from ..helpers import compiled_env
 

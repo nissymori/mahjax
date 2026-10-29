@@ -29,7 +29,7 @@ def default_rl_params_path(env_name: str, seed: int, run_tag: str = "") -> str:
 def get_rule_based_player(env_name: str) -> Callable[..., Any]:
     # no_red_mahjong is red_mahjong with the NO_RED rules, so both use red's player.
     if env_name in ("red_mahjong", "no_red_mahjong"):
-        from mahjax.red_mahjong.players import rule_based_player
+        from mahjax.mahjong_4p.players import rule_based_player
 
         return rule_based_player
     raise ValueError(f"Unsupported env_name: {env_name}")
