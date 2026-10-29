@@ -173,6 +173,31 @@ def test_big_four_winds_is_a_single_yakuman() -> None:
         assert int(fan) == expected_fan
 
 
+def test_thirteen_orphans_waiting_on_all_thirteen_is_completed_thirteen_orphans() -> None:
+    """One of each terminal and honor waits on all thirteen; winning it is
+    CompletedThirteenOrphans instead of ThirteenOrphans, and still one yakuman."""
+    orphans = (0, 8, 9, 17, 18, 26, 27, 28, 29, 30, 31, 32, 33)
+    base = default_state()
+    state = base.replace(  # the winning tile is Red, by ron or by tsumo
+        round_state=base.round_state.replace(target=jnp.int8(33), last_draw=jnp.int8(33))
+    )
+    for tiles, thirteen_sided in (
+        (orphans, True),  # one of each: waits on all thirteen
+        (orphans[:-1] + (0,), False),  # 1m pair and no Red: waits on Red only
+    ):
+        hand = jnp.zeros((34,), dtype=jnp.int8)
+        for tile in tiles:
+            hand = hand.at[tile].add(1)
+        for judge in (Yaku.judge, Yaku.judge_yakuman):
+            for is_ron in (True, False):
+                yaku, fan, fu = judge(hand, jnp.bool_(is_ron), jnp.int8(1), state)
+
+                assert bool(yaku[Yaku.CompletedThirteenOrphans]) == thirteen_sided
+                assert bool(yaku[Yaku.ThirteenOrphans]) != thirteen_sided
+                assert int(fan) == 1
+                assert int(fu) == 0
+
+
 def test_pinfu_is_rejected_when_closed_kan_exists() -> None:
     hand = jnp.zeros((34,), dtype=jnp.int8)
     for tile in (3, 4, 5, 11, 12, 13, 22, 23, 24, 15):
