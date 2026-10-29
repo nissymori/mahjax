@@ -23,14 +23,9 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from mahjax.no_red_mahjong.action import Action
-from mahjax.no_red_mahjong.env import _dora_array
-from mahjax.no_red_mahjong.state import DORA_ARRAY, FIRST_DRAW_IDX, State
-from mahjax.no_red_mahjong.tile import Tile
-from mahjax.no_red_mahjong.yaku import Yaku
-from mahjax._src.visualizer import _to_red_env_state
 from mahjax.red_mahjong.action import Action as RedAction
-from mahjax.red_mahjong.config import GameConfig as RedGameConfig
+from mahjax.red_mahjong.config import NO_RED
+from mahjax.red_mahjong.constants import DORA_ARRAY, FIRST_DRAW_IDX
 from mahjax.red_mahjong.env import RedMahjong
 from mahjax.red_mahjong.env import _dora_array as _red_dora_array
 from mahjax.red_mahjong.tile import Tile as RedTile
@@ -446,10 +441,6 @@ class GameSession:
         self.id = uuid.uuid4().hex
         self.env_id = env_id
         self.is_red = env_id == "red_mahjong"
-        # The action space (and a few action enum values) differs between red
-        # and no-red. Use env_id to distinguish, not state attribute presence
-        # — both state classes now expose ``players``/``round_state``.
-        self._uses_red_state = self.is_red
         self.env = env
         self.state = jax.device_get(state)
         self.rng = rng
@@ -484,11 +475,7 @@ class GameSession:
         next_state = jax.device_get(next_state)
         self.state = next_state
         self.step_counter += 1
-        description = (
-            describe_action_red(action, prev_state)
-            if self._uses_red_state
-            else describe_action(action, prev_state)
-        )
+        description = describe_action_red(action, prev_state)
         event = ActionEvent(
             step=self.step_counter,
             player=int(prev_state.current_player),
@@ -503,14 +490,7 @@ class GameSession:
         if self._is_terminated_round(next_state) and not self._is_terminated_round(
             prev_state
         ):
-            if self._uses_red_state:
-                summary = build_round_summary_red(
-                    prev_state, next_state, event, self.player_names
-                )
-            else:
-                summary = build_round_summary(
-                    prev_state, next_state, event, self.player_names
-                )
+            summary = build_round_summary_red(prev_state, next_state, event, self.player_names)
             self.round_summary = summary
             self.round_history.append(summary)
         return event
@@ -551,7 +531,7 @@ class GameSession:
         steps = 0
         while steps < 8 and self._is_terminated_round(self.state):
             mask = self.state.legal_action_mask
-            dummy_action = RedAction.DUMMY if self._uses_red_state else Action.DUMMY
+            dummy_action = RedAction.DUMMY
             if not bool(mask[dummy_action]):
                 break
             self.apply_action(dummy_action, actor="system")
@@ -565,9 +545,7 @@ class GameSession:
             return
         if actor == self.human_seat:
             return
-        ron_action = RedAction.RON if self._uses_red_state else Action.RON
-        tsumo_action = RedAction.TSUMO if self._uses_red_state else Action.TSUMO
-        if action in (ron_action, tsumo_action):
+        if action in (RedAction.RON, RedAction.TSUMO):
             self._reveal_hidden_hands = True
 
     def _should_reveal_hidden_hands(self) -> bool:
@@ -605,16 +583,13 @@ class GameSession:
         try:
             self._auto_pass_lock = True
             while self._should_auto_pass_current():
-                pass_action = RedAction.PASS if self._uses_red_state else Action.PASS
-                self._apply_action(pass_action, actor="auto_pass_call")
+                self._apply_action(RedAction.PASS, actor="auto_pass_call")
                 if self.state.terminated or self._is_terminated_round(self.state):
                     break
         finally:
             self._auto_pass_lock = False
 
     def _should_auto_pass_current(self) -> bool:
-        if self._uses_red_state:
-            return False
         if (
             not self.auto_pass_calls
             or self.state.terminated
@@ -631,21 +606,22 @@ class GameSession:
             current
         ]  # includes pending meld prompts
         mask = np.array(mask_source).astype(bool)
-        if Action.RON < mask.size and mask[Action.RON]:
-            return False
-        if Action.TSUMO < mask.size and mask[Action.TSUMO]:
+        if mask[RedAction.RON] or mask[RedAction.TSUMO]:
             return False
         call_actions = [
-            Action.PON,
-            Action.OPEN_KAN,
-            Action.CHI_L,
-            Action.CHI_M,
-            Action.CHI_R,
+            RedAction.PON,
+            RedAction.PON_RED,
+            RedAction.OPEN_KAN,
+            RedAction.CHI_L,
+            RedAction.CHI_L_RED,
+            RedAction.CHI_M,
+            RedAction.CHI_M_RED,
+            RedAction.CHI_R,
+            RedAction.CHI_R_RED,
         ]
-        has_call = any(action < mask.size and mask[action] for action in call_actions)
-        if not has_call:
+        if not any(mask[action] for action in call_actions):
             return False
-        return bool(Action.PASS < mask.size and mask[Action.PASS])
+        return bool(mask[RedAction.PASS])
 
     # -------------------- View helpers --------------------
     def consume_events(self) -> List[Dict[str, Any]]:
@@ -663,79 +639,7 @@ class GameSession:
         return "awaiting_ai"
 
     def to_view(self) -> Dict[str, Any]:
-        if self._uses_red_state:
-            return self._to_view_red()
-        state = self.state
-        scores = [int(s) * 100 for s in np.array(state.round_state.score)]
-        rewards = [int(np.round(r * 100)) for r in np.array(state.rewards)]
-        winds = [WIND_NAMES[int(w)] for w in np.array(state.round_state.seat_wind)]
-        rank_order = [int(i) for i in np.argsort([-s for s in scores])]
-        # Keep player (human) at the bottom by rotating seat-indexed arrays.
-        oriented = orient_state_for_player(state, self.human_seat)
-        red_state = _to_red_env_state(oriented)
-        reveal_all_hands = (not self.hide_opponent_hands) or self._should_reveal_hidden_hands()
-        # Export both language variants so the frontend can switch without
-        # requesting a new state from the server.
-        svg_japanese = render_round_svg(
-            red_state,
-            show_all_hands=reveal_all_hands,
-            visible_player=0,
-            tile_style="standard",
-        )
-        svg_english = render_round_svg(
-            red_state,
-            show_all_hands=reveal_all_hands,
-            visible_player=0,
-            tile_style="bilingual",
-        )
-        legal_view = None
-        advance_view: Optional[Dict[str, Any]] = None
-        is_human_turn = int(state.current_player) == self.human_seat
-        if is_human_turn:
-            mask_np = np.array(state.legal_action_mask).astype(bool)
-            advance_view = build_advance_info_from_mask(state, mask_np)
-        # ラウンドサマリが保留中の場合は、手番に関わらず UI に「次の局へ/終局」を提示し、
-        # 数値アクション送信ではなくサマリ表示に誘導する（/continue で進行）
-        if self.round_summary is not None:
-            is_final = is_game_end_pending(state)
-            advance_view = {
-                "enabled": True,
-                # 人間の手番ではないので、数値アクションは送らずに UI 側でサマリを表示する
-                "action": None,
-                "label": "終局" if is_final else "次の局へ",
-                "isFinal": is_final,
-                "dummyOnly": True,
-            }
-        if is_human_turn and not state.terminated and self.round_summary is None:
-            legal_view = build_legal_actions_view(state, self.human_seat)
-        hand_view = build_hand_view(state, self.human_seat)
-        return {
-            "gameId": self.id,
-            "envId": self.env_id,
-            "phase": self.phase(),
-            "currentPlayer": int(state.current_player),
-            "humanSeat": self.human_seat,
-            "playerNames": self.player_names,
-            "winds": winds,
-            "scores": scores,
-            "rewards": rewards,
-            "rankOrder": rank_order,
-            "svg": svg_japanese,
-            "svgJapanese": svg_japanese,
-            "svgEnglish": svg_english,
-            "legalActions": legal_view,
-            "advanceAction": advance_view,
-            "hand": hand_view,
-            "roundSummary": (
-                self.round_summary.to_dict() if self.round_summary else None
-            ),
-            "events": self.consume_events(),
-            "terminated": bool(state.terminated),
-            "aiDelayMs": self.ai_delay_ms,
-            "step": self.step_counter,
-            "hideOpponentHands": self.hide_opponent_hands,
-            "autoPassCalls": self.auto_pass_calls,
-        }
+        return self._to_view_red()
 
     def _to_view_red(self) -> Dict[str, Any]:
         state = self.state
@@ -833,16 +737,10 @@ class GameManager:
         auto_pass_calls: bool = False,
     ) -> GameSession:
         agent = self.registry.get(agent_id)
-        if env_id in ("red_mahjong", "no_red_mahjong") and agent.agent_id == "rule_based":
-            agent = self.registry.get("rule_based_red")
         if env_id == "red_mahjong":
             env = RedMahjong(round_mode=round_mode, next_round_style="dummy_share")
         else:
-            env = RedMahjong(
-                round_mode=round_mode,
-                game_config=RedGameConfig(use_red_fives=False),
-                next_round_style="dummy_share",
-            )
+            env = RedMahjong(round_mode=round_mode, game_config=NO_RED, next_round_style="dummy_share")
         rng = jax.random.PRNGKey(seed)
         rng, init_key = jax.random.split(rng)
         state = env.init(init_key)
@@ -873,50 +771,6 @@ class GameManager:
 
 
 # ------------------- Helper functions -------------------
-
-
-def orient_state_for_player(state: State, player: int) -> State:
-    """Return a view of ``state`` where ``player`` becomes seat 0.
-
-    This keeps the underlying state immutable while rotating all player-indexed
-    arrays used for SVG rendering so the board is shown from the requested
-    perspective.
-    """
-
-    seat = int(player) % 4
-    if seat == 0:
-        return state
-
-    order = jnp.array([(seat + i) % 4 for i in range(4)], dtype=jnp.int32)
-
-    def _reorder(arr):
-        return jnp.take(arr, order, axis=0)
-
-    return state.replace(  # type: ignore[arg-type]
-        current_player=jnp.int8((int(state.current_player) - seat) % 4),
-        players=state.players.replace(
-            hand=_reorder(state.players.hand),
-            melds=_reorder(state.players.melds),
-            riichi=_reorder(state.players.riichi),
-            river=_reorder(state.players.river),
-        ),
-        round_state=state.round_state.replace(
-            score=_reorder(state.round_state.score),
-            dealer=jnp.int8((int(state.round_state.dealer) - seat) % 4),
-        ),
-    )
-
-
-def mask_opponent_hands(state: State, visible_player: int = 0) -> State:
-    """Return a copy of ``state`` where opponent tiles are marked as hidden.
-
-    Tiles are negated so downstream SVG rendering can display tile backs while
-    preserving the total count.
-    """
-    hands = jnp.asarray(state.players.hand)
-    seat_mask = (jnp.arange(hands.shape[0]) != int(visible_player))[:, None]
-    masked_hands = jnp.where(seat_mask, -hands, hands)
-    return state.replace(players=state.players.replace(hand=masked_hands))  # type: ignore[arg-type]
 
 
 def orient_red_state_for_player(state: Any, player: int) -> Any:
@@ -978,50 +832,6 @@ def orient_red_state_for_player(state: Any, player: int) -> Any:
             ),
         ),
     )
-
-
-def describe_action(action: int, prev: State) -> str:
-    if 0 <= action < Tile.NUM_TILE_TYPE:
-        return f"打 {tile_label(action)}"
-    if 34 <= action < 34 + Tile.NUM_TILE_TYPE:
-        tile = action - Tile.NUM_TILE_TYPE
-        return f"カン {tile_label(tile)}"
-    if action == Action.TSUMOGIRI:
-        return "ツモ切り"
-    if action == Action.RIICHI:
-        return "立直宣言"
-    if action == Action.TSUMO:
-        return "自摸"
-    if action == Action.RON:
-        target = int(prev.round_state.target)
-        tile = tile_label(target) if target >= 0 else ""
-        from_player = int(prev.round_state.last_player)
-        return f"ロン {tile} ← {from_player}"
-    if action == Action.PON:
-        return f"ポン {tile_label(int(prev.round_state.target))}"
-    if action == Action.OPEN_KAN:
-        return f"明槓 {tile_label(int(prev.round_state.target))}"
-    if action in (Action.CHI_L, Action.CHI_M, Action.CHI_R):
-        target = int(prev.round_state.target)
-        chi_tiles = compute_chi_tiles(action, target)
-        return "チー " + "".join(tile_labels(chi_tiles))
-    if action == Action.PASS:
-        return "パス"
-    if action == Action.DUMMY:
-        return "進行"
-    return f"アクション {action}"
-
-
-def compute_chi_tiles(action: int, target: int) -> List[int]:
-    if target < 0:
-        return []
-    if action == Action.CHI_L:
-        return [target, target + 1, target + 2]
-    if action == Action.CHI_M:
-        return [target - 1, target, target + 1]
-    if action == Action.CHI_R:
-        return [target - 2, target - 1, target]
-    return []
 
 
 def describe_action_red(action: int, prev: Any) -> str:
@@ -1194,201 +1004,6 @@ def build_legal_actions_view_red(state: Any, player: int) -> Dict[str, Any]:
     }
 
 
-def build_hand_view(state: State, player: int) -> Dict[str, Any]:
-    hand_counts = np.array(state.players.hand[player])
-    tiles = []
-    for tile, count in enumerate(hand_counts):
-        if count <= 0:
-            continue
-        tiles.append(
-            {
-                "tile": tile,
-                "label": tile_label(tile),
-                "count": int(count),
-            }
-        )
-    sequence: List[int] = []
-    for tile, entry in enumerate(hand_counts):
-        sequence.extend([tile] * int(entry))
-    sequence.sort()
-
-    base_sequence: List[int] = list(sequence)
-    draw_tile: Optional[int] = None
-    is_current = player == int(state.current_player)
-    last_draw = int(state.round_state.last_draw) if is_current else -1
-    should_separate = False
-    if is_current and last_draw >= 0 and len(base_sequence) % 3 == 2:
-        last_draw_idx: Optional[int] = None
-        for idx in range(len(base_sequence) - 1, -1, -1):
-            if base_sequence[idx] == last_draw:
-                last_draw_idx = idx
-                break
-        if last_draw_idx is not None:
-            draw_tile = base_sequence.pop(last_draw_idx)
-            should_separate = True
-    return {
-        "tiles": tiles,
-        "sequence": base_sequence,
-        "lastDraw": last_draw,
-        "drawTile": draw_tile,
-        "separateLastDraw": should_separate,
-    }
-
-
-def build_legal_actions_view(state: State, player: int) -> Dict[str, Any]:
-    mask = np.array(state.legal_action_mask).astype(bool)
-    hand_counts = np.array(state.players.hand[player])
-    discard_tiles = []
-    for tile, count in enumerate(hand_counts):
-        can_discard = bool(mask[tile])
-        if count <= 0 and not can_discard:
-            continue
-        discard_tiles.append(
-            {
-                "tile": tile,
-                "label": tile_label(tile),
-                "count": int(count),
-                "action": tile,
-                "enabled": can_discard,
-            }
-        )
-    tsumogiri_available = bool(mask[Action.TSUMOGIRI])
-    kan_actions = []
-    for tile in range(Tile.NUM_TILE_TYPE):
-        action = Tile.NUM_TILE_TYPE + tile
-        if action >= mask.size:
-            break
-        if bool(mask[action]):
-            pon_info = int(state.players.pon[(player, tile)])
-            kind = "加槓" if pon_info > 0 else "暗槓"
-            kan_actions.append(
-                {
-                    "tile": tile,
-                    "label": tile_label(tile),
-                    "action": action,
-                    "kind": kind,
-                }
-            )
-    target = int(state.round_state.target)
-    call_options: Dict[str, Any] = {}
-    if bool(mask[Action.PON]) and target >= 0:
-        call_options["pon"] = {
-            "action": Action.PON,
-            "tiles": [target] * 3,
-            "labels": tile_labels([target] * 3),
-        }
-    if bool(mask[Action.OPEN_KAN]) and target >= 0:
-        call_options["open_kan"] = {
-            "action": Action.OPEN_KAN,
-            "tiles": [target] * 4,
-            "labels": tile_labels([target] * 4),
-        }
-    chi_list = []
-    for action in (Action.CHI_L, Action.CHI_M, Action.CHI_R):
-        if bool(mask[action]) and target >= 0:
-            tiles = compute_chi_tiles(action, target)
-            chi_list.append(
-                {
-                    "action": action,
-                    "tiles": tiles,
-                    "labels": tile_labels(tiles),
-                }
-            )
-    if chi_list:
-        call_options["chi"] = chi_list
-    advance = build_advance_info_from_mask(state, mask)
-    return {
-        "discardTiles": discard_tiles,
-        "tsumogiri": {"enabled": tsumogiri_available, "action": Action.TSUMOGIRI},
-        "riichi": {
-            "enabled": bool(mask[Action.RIICHI]),
-            "action": Action.RIICHI,
-        },
-        "tsumo": {
-            "enabled": bool(mask[Action.TSUMO]),
-            "action": Action.TSUMO,
-        },
-        "ron": {
-            "enabled": bool(mask[Action.RON]),
-            "action": Action.RON,
-            "target": target if target >= 0 else None,
-            "targetLabel": tile_label(target) if target >= 0 else None,
-        },
-        "kan": kan_actions,
-        "call": call_options,
-        "pass": {
-            "enabled": bool(mask[Action.PASS]),
-            "action": Action.PASS,
-        },
-        "dummyOnly": bool(advance),
-        "advance": advance,
-    }
-
-
-def build_advance_info_from_mask(
-    state: State, mask: np.ndarray
-) -> Optional[Dict[str, Any]]:
-    if mask.size <= Action.DUMMY or not bool(mask[Action.DUMMY]):
-        return None
-    if int(mask.sum()) != 1:
-        return None
-    is_final = is_game_end_pending(state)
-    return {
-        "enabled": True,
-        "action": Action.DUMMY,
-        "label": "終局" if is_final else "次の局へ",
-        "isFinal": is_final,
-        "dummyOnly": True,
-    }
-
-
-def build_round_summary(
-    prev_state: State,
-    next_state: State,
-    event: ActionEvent,
-    player_names: List[str],
-) -> RoundSummary:
-    rewards = [int(np.round(r * 100)) for r in np.array(next_state.rewards)]
-    reason = "abortive_draw_normal"
-    winners: List[WinnerSummary] = []
-    if event.action == Action.TSUMO:
-        reason = "tsumo"
-        winners.append(
-            summarise_winner(
-                prev_state,
-                next_state,
-                player=event.player,
-                player_names=player_names,
-                winning_tile=int(prev_state.round_state.last_draw),
-                from_player=None,
-                is_ron=False,
-            )
-        )
-    elif event.action == Action.RON:
-        reason = "ron"
-        winners.append(
-            summarise_winner(
-                prev_state,
-                next_state,
-                player=event.player,
-                player_names=player_names,
-                winning_tile=int(prev_state.round_state.target),
-                from_player=int(prev_state.round_state.last_player),
-                is_ron=True,
-            )
-        )
-    is_game_end = is_game_end_pending(next_state)
-    return RoundSummary(
-        reason=reason,
-        rewards=rewards,
-        winners=winners,
-        round_count=int(prev_state.round_state.round),
-        honba=int(prev_state.round_state.honba),
-        kyotaku=int(prev_state.round_state.kyotaku),
-        is_game_end=is_game_end,
-    )
-
-
 def build_round_summary_red(
     prev_state: Any,
     next_state: Any,
@@ -1432,126 +1047,6 @@ def build_round_summary_red(
         honba=int(prev_state.round_state.honba),
         kyotaku=int(prev_state.round_state.kyotaku),
         is_game_end=bool(next_state.terminated),
-    )
-
-
-def is_game_end_pending(state: State) -> bool:
-    score = np.array(state.round_state.score, dtype=np.int32)
-    if score.size == 0:
-        return False
-    dealer = int(state.round_state.dealer)
-    hora = np.array(state.players.has_won, dtype=bool)
-    can_ron = np.array(state.players.can_win, dtype=bool)
-    is_tempai = can_ron.any(axis=-1)
-    will_dealer_continue = bool(is_tempai[dealer] or hora[dealer])
-    is_final_round = int(state.round_state.round) == int(state.round_state.round_limit)
-    has_dealer_end = not will_dealer_continue
-    init_order = np.array(state.round_state.init_wind, dtype=int)
-    order = np.argsort(score[init_order])
-    score_sorted = score[order]
-    top_idx = order[int(np.argmax(score_sorted))]
-    is_dealer_top = int(top_idx) == dealer
-    has_minus_score = bool((score < 0).any())
-    return bool(
-        (is_final_round and has_dealer_end)
-        or has_minus_score
-        or (is_final_round and is_dealer_top)
-    )
-
-
-def summarise_winner(
-    prev_state: State,
-    next_state: State,
-    *,
-    player: int,
-    player_names: List[str],
-    winning_tile: int,
-    from_player: Optional[int],
-    is_ron: bool,
-) -> WinnerSummary:
-    hand = jnp.asarray(prev_state.players.hand[player])
-    melds = jnp.asarray(prev_state.players.melds[player])
-    n_meld = jnp.int32(prev_state.players.meld_counts[player])
-    riichi = jnp.bool_(prev_state.players.riichi[player])
-    riichi_flag_state = bool(np.array(riichi))
-    prevalent_wind = jnp.int32(prev_state.round_state.round // 4)
-    seat_wind = jnp.int32(prev_state.round_state.seat_wind[player])
-    dora = jnp.asarray(_dora_array(prev_state))
-    hand_for_count = hand
-    if is_ron and 0 <= winning_tile < Tile.NUM_TILE_TYPE:
-        hand_for_count = hand_for_count.at[winning_tile].add(1)
-    flatten = Yaku.flatten(hand_for_count, melds, n_meld)
-    flatten_np = np.array(flatten, dtype=np.int32)
-    dora_np = np.array(dora, dtype=np.int32)
-    visible_dora = int(np.dot(flatten_np, dora_np[0]))
-    ura_dora = int(np.dot(flatten_np, dora_np[1])) if riichi_flag_state else 0
-    dora_tile_list = resolve_dora_tiles(prev_state.round_state.dora_indicators)
-    ura_dora_tile_list = resolve_dora_tiles(prev_state.round_state.ura_dora_indicators)
-    yaku_mask, fan, fu = Yaku.judge(
-        hand,
-        melds,
-        n_meld,
-        jnp.int32(winning_tile),
-        riichi,
-        jnp.bool_(is_ron),
-        prevalent_wind,
-        seat_wind,
-        dora,
-    )
-    yaku_mask_np = np.array(yaku_mask)
-    fan_val = int(np.array(fan))
-    fu_val = int(np.array(fu))
-    yakuman = 0
-    indices = [i for i, flag in enumerate(yaku_mask_np) if flag]
-    yaku_english = [YAKU_NAMES_EN[i] for i in indices]
-    yaku_japanese = [YAKU_NAMES_JA[i] for i in indices]
-    yaku_chinese = [YAKU_NAMES_ZH_CN[i] for i in indices]
-    extra_definitions = EXTRA_RON_YAKU if is_ron else EXTRA_TSUMO_YAKU
-    extras_english = list_extra_yaku(
-        prev_state, player, extra_definitions, language="en"
-    )
-    extras_japanese = list_extra_yaku(
-        prev_state, player, extra_definitions, language="ja"
-    )
-    extras_chinese = list_extra_yaku(
-        prev_state, player, extra_definitions, language="zh-CN"
-    )
-    if not is_ron:
-        if is_first_turn(prev_state) and int(prev_state.players.meld_counts.sum()) == 0:
-            if player == int(prev_state.round_state.dealer):
-                extras_english.append("Heavenly Hand")
-                extras_japanese.append("天和")
-                extras_chinese.append("天和")
-            else:
-                extras_english.append("Earthly Hand")
-                extras_japanese.append("地和")
-                extras_chinese.append("地和")
-    yaku_english.extend(extras_english)
-    yaku_japanese.extend(extras_japanese)
-    yaku_chinese.extend(extras_chinese)
-    riichi_yaku_flag = any(
-        name in yaku_english for name in ("Riichi", "Double Riichi")
-    )
-    if fu_val == 0 and fan_val > 0:
-        yakuman = fan_val
-    points_delta = int(np.round(np.array(next_state.rewards[player]) * 100))
-    return WinnerSummary(
-        player=player,
-        name=player_names[player],
-        points_delta=points_delta,
-        fan=fan_val,
-        fu=fu_val,
-        yaku=yaku_english,
-        yaku_japanese=yaku_japanese,
-        yaku_chinese=yaku_chinese,
-        dora_count=visible_dora,
-        ura_dora_count=ura_dora,
-        dora_tiles=dora_tile_list,
-        ura_dora_tiles=ura_dora_tile_list,
-        is_riichi=riichi_yaku_flag,
-        yakuman=yakuman,
-        winning_tile=winning_tile if winning_tile >= 0 else None,
-        from_player=from_player,
     )
 
 

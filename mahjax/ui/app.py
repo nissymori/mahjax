@@ -49,7 +49,7 @@ class CreateGameRequest(BaseModel):
 
 
 class ActionRequest(BaseModel):
-    # Support both no_red (0-78) and red (0-86) action spaces.
+    # Both env ids use red_mahjong's action space (0-86).
     action: int = Field(..., ge=0, le=86)
 
 

@@ -4,6 +4,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 
+from mahjax.red_mahjong.action import Action
 from mahjax.red_mahjong.config import NO_RED, RED, GameConfig
 from mahjax.red_mahjong.env import RedMahjong
 from mahjax.red_mahjong.tile import Tile
@@ -74,5 +75,30 @@ def test_red_use_red_fives_survives_round_transitions() -> None:
         state = step(state, action.astype(jnp.int8), step_key)
         if bool(state.terminated) or bool(state.truncated):
             break
+
+    assert len(rounds) > 1
+
+
+def test_no_red_never_offers_a_red_five_or_kyuushu() -> None:
+    """Random play under NO_RED: no red five is dealt, and no red-five discard or
+    call, and no KYUUSHU, is ever legal."""
+    env = compiled_env(game_config=NO_RED)
+    red_only = jnp.array(
+        [*Tile.RED_FIVE.values(), Action.PON_RED, Action.CHI_L_RED, Action.CHI_M_RED, Action.CHI_R_RED, Action.KYUUSHU]
+    )
+    key = jax.random.PRNGKey(1)
+    key, sub = jax.random.split(key)
+    state = env.init(sub)
+    rounds = set()
+
+    for _ in range(1500):
+        if bool(state.terminated):
+            break
+        assert not bool(state.legal_action_mask[red_only].any())
+        assert int(state.players.hand_with_red[:, Tile.NUM_TILE_TYPE :].sum()) == 0
+        rounds.add(int(state.round_state.round))
+        key, action_key, step_key = jax.random.split(key, 3)
+        action = jax.random.categorical(action_key, jnp.where(state.legal_action_mask, 0.0, -jnp.inf))
+        state = env.step(state, action.astype(jnp.int32), step_key)
 
     assert len(rounds) > 1

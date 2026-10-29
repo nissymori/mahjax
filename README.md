@@ -137,7 +137,7 @@ Currently, MahJax supports the following rules:
 
 | Rule | id | Status | Code | Speed (steps/sec) |
 |------|------|--------|------|--------|
-| No-Red Mahjong | `no_red_mahjong` | ✅ | [no_red_mahjong](https://github.com/nissymori/mahjax/tree/main/mahjax/mahjax/no_red_mahjong) | ~2M |
+| No-Red Mahjong | `no_red_mahjong` | ✅ | [red_mahjong](https://github.com/nissymori/mahjax/tree/main/mahjax/mahjax/red_mahjong) with `NO_RED` | ≈ `red_mahjong` |
 | Red Mahjong | `red_mahjong` | ✅ | [red_mahjong](https://github.com/nissymori/mahjax/tree/main/mahjax/mahjax/red_mahjong) | ~1M |
 | Selective Rules | - | 🚧 | - | - |
 | 3-player Mahjong | - | 🚧 | - | - |
@@ -146,9 +146,8 @@ Currently, MahJax supports the following rules:
 Its rules are designed to follow [Tenhou](https://tenhou.net/), one of the most widely used online mahjong platforms in Japan, and we validate the implementation against downloaded Tenhou game logs.
 For the detailed rule specification, see the [official Tenhou rules](https://tenhou.net/0/mj/mjlog/en/mjlog-en-rules.html).
 
-`no_red_mahjong` implements 4-player riichi mahjong without red fives.
-This variant is intentionally simplified for speed, and excludes some rules such as abortive draws (`特殊流局`), pao, and double ron.
-If throughput is your priority, `no_red_mahjong` is the recommended option (roughly 2x faster).
+`no_red_mahjong` is `red_mahjong` with the `NO_RED` rule preset: no red fives, no double ron, no pao and no special abortive draws (`特殊流局`).
+It runs on the same engine and has the same observation and action space as `red_mahjong`.
 
 You can configure the environment with:
 

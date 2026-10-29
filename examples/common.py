@@ -27,12 +27,9 @@ def default_rl_params_path(env_name: str, seed: int, run_tag: str = "") -> str:
 
 
 def get_rule_based_player(env_name: str) -> Callable[..., Any]:
-    if env_name == "red_mahjong":
+    # no_red_mahjong is red_mahjong with the NO_RED rules, so both use red's player.
+    if env_name in ("red_mahjong", "no_red_mahjong"):
         from mahjax.red_mahjong.players import rule_based_player
-
-        return rule_based_player
-    if env_name == "no_red_mahjong":
-        from mahjax.no_red_mahjong.players import rule_based_player
 
         return rule_based_player
     raise ValueError(f"Unsupported env_name: {env_name}")
@@ -41,26 +38,20 @@ def get_rule_based_player(env_name: str) -> Callable[..., Any]:
 def get_network_cls(env_name: str):
     """Bind the env's tokenizer to the transformer.
 
-    ``network.py`` is env-agnostic; the red / no-red split lives entirely in the two
-    feature modules, which expose the same contract (D_MODEL, NUM_ACTIONS,
-    CLS_POSITIONS).
+    ``network.py`` is env-agnostic; the tokenizer in ``red_feature`` serves both env
+    ids, since no_red_mahjong is red_mahjong with the NO_RED rules and has the same
+    observation and action space.
     """
     try:
         from .networks.network import make_acnet
     except ImportError:
         from networks.network import make_acnet
 
-    if env_name == "red_mahjong":
+    if env_name in ("red_mahjong", "no_red_mahjong"):
         try:
             from .networks.red_feature import ObservationTokenizer
         except ImportError:
             from networks.red_feature import ObservationTokenizer
-        return make_acnet(ObservationTokenizer)
-    if env_name == "no_red_mahjong":
-        try:
-            from .networks.no_red_feature import ObservationTokenizer
-        except ImportError:
-            from networks.no_red_feature import ObservationTokenizer
         return make_acnet(ObservationTokenizer)
     raise ValueError(f"Unsupported env_name: {env_name}")
 

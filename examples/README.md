@@ -13,11 +13,11 @@ The code covers three main steps:
 </div>
 
 ### Data Collection
-We collect training data using a hand-crafted rule-based agent (designed to minimize shanten, etc.). Please refer to [`mahjax/no_red_mahjong/rule_based_players.py`](https://github.com/nissymori/mahjax/blob/main/mahjax/no_red_mahjong/rule_based_players.py) for implementation details.
+We collect training data using a hand-crafted rule-based agent (designed to minimize shanten, etc.). Please refer to [`mahjax/red_mahjong/players.py`](https://github.com/nissymori/mahjax/blob/main/mahjax/red_mahjong/players.py) for implementation details.
 
 In this example, we adopt a Transformer architecture that utilizes dictionary-based observations.
 - **Network Architecture:** Refer to [`networks/`](https://github.com/nissymori/mahjax/blob/main/examples/networks/) for details.
-- **Observation Semantics:** See the documentation for [`no_red_mahjong`](https://nissymori.github.io/mahjax/no_red_mahjong/#dict-observation). The current examples assume the same `(3, 200)` `action_history` layout used by `red_mahjong`.
+- **Observation Semantics:** See the [observation reference](https://nissymori.github.io/mahjax/api/#observation-envobserve). `no_red_mahjong` is `red_mahjong` with the `NO_RED` preset and has the same observation.
 - **Note for CNN Users:** `observe_type="2D"` is still experimental and not yet finalized.
 
 ### Behavior Cloning and RL with Regularization

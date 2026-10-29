@@ -8,127 +8,29 @@ import mahjax
 env = mahjax.make("no_red_mahjong", observe_type="dict")
 ```
 
-or load the environment class directly:
+`no_red_mahjong` is `red_mahjong` with the `NO_RED` rule preset, so this is the same as:
 
 ```py
-from mahjax.no_red_mahjong.env import NoRedMahjong
+from mahjax.red_mahjong.config import NO_RED
+from mahjax.red_mahjong.env import RedMahjong
 
-env = NoRedMahjong(round_mode="half", observe_type="dict")
+env = RedMahjong(round_mode="half", observe_type="dict", game_config=NO_RED)
 ```
-
-## Description
-
-`no_red_mahjong` is a fast 4-player riichi mahjong environment without red fives. It is the lightweight environment used by the current offline RL and PPO examples.
-
-Compared with `red_mahjong`, this environment intentionally omits some rules in order to keep the implementation simpler and faster.
 
 ## Rules
 
-The environment is a simplified Japanese riichi mahjong variant without red fives.
+`NO_RED` turns off every optional rule of `red_mahjong`:
 
-- No red fives
-- No special abortive draws (`特殊流局`)
-- No pao
-- No double ron
+- No red fives: every five is dealt as a plain five.
+- No double ron: the players who can ron a tile answer in turn order from the discarder, and the first RON ends the round, so one player wins it.
+- No pao.
+- No special abortive draws (`特殊流局`): no 九種九牌, 四風連打, 四家立直, 三家和 or 四開槓.
 
-This environment exists primarily for speed and for simpler RL experiments. It is covered by hand-written tests, and we do not expect major rule-breaking bugs, but some corner cases may still remain. We expect this to improve over time.
+Everything else is `red_mahjong`'s: calls, riichi, furiten, kans and dora, scoring and round progression. See [Red Mahjong](red_mahjong.md) for the rules and for the `GameConfig` fields behind the preset.
 
-For general riichi mahjong rules, see the [European Mahjong Association rulebook](https://mahjong-europe.org/portal/images/docs/Riichi-rules-2025-EN.pdf).
+## State, observation and actions
 
-## State
+`no_red_mahjong` uses `red_mahjong`'s state layout, dict observation ([API](api.md#observation-envobserve)) and 87-wide action space. Under `NO_RED`:
 
-`no_red_mahjong` uses the same nested state layout as `red_mahjong`:
-
-- top-level RL handles (`current_player`, `terminated`, `rewards`, …)
-- `state.players` — per-player arrays (`PlayerStateArrays`)
-- `state.round_state` — round-level arrays (`RoundState`)
-
-The full field list and round-transition style (`auto` / `dummy_share`) are documented once in [API](api.md). `no_red_mahjong` uses **exactly** the common field set there; it does not add any extra fields on top.
-
-## Specs
-
-| Name | Value |
-| :--- | :--- |
-| Version | `beta` |
-| Number of players | `4` |
-| Number of actions | `79` |
-| Observation types | `dict`, `2D` |
-| Reward shape | `(4,)` |
-| Reward semantics | score deltas in hundreds of points |
-
-## Action
-
-The action space (79 actions):
-
-| Range | Meaning |
-| :--- | :--- |
-| `0-33` | Discard a tile type |
-| `34-67` | Closed kan / added kan |
-| `68` | `TSUMOGIRI` |
-| `69` | `RIICHI` |
-| `70` | `TSUMO` |
-| `71` | `RON` |
-| `72` | `PON` |
-| `73` | `OPEN_KAN` |
-| `74-76` | `CHI_L`, `CHI_M`, `CHI_R` |
-| `77` | `PASS` |
-| `78` | `DUMMY` (only legal under `next_round_style="dummy_share"`) |
-
-## Dict Observation
-
-The current training examples use the `dict` observation. It is the most stable observation format in this repository right now, but it may still change in future releases.
-
-The returned dictionary contains:
-
-The full per-key table — shapes, ranges and the reasoning behind each field — lives in
-[api.md](api.md#observation-envobserve). It is kept in one place on purpose: two copies of
-a 25-key table drift apart. The keys specific to this env are:
-
-There are none: `no_red_mahjong` emits the same keys as `red_mahjong` minus `is_red`, since
-it has no red fives. Tiles are plain types `[0, 33]` everywhere, and the action space is 79
-wide (discards 0-33, self-kan 34-67, no `*_RED` call variants).
-
-### Action History
-
-`action_history` is stored as:
-
-- Row `0`: acting player index, converted to the current player's relative view
-- Row `1`: action payload
-- Row `2`: tsumogiri flag
-
-The semantics match `red_mahjong`:
-
-- For discards, row `1` stores the **actual discarded tile**
-- For non-discard actions, row `1` stores the raw action id
-- Row `2` is `1` for tsumogiri, `0` for a non-tsumogiri discard, and `-1` for non-discard actions
-- `PASS` is not recorded: a declined call or ron is not public
-
-For `no_red_mahjong`, discard tiles are in `[0, 33]` and raw action ids are in `[0, 78]`.
-
-## 2D Observation
-
-`observe_type="2D"` exists, but its design is not yet fixed. You can use it for experiments, but we do not recommend treating it as a stable interface yet.
-
-## Rewards
-
-Rewards are 4-player score deltas, represented in hundreds of points.
-
-Examples:
-
-- winning a hand gives positive reward to the winner and negative reward to the payer(s)
-- exhaustive draw can produce tenpai / noten payments
-- illegal actions end the game immediately with the standard illegal-action penalty
-
-For how to consume these rewards in turn-based MARL training (per-player reward accumulator + GAE), see the [API → Using `auto` rewards in RL](api.md#using-auto-rewards-in-rl) section.
-
-## Termination
-
-- `round_mode="single"` terminates after the first round ends.
-- `round_mode="east"` runs East-only progression with `round_limit=3` (East-1 to East-4).
-- `round_mode="half"` runs East-South progression with `round_limit=7` (East-1 to South-4).
-- If nobody holds 30000 points or more when the last kyoku ends, the deal runs on into the
-  extra rounds (西入) and stops as soon as somebody does, or after four extra kyoku.
-
-In multi-round modes, the next-round transition behavior is controlled by `next_round_style` (see [API](api.md#round-transition-style-next_round_style)).
-
-`env.observe_privileged(state)` returns the same dict plus `others_hand` `(3, 34)` — the other three players' concealed hands in seat-relative order (right / across / left). That is hidden information: use it for centralised critics and analysis, never for a policy that will face real opponents.
+- `is_red` is always `False`.
+- The red-five calls (`PON_RED`, `CHI_L_RED`, `CHI_M_RED`, `CHI_R_RED`) and `KYUUSHU` are never legal.

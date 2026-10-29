@@ -1,11 +1,10 @@
 """Actor-critic models over a token sequence.
 
-This module contains NO mahjong. It takes a tokenizer class -- ``red_feature`` or
-``no_red_feature``, which expose the same contract -- and reads everything env
-specific off it:
+This module contains NO mahjong. It takes a tokenizer class -- ``red_feature`` --
+and reads everything env specific off it:
 
     tokenizer_cls.D_MODEL         token width
-    tokenizer_cls.NUM_ACTIONS     policy head width (87 red, 79 no-red)
+    tokenizer_cls.NUM_ACTIONS     policy head width (87)
     tokenizer_cls.CLS_POSITIONS   which sequence positions are readout heads
 
 so the same model serves both envs.

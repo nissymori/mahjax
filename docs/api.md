@@ -46,7 +46,7 @@ while not state.terminated.all():
 
 ## State
 
-Both `no_red_mahjong` and `red_mahjong` share the same nested state layout. The state is an immutable JAX dataclass (`EnvState`) made of:
+`no_red_mahjong` is `red_mahjong` with the `NO_RED` preset, so both have the same nested state layout. The state is an immutable JAX dataclass (`EnvState`) made of:
 
 - a small set of **top-level fields** (the standard RL handles)
 - a per-player array group (`state.players`, a `PlayerStateArrays`)
@@ -144,7 +144,7 @@ the right / across / left.
 | Key | Shape | Type | Meaning |
 | :--- | :---: | :--- | :--- |
 | `hand` | `(34,)` | `int8` | **Count** of each tile type in the concealed hand, `[0, 4]`. Red fives fold into their type; `is_red` carries the redness. Melded tiles are **not** here — see `melds`. |
-| `is_red` | `(34,)` | `bool` | Whether the concealed hand holds the **red** five of that type. Only indices 4 / 13 / 22 can be `True`. **`red_mahjong` only** — `no_red_mahjong` omits the key rather than emitting an always-zero column. |
+| `is_red` | `(34,)` | `bool` | Whether the concealed hand holds the **red** five of that type. Only indices 4 / 13 / 22 can be `True`. Always `False` under the `NO_RED` preset (`no_red_mahjong`), which deals no red fives. |
 | `last_draw` | `()` | `int8` | The observer's own most recent draw `[0-36]`, `-1` if none. This is the tile `TSUMOGIRI` discards. Masked: the underlying state field is round-level, so during a robbing-a-kan window it would otherwise expose the kan declarer's private draw to the responder. |
 | `shanten_count` | `()` | `int8` | Shanten of the concealed hand, `[-1, 6]` (`-1` complete, `0` tenpai). |
 | `discard_shanten` | `(34, 3)` | `int8` | Shanten after discarding each tile **type**, split `[normal, seven pairs, thirteen orphans]`, per-column ranges `[0,8]`/`[0,13]`/`[0,13]`. `Shanten.NOT_IN_HAND` (14) marks types the hand does not hold. At a 3n+1 response node these describe the 3n hands one further discard out — see `is_discard_node`. |

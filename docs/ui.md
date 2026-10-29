@@ -1,6 +1,6 @@
 # MahJax UI Guide
 
-MahJax ships with a FastAPI backend and a static JS frontend, so you can battle the bundled `mahjax.no_red_mahjong` bots in any browser. This guide shows the basics for running the UI in a release setting.
+MahJax ships with a FastAPI backend and a static JS frontend, so you can battle the bundled rule-based bots in any browser. This guide shows the basics for running the UI in a release setting.
 
 ## Quickstart
 

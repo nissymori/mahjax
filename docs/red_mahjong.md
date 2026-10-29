@@ -55,7 +55,7 @@ Two presets are provided: `RED` (the default) turns every rule above on, and `NO
 
 ## State
 
-`red_mahjong` uses the same nested state layout as `no_red_mahjong`:
+`red_mahjong`'s state, which `no_red_mahjong` shares, is a nested layout:
 
 - top-level RL handles (`current_player`, `terminated`, `rewards`, …)
 - `state.players` — per-player arrays (`PlayerStateArrays`)
@@ -121,7 +121,7 @@ a 25-key table drift apart. The keys specific to this env are:
 
 | Key | Shape | Meaning |
 | :--- | :---: | :--- |
-| `is_red` | `(34,)` | Whether the concealed hand holds the RED five of that type (indices 4 / 13 / 22 only). `no_red_mahjong` has no such key. |
+| `is_red` | `(34,)` | Whether the concealed hand holds the RED five of that type (indices 4 / 13 / 22 only). Always `False` under `NO_RED` (`no_red_mahjong`). |
 
 Tile ids are red-aware `[0, 36]` wherever a tile appears (`last_draw`, `target`,
 `dora_indicators`, the meld and history channels). Tile **types** stay `[0, 33]`, with red

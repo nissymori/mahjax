@@ -26,9 +26,8 @@ from typing import Callable, Dict, Optional
 import jax
 import jax.numpy as jnp
 
-from mahjax.no_red_mahjong.players import rule_based_player
-from mahjax.red_mahjong.players import rule_based_player as red_rule_based_player
-from mahjax.no_red_mahjong.state import State
+from mahjax.red_mahjong.players import rule_based_player
+from mahjax.red_mahjong.state import State
 
 AgentFn = Callable[[State, jnp.ndarray], jnp.ndarray]
 
@@ -59,7 +58,7 @@ class AgentRegistry:
             agent_id="rule_based_red",
             name="Rule-based (Red)",
             description="Heuristic rule-based agent for red_mahjong.",
-            act=_rule_based_red_act,
+            act=_rule_based_act,
         )
         self.add_agent(
             agent_id="random",
@@ -147,10 +146,6 @@ def _wrap_callable(fn: Callable[[State, jnp.ndarray], int]) -> AgentFn:
 
 def _rule_based_act(state: State, rng: jnp.ndarray) -> jnp.ndarray:
     return jnp.asarray(jax.jit(rule_based_player)(state, rng), dtype=jnp.int32)
-
-
-def _rule_based_red_act(state: State, rng: jnp.ndarray) -> jnp.ndarray:
-    return jnp.asarray(jax.jit(red_rule_based_player)(state, rng), dtype=jnp.int32)
 
 
 def _random_act(state: State, rng: jnp.ndarray) -> jnp.ndarray:

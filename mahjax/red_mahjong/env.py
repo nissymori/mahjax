@@ -351,7 +351,11 @@ class RedMahjong(Env):
             lambda: _replace_state(state, terminated=TRUE),
             lambda: state,
         )
-        # ``auto`` next_round_style: see the comment in no_red_mahjong/env.py.
+        # ``auto`` next_round_style: when a round ends mid-game (not single mode, not
+        # yet game-terminated), advance straight to the next round init state in this
+        # same step instead of requiring four DUMMY rotations. If the round-end
+        # coincides with the game-end, terminate=True and update the final score
+        # with rank points + kyotaku.
         if self.next_round_style == "auto":
             state = jax.lax.cond(
                 state.round_state.terminated_round & ~state.terminated & ~jnp.bool_(self.one_round),
@@ -2432,7 +2436,7 @@ def _advance_to_next_round_auto(
 ) -> State:
     """``auto`` next_round_style round transition (no DUMMY sharing) for red_mahjong.
 
-    Mirrors ``no_red_mahjong._advance_to_next_round_auto``: called when
+    Called when
     ``terminated_round`` becomes True (RON / TSUMO / 流局) and the env is not in
     ``single`` mode. Branches into game-end (terminated=True with final score) or
     next-round init state (rewards from the round-end step are preserved).

@@ -197,22 +197,9 @@ class Visualizer:
         return jax.tree_util.tree_map(lambda x: x[i], states)
 
 
-def _to_red_env_state(state: State):
-    """Convert a state to the red_mahjong visualizer representation."""
-    if state.env_id == "red_mahjong":
-        return state
-    from mahjax.no_red_mahjong.visualization import to_red_visual_state
-
-    return to_red_visual_state(state)
-
-
 def _mahjong_svg_backend(env_id: str):
-    if env_id == "red_mahjong":
+    if env_id in ("mahjong", "red_mahjong", "no_red_mahjong"):
         from mahjax.red_mahjong import visualization as backend
-
-        return backend
-    if env_id in ("mahjong", "no_red_mahjong"):
-        from mahjax.no_red_mahjong import visualization as backend
 
         return backend
     return None
