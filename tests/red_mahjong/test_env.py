@@ -494,43 +494,6 @@ def test_red_invalid_style_raises() -> None:
         RedMahjong(next_round_style="bogus")  # type: ignore[arg-type]
 
 
-def test_red_auto_ron_advances_to_next_round_in_one_step() -> None:
-    env_auto = RedMahjong(round_mode="half", next_round_style="auto")
-    state = env_auto.init(jax.random.PRNGKey(7))
-    state = _replace_state(
-        state,
-        legal_action_mask=_ron_legal_mask(0),
-        current_player=jnp.int8(0),
-    )
-    next_state = env_auto.step(state, jnp.int32(Action.RON), STEP_KEY)
-    assert not bool(next_state.terminated)
-    assert not bool(next_state.round_state.terminated_round)
-    assert int(next_state.round_state.dummy_count) == 0
-    assert int(next_state.current_player) == int(next_state.round_state.dealer)
-    # Legal action mask is NOT DUMMY-only.
-    only_dummy = (
-        bool(next_state.legal_action_mask[Action.DUMMY])
-        and int(next_state.legal_action_mask.sum()) == 1
-    )
-    assert not only_dummy
-
-
-def test_red_dummy_share_ron_keeps_dummy_phase() -> None:
-    env_share = RedMahjong(round_mode="half", next_round_style="dummy_share")
-    state = env_share.init(jax.random.PRNGKey(7))
-    state = _replace_state(
-        state,
-        legal_action_mask=_ron_legal_mask(0),
-        current_player=jnp.int8(0),
-    )
-    next_state = env_share.step(state, jnp.int32(Action.RON), STEP_KEY)
-    assert not bool(next_state.terminated)
-    assert bool(next_state.round_state.terminated_round)
-    assert int(next_state.round_state.dummy_count) == 0
-    # Only DUMMY is legal for every seat.
-    assert bool(next_state.players.legal_action_mask[:, Action.DUMMY].all())
-
-
 def test_red_auto_single_mode_terminates_like_legacy() -> None:
     env_auto = RedMahjong(round_mode="single", next_round_style="auto")
     state = env_auto.init(jax.random.PRNGKey(11))
@@ -541,29 +504,6 @@ def test_red_auto_single_mode_terminates_like_legacy() -> None:
     )
     next_state = env_auto.step(state, jnp.int32(Action.RON), STEP_KEY)
     assert bool(next_state.terminated)
-
-
-def test_red_auto_game_end_sets_terminated_with_final_score() -> None:
-    env_auto = RedMahjong(round_mode="half", next_round_style="auto", order_points=[300, 100, -100, -300])
-    state = env_auto.init(jax.random.PRNGKey(3))
-    state = _replace_state(
-        state,
-        legal_action_mask=_ron_legal_mask(0),
-        current_player=jnp.int8(0),
-        dealer=jnp.int8(0),
-        score=jnp.array([310, 310, 190, 190], dtype=jnp.int32),
-        init_wind=jnp.array([0, 1, 2, 3], dtype=jnp.int8),
-        round=jnp.int8(7),
-        round_limit=jnp.int8(7),
-        kyotaku=jnp.int8(3),
-        has_won=jnp.array([False, False, False, False], dtype=jnp.bool_),
-    )
-    next_state = env_auto.step(state, jnp.int32(Action.RON), STEP_KEY)
-    assert bool(next_state.terminated)
-    expected = jnp.array([640, 410, 90, -110], dtype=jnp.int32)
-    assert bool(jnp.all(next_state.round_state.score == expected)), (
-        f"got {next_state.round_state.score}, expected {expected}"
-    )
 
 
 # ---------------- parity: auto vs dummy_share ----------------
@@ -634,8 +574,8 @@ def test_red_auto_matches_dummy_share_at_mid_game_round_transition() -> None:
 def test_red_auto_matches_dummy_share_at_game_end() -> None:
     """When RON ends the game, auto terminates after the RON step; dummy_share
     terminates one step later (DUMMY 1 detects ``_is_game_end`` at ``dc==0``).
-    Compare the two terminal states: same ``terminated``, same final ``score``,
-    same ``rewards``.
+    Compare the two terminal states: same ``terminated``, same final ``score``
+    (the expected one, uma included), same ``rewards``.
     """
     env_auto = RedMahjong(round_mode="half", next_round_style="auto", order_points=[300, 100, -100, -300])
     env_share = RedMahjong(round_mode="half", next_round_style="dummy_share", order_points=[300, 100, -100, -300])
@@ -662,6 +602,10 @@ def test_red_auto_matches_dummy_share_at_game_end() -> None:
 
     assert bool(state_auto.terminated)
     assert bool(state_share.terminated)
+    expected = jnp.array([640, 410, 90, -110], dtype=jnp.int32)
+    assert bool(jnp.all(state_auto.round_state.score == expected)), (
+        f"got {state_auto.round_state.score}, expected {expected}"
+    )
     assert bool(jnp.all(state_auto.round_state.score == state_share.round_state.score))
     assert bool(jnp.all(total_auto == total_share))
 

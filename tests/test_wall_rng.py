@@ -22,15 +22,15 @@ def _make(env_name, style):
     return mahjax.make(env_name, round_mode="half", next_round_style=style)
 
 
-def _walls(env, init_seed, step_seed, n_walls=3, max_steps=4000):
-    """Play random legal actions and collect each distinct wall.
+def _walls(env, step, init_seed, step_seed, n_walls=3, max_steps=4000):
+    """Play random legal actions with ``step`` (``env.step`` jitted) and collect
+    each distinct wall.
 
     A round transition is exactly when the deck array changes, which works
     under both ``next_round_style`` values (``auto`` completes the transition
     inside one step, so ``terminated_round`` is never observable between steps).
     """
     state = env.init(jax.random.PRNGKey(init_seed))
-    step = jax.jit(env.step)
     walls = [np.asarray(state.round_state.deck).copy()]
     rng = jax.random.PRNGKey(step_seed)
     for _ in range(max_steps):
@@ -66,22 +66,18 @@ def test_step_without_a_key_is_rejected(env_name):
 def test_later_walls_follow_the_step_keys(env_name, style):
     """Same init key, different step keys -> the first wall is shared (it is
     dealt by ``init``) and every later wall differs. This is the bug: it used
-    to be the other way round, with later walls identical across everything."""
+    to be the other way round, with later walls identical across everything.
+    The same keys again give the same walls."""
     env = _make(env_name, style)
-    a = _walls(env, init_seed=0, step_seed=1)
-    b = _walls(env, init_seed=0, step_seed=2)
+    step = jax.jit(env.step)
+    a = _walls(env, step, init_seed=0, step_seed=1)
+    b = _walls(env, step, init_seed=0, step_seed=2)
     assert len(a) >= 3 and len(b) >= 3, "no round transition within the step budget"
     np.testing.assert_array_equal(a[0], b[0])
     for i in range(1, 3):
         assert not np.array_equal(a[i], b[i]), f"wall {i} does not follow the step key"
 
-
-@pytest.mark.parametrize("style", STYLES)
-@pytest.mark.parametrize("env_name", ENV_NAMES)
-def test_walls_are_reproducible_from_the_same_keys(env_name, style):
-    env = _make(env_name, style)
-    a = _walls(env, init_seed=0, step_seed=1)
-    b = _walls(env, init_seed=0, step_seed=1)
-    assert len(a) == len(b)
-    for x, y in zip(a, b):
+    again = _walls(env, step, init_seed=0, step_seed=1)
+    assert len(again) == len(a)
+    for x, y in zip(a, again):
         np.testing.assert_array_equal(x, y)

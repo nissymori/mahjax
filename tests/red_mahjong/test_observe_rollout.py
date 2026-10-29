@@ -60,6 +60,13 @@ def rollout():
     return _rollout(seed=0)
 
 
+@pytest.fixture(scope="module")
+def privileged(rollout):
+    """``observe_privileged`` of every rollout state, computed once for the tests below."""
+    observe_privileged = jax.jit(_observe_privileged_dict)
+    return [observe_privileged(state) for state, _ in rollout]
+
+
 def test_rollout_actually_crosses_the_old_ceiling(rollout):
     """Guard the guard: the other tests only mean something if we get far enough."""
     max_step_count = max(int(s.step_count) for s, _ in rollout)
@@ -633,23 +640,21 @@ def test_is_hand_concealed_is_not_merely_no_melds(rollout):
         pytest.skip("random rollout produced no closed kan")
 
 
-def test_privileged_observation_is_a_strict_superset(rollout):
+def test_privileged_observation_is_a_strict_superset(rollout, privileged):
     """``observe_privileged`` must add keys and change nothing else.
 
     A centralised critic reads this while its actor reads ``observe()``; if the
     shared keys ever diverged the two would silently disagree about the same state.
     """
-    for state, obs in rollout:
-        priv = _observe_privileged_dict(state)
+    for (_, obs), priv in zip(rollout, privileged):
         assert set(priv) - set(obs) == {"others_hand", "others_is_red"}
         for k, v in obs.items():
             np.testing.assert_array_equal(np.asarray(priv[k]), np.asarray(v))
 
 
-def test_privileged_other_hands_are_the_right_seats_in_relative_order(rollout):
+def test_privileged_other_hands_are_the_right_seats_in_relative_order(rollout, privileged):
     """Rows are right / across / left of the observer, the same frame as ``scores``."""
-    for state, _ in rollout:
-        priv = _observe_privileged_dict(state)
+    for (state, _), priv in zip(rollout, privileged):
         c_p = int(state.current_player)
         assert np.asarray(priv["others_hand"]).shape == (3, 34)
         assert np.asarray(priv["others_is_red"]).shape == (3, 34)
@@ -661,11 +666,10 @@ def test_privileged_other_hands_are_the_right_seats_in_relative_order(rollout):
             )
 
 
-def test_privileged_hands_are_well_formed(rollout):
+def test_privileged_hands_are_well_formed(privileged):
     """Counts stay in [0,4], and a red flag only ever sits on a five."""
     non_five = [t for t in range(34) if t not in (4, 13, 22)]
-    for state, _ in rollout:
-        priv = _observe_privileged_dict(state)
+    for priv in privileged:
         oh = np.asarray(priv["others_hand"])
         assert oh.min() >= 0 and oh.max() <= 4, (oh.min(), oh.max())
         red = np.asarray(priv["others_is_red"])
