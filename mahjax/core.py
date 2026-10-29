@@ -266,14 +266,14 @@ def make(env_id: EnvId, **kwargs):  # noqa: C901
         ```
     """
     from mahjax.mahjong_4p.config import NO_RED
-    from mahjax.mahjong_4p.env import RedMahjong
+    from mahjax.mahjong_4p.env import Mahjong4p
 
     if env_id == "no_red_mahjong":
         # red_mahjong with every optional rule off: no red fives, no double ron,
         # no pao and no special abortive draws.
-        return RedMahjong(game_config=NO_RED, **kwargs)
+        return Mahjong4p(game_config=NO_RED, **kwargs)
     elif env_id == "red_mahjong":
-        return RedMahjong(**kwargs)
+        return Mahjong4p(**kwargs)
     else:
         raise ValueError(
             f"Wrong env_id '{env_id}' is passed. Available ids are: \n{available_envs()}"

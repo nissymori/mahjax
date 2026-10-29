@@ -6,7 +6,7 @@ import jax.numpy as jnp
 from mahjax.mahjong_4p.action import Action
 from mahjax.mahjong_4p.config import GameConfig
 from mahjax.mahjong_4p.constants import FIRST_DRAW_IDX
-from mahjax.mahjong_4p.logic import _abortive_draw_normal, _draw, _init, _make_legal_action_mask_after_draw, _replace_state, _ron, _special_next_round, _step
+from mahjax.mahjong_4p.logic import _abortive_draw_normal, _draw, _init, _mask_after_draw, _replace_state, _ron, _special_next_round, _step
 from mahjax.mahjong_4p.hand import Hand
 from mahjax.mahjong_4p.state import default_state
 from mahjax.mahjong_4p.tile import River, Tile
@@ -23,7 +23,7 @@ def test_kyuushu_action_is_enabled_on_first_turn() -> None:
     )
     state = state.replace(players=state.players.replace(hand_with_red=hand_with_red))
 
-    mask = _make_legal_action_mask_after_draw(state, hand_with_red, jnp.int8(0), jnp.int8(0))
+    mask = _mask_after_draw(state, hand_with_red, jnp.int8(0), jnp.int8(0))
 
     assert bool(mask[Action.KYUUSHU])
 
@@ -40,7 +40,7 @@ def test_kyuushu_action_is_disabled_after_the_first_turn() -> None:
         round_state=state.round_state.replace(next_deck_ix=jnp.int32(FIRST_DRAW_IDX - 4)),
     )
 
-    mask = _make_legal_action_mask_after_draw(state, hand_with_red, jnp.int8(0), jnp.int8(0))
+    mask = _mask_after_draw(state, hand_with_red, jnp.int8(0), jnp.int8(0))
 
     assert not bool(mask[Action.KYUUSHU])
 
@@ -55,7 +55,7 @@ def test_kyuushu_action_is_disabled_by_game_config() -> None:
     state = state.replace(players=state.players.replace(hand_with_red=hand_with_red))
     config = GameConfig(enable_special_abortive_draw=False)
 
-    mask = _make_legal_action_mask_after_draw(
+    mask = _mask_after_draw(
         state,
         hand_with_red,
         jnp.int8(0),

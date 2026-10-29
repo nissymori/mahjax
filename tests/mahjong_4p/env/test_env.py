@@ -6,8 +6,8 @@ import jax.numpy as jnp
 from mahjax.mahjong_4p.action import Action
 from mahjax.mahjong_4p.config import RED
 from mahjax.mahjong_4p.constants import FIRST_DRAW_IDX
-from mahjax.mahjong_4p.env import RedMahjong
-from mahjax.mahjong_4p.logic import _draw, _init, _make_legal_action_mask_after_draw, _step
+from mahjax.mahjong_4p.env import Mahjong4p
+from mahjax.mahjong_4p.logic import _draw, _init, _mask_after_draw, _step
 from mahjax.mahjong_4p.state import default_state
 from mahjax.mahjong_4p.tile import Tile
 
@@ -37,7 +37,7 @@ def test_mask_after_draw_has_discard_or_tsumogiri() -> None:
     c_p = int(state.current_player)
     hand = state.players.hand_with_red
     new_tile = int(state.round_state.last_draw)
-    mask = _make_legal_action_mask_after_draw(state, hand, c_p, new_tile)
+    mask = _mask_after_draw(state, hand, c_p, new_tile)
     assert bool(mask[Action.TSUMOGIRI] | jnp.any(mask[: Tile.NUM_TILE_TYPE_WITH_RED]))
 
 
@@ -52,14 +52,14 @@ def test_tsumogiri_action_history_records_actual_tile_and_flag() -> None:
 
 
 def test_red_default_is_auto() -> None:
-    e = RedMahjong()
-    assert e.next_round_style == "auto"
+    e = Mahjong4p()
+    assert e.round_end == "auto"
 
 
 def test_red_invalid_style_raises() -> None:
     import pytest as _pytest
     with _pytest.raises(ValueError):
-        RedMahjong(next_round_style="bogus")  # type: ignore[arg-type]
+        Mahjong4p(round_end="bogus")  # type: ignore[arg-type]
 
 
 def test_public_state_layout_and_defaults_for_red_env() -> None:

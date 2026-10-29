@@ -12,9 +12,9 @@ env = mahjax.make("no_red_mahjong", observe_type="dict")
 
 ```py
 from mahjax.mahjong_4p.config import NO_RED
-from mahjax.mahjong_4p.env import RedMahjong
+from mahjax.mahjong_4p.env import Mahjong4p
 
-env = RedMahjong(round_mode="half", observe_type="dict", game_config=NO_RED)
+env = Mahjong4p(round_mode="half", observe_type="dict", game_config=NO_RED)
 ```
 
 ## Rules

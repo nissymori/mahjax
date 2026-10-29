@@ -26,7 +26,7 @@ import numpy as np
 from mahjax.mahjong_4p.action import Action as RedAction
 from mahjax.mahjong_4p.config import NO_RED
 from mahjax.mahjong_4p.constants import DORA_ARRAY, FIRST_DRAW_IDX
-from mahjax.mahjong_4p.env import RedMahjong
+from mahjax.mahjong_4p.env import Mahjong4p
 from mahjax.mahjong_4p.logic import _dora_array as _red_dora_array
 from mahjax.mahjong_4p.tile import Tile as RedTile
 from mahjax.mahjong_4p.visualization import render_round_svg
@@ -738,9 +738,9 @@ class GameManager:
     ) -> GameSession:
         agent = self.registry.get(agent_id)
         if env_id == "red_mahjong":
-            env = RedMahjong(round_mode=round_mode, next_round_style="dummy_share")
+            env = Mahjong4p(round_mode=round_mode, round_end="confirm")
         else:
-            env = RedMahjong(round_mode=round_mode, game_config=NO_RED, next_round_style="dummy_share")
+            env = Mahjong4p(round_mode=round_mode, game_config=NO_RED, round_end="confirm")
         rng = jax.random.PRNGKey(seed)
         rng, init_key = jax.random.split(rng)
         state = env.init(init_key)

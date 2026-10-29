@@ -4,7 +4,7 @@ import jax
 import jax.numpy as jnp
 
 from mahjax.mahjong_4p.action import Action
-from mahjax.mahjong_4p.logic import _draw_after_kan, _init, _kan, _replace_state, _step
+from mahjax.mahjong_4p.logic import _draw_rinshan, _init, _kan, _replace_state, _step
 from mahjax.mahjong_4p.hand import Hand
 from mahjax.mahjong_4p.meld import Meld
 from mahjax.mahjong_4p.state import default_state
@@ -17,16 +17,16 @@ def test_draw_after_kan_advances_only_the_dead_wall_boundary():
     """The premise the rinshan count rests on: 王牌繰り moves ``last_deck_ix``
     by exactly one and never touches ``next_deck_ix``."""
     state, _ = _post_ankan_state(6)
-    out = _draw_after_kan(state)
+    out = _draw_rinshan(state)
     assert int(out.round_state.last_deck_ix) == int(state.round_state.last_deck_ix) + 1
     assert int(out.round_state.next_deck_ix) == int(state.round_state.next_deck_ix)
 
 
 def test_draw_after_kan_advances_nothing_when_the_kan_dora_was_pre_flipped():
     """暗槓 reveals the kan dora inside ``_kan``, which already advanced
-    ``last_deck_ix`` there; ``_draw_after_kan`` must not advance it again."""
+    ``last_deck_ix`` there; ``_draw_rinshan`` must not advance it again."""
     state, _ = _post_ankan_state(6, kan_dora_pre_flipped=True)
-    out = _draw_after_kan(state)
+    out = _draw_rinshan(state)
     assert int(out.round_state.last_deck_ix) == int(state.round_state.last_deck_ix)
     assert int(out.round_state.next_deck_ix) == int(state.round_state.next_deck_ix)
 
@@ -40,7 +40,7 @@ def test_open_and_added_kan_dora_turns_over_at_the_discard():
 
     kan = jax.jit(m._kan)
     discard = jax.jit(m._discard)
-    draw_after_kan = jax.jit(_draw_after_kan)
+    draw_after_kan = jax.jit(_draw_rinshan)
     north, west, east = 30, 29, 27
 
     def counts(tiles):
@@ -104,7 +104,7 @@ def test_a_robbed_added_kan_is_scored_before_the_previous_kans_indicator_turns_o
     from mahjax.mahjong_4p.tile import Tile
 
     kan = jax.jit(m._kan)
-    draw_after_kan = jax.jit(_draw_after_kan)
+    draw_after_kan = jax.jit(_draw_rinshan)
     west, seven_p, one_s, eight_m, eight_p, north, hatsu = 29, 15, 18, 7, 16, 30, 32
 
     def counts(tiles):
@@ -170,7 +170,7 @@ def test_a_robbed_added_kan_is_scored_before_the_previous_kans_indicator_turns_o
 
     # Nobody robs it: the first kan's indicator turns over before the rinshan draw,
     # and P1's rinshan tsumo counts it: 8m makes 999m three dora.
-    drawn = {indicator: m._finalize_step_state(m._pass(window)) for indicator, window in windows.items()}
+    drawn = {indicator: m._advance_to_next_decision(m._pass(window)) for indicator, window in windows.items()}
     for state in drawn.values():
         assert int(state.current_player) == 1 and int(state.round_state.last_draw) == hatsu
         assert revealed(state) == 2
@@ -185,7 +185,7 @@ def test_no_kan_off_a_rinshan_draw_that_leaves_the_live_wall_empty() -> None:
 
     east, south = 27, 28
     kan = jax.jit(m._kan)
-    draw_after_kan = jax.jit(m._draw_after_kan)
+    draw_after_kan = jax.jit(m._draw_rinshan)
     hand = jnp.zeros((37,), dtype=jnp.int8)
     for tile in [east] * 4 + [south] * 3 + [0, 1, 2, 3, 4, 5, 6]:  # EEEE SSS 123m 456m 7m
         hand = hand.at[tile].add(1)
@@ -321,7 +321,7 @@ def test_robbing_kan_ron_finalizes_to_dummy_share_mask() -> None:
         dora_indicators=jnp.array([tile_ids["5s"], -1, -1, -1, -1], dtype=jnp.int8),
     )
 
-    env = compiled_env(round_mode="half", next_round_style="dummy_share")
+    env = compiled_env(round_mode="half", round_end="confirm")
     kan_state = _kan(state, jnp.int32(action))
     ron_state = env.step(kan_state, jnp.int32(Action.RON), STEP_KEY)
 
@@ -375,7 +375,7 @@ def test_robbing_kan_second_candidate_pass_after_ron_does_not_draw_after_kan() -
         dora_indicators=jnp.array([tile_ids["5s"], -1, -1, -1, -1], dtype=jnp.int8),
     )
 
-    env = compiled_env(round_mode="half", next_round_style="dummy_share")
+    env = compiled_env(round_mode="half", round_end="confirm")
     kan_state = _kan(state, jnp.int32(action))
     first_ron_state = env.step(kan_state, jnp.int32(Action.RON), STEP_KEY)
     pass_state = env.step(first_ron_state, jnp.int32(Action.PASS), STEP_KEY)

@@ -11,7 +11,7 @@ exactly there --
     path and never recomputed.
 
 -- and neither was reachable without stepping. These tests drive a real rollout
-in ``round_mode='half'``, which is ``RedMahjong``'s own default and the mode both
+in ``round_mode='half'``, which is ``Mahjong4p``'s own default and the mode both
 bugs required.
 """
 

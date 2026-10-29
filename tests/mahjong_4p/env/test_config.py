@@ -6,7 +6,7 @@ import pytest
 
 from mahjax.mahjong_4p.action import Action
 from mahjax.mahjong_4p.config import NO_RED, RED, GameConfig
-from mahjax.mahjong_4p.env import RedMahjong
+from mahjax.mahjong_4p.env import Mahjong4p
 from mahjax.mahjong_4p.tile import Tile
 
 from ..helpers import compiled_env
@@ -37,8 +37,8 @@ def test_game_config_is_static() -> None:
 
 
 def test_env_holds_its_config() -> None:
-    assert RedMahjong().game_config is RED
-    assert RedMahjong(game_config=NO_RED).game_config is NO_RED
+    assert Mahjong4p().game_config is RED
+    assert Mahjong4p(game_config=NO_RED).game_config is NO_RED
 
 
 def test_no_red_deals_no_red_fives() -> None:
@@ -57,7 +57,7 @@ def test_red_use_red_fives_survives_round_transitions() -> None:
     env = compiled_env(
         round_mode="half",
         game_config=RedGameConfig(use_red_fives=False),
-        next_round_style="dummy_share",
+        round_end="confirm",
     )
     step = env.step
     key = jax.random.PRNGKey(3)

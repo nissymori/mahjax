@@ -82,7 +82,7 @@ def _observe_dict(state: State) -> Dict:
     - can_win: (34,) bool, SELF ONLY -- for each tile type, whether it completes the
       observer's hand. Meaningful at tenpai (it is the wait table). Opponents' rows
       exist in state but are hidden information and are deliberately not exposed.
-      STALE AFTER PON/CHI: the env refreshes it in _init, _discard and _draw_after_kan
+      STALE AFTER PON/CHI: the env refreshes it in _init, _discard and _draw_rinshan
       but not in _pon/_chi, so at a post-call discard node it still describes the
       pre-call hand and may disagree with ``shanten_count`` (which is recomputed here
       on every call). Prefer ``shanten_count`` where they conflict.
@@ -126,7 +126,7 @@ def _observe_dict(state: State) -> Dict:
     GLOBAL -- table context that is not about any one tile or event.
     - scores: (4,) int32, scores ordered from the current player's seat
       (me, right, across, left)
-    - round: () int8, the kyoku counter. ``RedMahjong`` sets round_limit to 3 for
+    - round: () int8, the kyoku counter. ``Mahjong4p`` sets round_limit to 3 for
       'east' and 7 for 'single'/'half', and sudden death lets ``round`` run up to
       ``round_limit + SUDDEN_DEATH_ROUNDS``, so the widest range is [0, 11].
     - round_limit: () int8, last REGULAR kyoku index of the game: 3 for 'east', 7
@@ -304,7 +304,7 @@ def _observe_dict(state: State) -> Dict:
     # Own wait table, SELF ONLY -- state holds all 4 rows but 3 are hidden. Read from
     # state rather than recomputed; the cache exists to avoid solving completion twice.
     #
-    # STALE AFTER PON/CHI: refreshed in _init, _discard and _draw_after_kan but not in
+    # STALE AFTER PON/CHI: refreshed in _init, _discard and _draw_rinshan but not in
     # _pon/_chi, which rewrite the hand. At a post-call discard node it can claim a wait
     # the player no longer has. ``shanten_count`` is recomputed every call -- trust it.
     can_win = state.players.can_win[c_p]

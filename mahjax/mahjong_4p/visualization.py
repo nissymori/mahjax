@@ -17,7 +17,7 @@ from .constants import (
     NUM_PLAYERS,
     NUM_TILE_TYPES_WITH_RED,
 )
-from .env import RedMahjong
+from .env import Mahjong4p
 from .meld import Meld
 from .state import EnvState
 from .tile import River, Tile
@@ -584,7 +584,7 @@ def generate_play_history_states(
     max_steps: int = 80,
     policy: str = "first_legal",
 ) -> list[EnvState]:
-    env = RedMahjong()
+    env = Mahjong4p()
     key = jax.random.PRNGKey(seed)
     state = env.init(key)
     history: list[EnvState] = [state]

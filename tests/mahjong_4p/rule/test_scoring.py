@@ -233,7 +233,7 @@ def test_red_limit_hand_rons_pay_the_limit() -> None:
 
 
 def test_red_rewards_report_only_the_current_transition() -> None:
-    env = compiled_env(round_mode="east", next_round_style="dummy_share")
+    env = compiled_env(round_mode="east", round_end="confirm")
     step = env.step
     key = jax.random.PRNGKey(11)
     key, sub = jax.random.split(key)
@@ -255,7 +255,7 @@ def test_red_rewards_report_only_the_current_transition() -> None:
 
 
 def test_red_multi_ron_reward_stream_matches_the_score_movement() -> None:
-    env = compiled_env(round_mode="single", next_round_style="auto")
+    env = compiled_env(round_mode="single", round_end="auto")
     base = default_state()
     legal_action_mask = base.players.legal_action_mask
     for player in range(3):

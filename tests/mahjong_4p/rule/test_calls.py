@@ -1,7 +1,7 @@
 import jax.numpy as jnp
 
 from mahjax.mahjong_4p.action import Action
-from mahjax.mahjong_4p.logic import _claims_open_to, _finalize_step_state, _mask_for_chi, _next_meld_player, _next_ron_player, _replace_state
+from mahjax.mahjong_4p.logic import _claims_open_to, _advance_to_next_decision, _mask_for_chi, _next_meld_player, _next_ron_player, _replace_state
 from mahjax.mahjong_4p.hand import Hand
 from mahjax.mahjong_4p.state import default_state
 from mahjax.mahjong_4p.tile import Tile
@@ -93,7 +93,7 @@ def test_claims_open_to_holds_a_call_while_another_player_claims_higher() -> Non
 
 def test_red_a_lower_call_waits_until_every_higher_claim_is_passed() -> None:
     """P0 has just discarded; each prompt is (player, offered calls) while everyone passes."""
-    env = compiled_env(round_mode="single", next_round_style="auto")
+    env = compiled_env(round_mode="single", round_end="auto")
     scenarios = [
         # Nothing conflicts: RON is still answered before the PON.
         ({1: [Action.RON, Action.PON]}, [(1, {Action.RON}), (1, {Action.PON})]),
@@ -114,7 +114,7 @@ def test_red_a_lower_call_waits_until_every_higher_claim_is_passed() -> None:
         for player, actions in rows.items():
             for action in actions:
                 legal = legal.at[player, action].set(True)
-        state = _finalize_step_state(
+        state = _advance_to_next_decision(
             _replace_state(
                 base,
                 current_player=jnp.int8(1),

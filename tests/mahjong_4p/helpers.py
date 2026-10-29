@@ -6,7 +6,7 @@ import jax
 import jax.numpy as jnp
 
 from mahjax.mahjong_4p.config import RED
-from mahjax.mahjong_4p.env import RedMahjong
+from mahjax.mahjong_4p.env import Mahjong4p
 from mahjax.mahjong_4p.logic import _init, _replace_state
 from mahjax.mahjong_4p.hand import Hand
 
@@ -27,21 +27,21 @@ class _CompiledEnv:
 
 
 @functools.lru_cache(maxsize=None)
-def _compiled_env(round_mode, next_round_style, order_points, game_config):
+def _compiled_env(round_mode, round_end, order_points, game_config):
     return _CompiledEnv(
-        RedMahjong(
+        Mahjong4p(
             round_mode=round_mode,
-            next_round_style=next_round_style,
+            round_end=round_end,
             order_points=list(order_points),
             game_config=game_config,
         )
     )
 
 
-def compiled_env(round_mode="half", next_round_style="auto", order_points=(0, 0, 0, 0), game_config=None):
-    """``RedMahjong(...)`` with ``init`` and ``step`` jitted. Tests that build the same
+def compiled_env(round_mode="half", round_end="auto", order_points=(0, 0, 0, 0), game_config=None):
+    """``Mahjong4p(...)`` with ``init`` and ``step`` jitted. Tests that build the same
     env share one instance, so a configuration compiles once per test process."""
-    return _compiled_env(round_mode, next_round_style, tuple(order_points), RED if game_config is None else game_config)
+    return _compiled_env(round_mode, round_end, tuple(order_points), RED if game_config is None else game_config)
 
 
 _RINSHAN_TILE = 12                                   # 4p
@@ -54,11 +54,11 @@ _POST_ANKAN_HAND = [1, 2, 3, 4, 5, 6, 8, 8, 13, 14]  # 234m 567m 99m 56p
 
 
 def _post_ankan_state(wall_left_after_rinshan, *, kan_dora_pre_flipped=False):
-    """A state entering ``_draw_after_kan``: the current player has declared a
+    """A state entering ``_draw_rinshan``: the current player has declared a
     closed kan and is about to take the replacement tile.
 
     ``kan_dora_pre_flipped`` picks the branch where ``_kan`` already revealed
-    the kan dora and already advanced ``last_deck_ix``, so ``_draw_after_kan``
+    the kan dora and already advanced ``last_deck_ix``, so ``_draw_rinshan``
     must not advance it a second time.
     """
     state = _init(jax.random.PRNGKey(5))
@@ -69,7 +69,7 @@ def _post_ankan_state(wall_left_after_rinshan, *, kan_dora_pre_flipped=False):
     n_kan = state.players.n_kan.sum()                # 0: rinshan is deck[10]
     deck = state.round_state.deck.at[10 + n_kan].set(jnp.int8(_RINSHAN_TILE))
     # In the pre-flipped branch ``_kan`` already advanced the boundary, so the
-    # state entering ``_draw_after_kan`` carries it and the call leaves it be.
+    # state entering ``_draw_rinshan`` carries it and the call leaves it be.
     last_in = int(state.round_state.last_deck_ix) + int(kan_dora_pre_flipped)
     last_out = last_in if kan_dora_pre_flipped else last_in + 1
     return _replace_state(
@@ -79,7 +79,7 @@ def _post_ankan_state(wall_left_after_rinshan, *, kan_dora_pre_flipped=False):
         deck=deck,
         n_kan_doras=jnp.int8(1 if kan_dora_pre_flipped else 0),
         last_deck_ix=jnp.int8(last_in),
-        # _draw_after_kan leaves next_deck_ix alone, so the live wall left
+        # _draw_rinshan leaves next_deck_ix alone, so the live wall left
         # after the rinshan draw is ``next - last_out + 1``.
         next_deck_ix=jnp.int32(last_out + wall_left_after_rinshan - 1),
     ), c_p

@@ -17,9 +17,9 @@ def make_eval_fn(env: Env, num_eval_envs: int, max_steps: int = 200):
     """Build a rich, JIT-able evaluator that pits two policies in a 1-vs-3 setup.
 
     Tested under ``round_mode='single'``. In ``round_mode='east'/'half'`` with
-    ``next_round_style='auto'``, per-hand stats only capture the last hand of each
+    ``round_end='auto'``, per-hand stats only capture the last hand of each
     game because the env auto-resets and overwrites the round-end ``players`` info;
-    use ``next_round_style='dummy_share'`` to capture every hand.
+    use ``round_end='confirm'`` to capture every hand.
     """
     init_fn = env.init
     step_fn = env.step

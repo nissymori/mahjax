@@ -15,11 +15,11 @@ import pytest
 import mahjax
 
 ENV_NAMES = ["red_mahjong", "no_red_mahjong"]
-STYLES = ["auto", "dummy_share"]
+STYLES = ["auto", "confirm"]
 
 
 def _make(env_name, style):
-    return mahjax.make(env_name, round_mode="half", next_round_style=style)
+    return mahjax.make(env_name, round_mode="half", round_end=style)
 
 
 def _walls(env, step, init_seed, step_seed, n_walls=3, max_steps=4000):
@@ -27,7 +27,7 @@ def _walls(env, step, init_seed, step_seed, n_walls=3, max_steps=4000):
     each distinct wall.
 
     A round transition is exactly when the deck array changes, which works
-    under both ``next_round_style`` values (``auto`` completes the transition
+    under both ``round_end`` values (``auto`` completes the transition
     inside one step, so ``terminated_round`` is never observable between steps).
     """
     state = env.init(jax.random.PRNGKey(init_seed))

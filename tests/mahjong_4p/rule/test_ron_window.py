@@ -35,8 +35,8 @@ KANNER = [FOUR_P, 30, 30, 30, 31, 31, 31, 32, 32, 32, 9]
 ADDED_KAN_4P = Tile.NUM_TILE_TYPE_WITH_RED + FOUR_P
 
 ENVS = {
-    (mode, style): compiled_env(round_mode=mode, next_round_style=style)
-    for mode, style in [("single", "auto"), ("half", "auto"), ("half", "dummy_share")]
+    (mode, style): compiled_env(round_mode=mode, round_end=style)
+    for mode, style in [("single", "auto"), ("half", "auto"), ("half", "confirm")]
 }
 STEPS = {k: env.step for k, env in ENVS.items()}
 OBSERVE = jax.jit(ENVS["single", "auto"].observe)
@@ -205,7 +205,7 @@ def test_three_rons_abandon_the_round_without_paying_anything() -> None:
     np.testing.assert_array_equal(state.round_state.score, [250] * 4)
 
 
-@pytest.mark.parametrize("style", ["auto", "dummy_share"])
+@pytest.mark.parametrize("style", ["auto", "confirm"])
 @pytest.mark.parametrize(
     "second, expected, dealer, honba, kyoku",
     [
@@ -228,7 +228,7 @@ def test_the_next_round_follows_the_closed_window(style, second, expected, deale
 
     state = play(state, second, env=env)
     np.testing.assert_array_equal(state.rewards, expected)
-    if style == "dummy_share":
+    if style == "confirm":
         assert bool(state.round_state.terminated_round)
         np.testing.assert_array_equal(state.players.has_won, np.asarray(expected) > 0)
         state = play(state, *[Action.DUMMY] * 4, env=env)
@@ -308,7 +308,7 @@ def test_a_ron_candidate_is_offered_the_same_calls_whoever_else_can_claim(p0, ot
 
 
 def test_a_closed_window_does_not_show_a_declined_ron() -> None:
-    env = ("half", "dummy_share")
+    env = ("half", "confirm")
     declined = play(open_window(A, S, N, env=env), Action.RON, Action.PASS, env=env)
     alone = play(open_window(A, N, N, env=env), Action.RON, env=env)
     for state in (declined, alone):

@@ -34,22 +34,22 @@ v_can_win = jax.vmap(
 )  # For each player and tile, check if the player can win by RON
 
 
-ACTION_FUN_MAP = jnp.zeros(Action.NUM_ACTION, dtype=jnp.int32)
-ACTION_FUN_MAP = ACTION_FUN_MAP.at[: Tile.NUM_TILE_TYPE_WITH_RED].set(0)  # discard
-ACTION_FUN_MAP = ACTION_FUN_MAP.at[Action.TSUMOGIRI].set(0)
-ACTION_FUN_MAP = ACTION_FUN_MAP.at[Tile.NUM_TILE_TYPE_WITH_RED : Action.TSUMOGIRI].set(
+ACTION_KIND = jnp.zeros(Action.NUM_ACTION, dtype=jnp.int32)
+ACTION_KIND = ACTION_KIND.at[: Tile.NUM_TILE_TYPE_WITH_RED].set(0)  # discard
+ACTION_KIND = ACTION_KIND.at[Action.TSUMOGIRI].set(0)
+ACTION_KIND = ACTION_KIND.at[Tile.NUM_TILE_TYPE_WITH_RED : Action.TSUMOGIRI].set(
     1
 )  # closed_kan/added_kan
-ACTION_FUN_MAP = ACTION_FUN_MAP.at[Action.RIICHI].set(2)
-ACTION_FUN_MAP = ACTION_FUN_MAP.at[Action.RON].set(3)
-ACTION_FUN_MAP = ACTION_FUN_MAP.at[Action.TSUMO].set(4)
-ACTION_FUN_MAP = ACTION_FUN_MAP.at[Action.PON].set(5)
-ACTION_FUN_MAP = ACTION_FUN_MAP.at[Action.PON_RED].set(5)
-ACTION_FUN_MAP = ACTION_FUN_MAP.at[Action.OPEN_KAN].set(1)
-ACTION_FUN_MAP = ACTION_FUN_MAP.at[Action.CHI_L : Action.CHI_R_RED + 1].set(6)
-ACTION_FUN_MAP = ACTION_FUN_MAP.at[Action.PASS].set(7)
-ACTION_FUN_MAP = ACTION_FUN_MAP.at[Action.KYUUSHU].set(8)
-ACTION_FUN_MAP = ACTION_FUN_MAP.at[Action.DUMMY].set(9)
+ACTION_KIND = ACTION_KIND.at[Action.RIICHI].set(2)
+ACTION_KIND = ACTION_KIND.at[Action.RON].set(3)
+ACTION_KIND = ACTION_KIND.at[Action.TSUMO].set(4)
+ACTION_KIND = ACTION_KIND.at[Action.PON].set(5)
+ACTION_KIND = ACTION_KIND.at[Action.PON_RED].set(5)
+ACTION_KIND = ACTION_KIND.at[Action.OPEN_KAN].set(1)
+ACTION_KIND = ACTION_KIND.at[Action.CHI_L : Action.CHI_R_RED + 1].set(6)
+ACTION_KIND = ACTION_KIND.at[Action.PASS].set(7)
+ACTION_KIND = ACTION_KIND.at[Action.KYUUSHU].set(8)
+ACTION_KIND = ACTION_KIND.at[Action.DUMMY].set(9)
 
 _PLAYER_FIELDS = {
     "hand",
@@ -308,7 +308,7 @@ def _init(rng: PRNGKey, game_config: Optional[GameConfig] = None) -> State:
     hand = state.players.hand.at[c_p].set(Hand.add(state.players.hand[c_p], new_tile))
     hand_with_red = state.players.hand_with_red.at[c_p].set(Hand.add(state.players.hand_with_red[c_p], new_tile))
     # The mask reads ``can_win``, which is only written below.
-    legal_action_mask_c_p = _make_legal_action_mask_after_draw(
+    legal_action_mask_c_p = _mask_after_draw(
         _replace_state(state, can_win=can_ron), hand_with_red, c_p, new_tile, game_config
     )
     legal_action_mask_4p = ZERO_MASK_2D.at[c_p, :].set(legal_action_mask_c_p)
@@ -389,7 +389,7 @@ def _init_for_next_round_from_prepared(
     hand = state.players.hand.at[c_p].set(Hand.add(state.players.hand[c_p], new_tile))
     hand_with_red = state.players.hand_with_red.at[c_p].set(Hand.add(state.players.hand_with_red[c_p], new_tile))
     # The mask reads ``can_win``, which is only written below.
-    legal_action_mask_c_p = _make_legal_action_mask_after_draw(
+    legal_action_mask_c_p = _mask_after_draw(
         _replace_state(state, can_win=can_ron), hand_with_red, c_p, new_tile, game_config
     )
     legal_action_mask_4p = ZERO_MASK_2D.at[c_p, :].set(legal_action_mask_c_p)
@@ -424,8 +424,8 @@ def _append_action_history(state: State, action: Array) -> State:
 
     The cursor is ``round_state.round_step``, which resets with the rest of
     ``RoundState`` at every round boundary. It must not be ``state.step_count``:
-    that counter is incremented one layer up (``RedMahjong.step``) and is carried
-    across rounds by ``_advance_to_next_round_auto``, while ``action_history``
+    that counter is incremented one layer up (``Mahjong4p.step``) and is carried
+    across rounds by ``_start_next_round_or_end_game``, while ``action_history``
     itself is rebuilt empty each round. Indexing a per-round buffer with a
     hanchan-global counter walked past the end of the buffer, and JAX drops
     out-of-bounds scatters silently, so the observation saw an all -1 history for
@@ -474,7 +474,7 @@ def _write_action_history(state: State, player: Array, action_i32: Array, is_rec
 def _step_dummy_share(
     state: State, action: Array, key: PRNGKey, game_config: Optional[GameConfig] = None
 ) -> State:
-    """Step used by ``next_round_style='dummy_share'``.
+    """Step used by ``round_end='confirm'``.
 
     Dispatch table includes the dummy-rotation ``_next_round`` branch (selected
     when ``action == DUMMY``) so that callers can drive the four-DUMMY share
@@ -483,22 +483,22 @@ def _step_dummy_share(
     """
     state = _append_action_history(state, action)
     state = _dispatch_action_dummy_share(state, action, key, game_config)
-    return _finalize_step_state(state, game_config)
+    return _advance_to_next_decision(state, game_config)
 
 
 def _step_auto(
     state: State, action: Array, key: PRNGKey, game_config: Optional[GameConfig] = None
 ) -> State:
-    """Step used by ``next_round_style='auto'`` (RL default).
+    """Step used by ``round_end='auto'`` (RL default).
 
     Skips the dummy-rotation ``_next_round`` branch entirely — under ``auto``
-    the auto-advance in ``RedMahjong.step`` is responsible for round
+    the auto-advance in ``Mahjong4p.step`` is responsible for round
     transitions, and ``DUMMY`` is never a legal action. The dispatch table
     still keeps the ``_special_next_round`` branch for ``KYUUSHU``.
     """
     state = _append_action_history(state, action)
     state = _dispatch_action_auto(state, action, key, game_config)
-    return _finalize_step_state(state, game_config)
+    return _advance_to_next_decision(state, game_config)
 
 
 # Back-compat alias for internal tests that import ``_step`` directly. They
@@ -530,7 +530,7 @@ def _dispatch_action_dummy_share(
         game_config,
         prepared_next_round=prepared_next_round,
     )
-    fn_idx = ACTION_FUN_MAP[action]
+    fn_idx = ACTION_KIND[action]
     return jax.lax.switch(
         fn_idx,
         [
@@ -551,7 +551,7 @@ def _dispatch_action_dummy_share(
 def _dispatch_action_auto(
     state: State, action: Array, key: PRNGKey, game_config: Optional[GameConfig] = None
 ) -> State:
-    """Dispatch table for ``auto`` next_round_style. Drops the ``_next_round``
+    """Dispatch table for ``auto`` round_end. Drops the ``_next_round``
     (dummy rotation) computation — its slot is a no-op since ``DUMMY`` is
     never a legal action under ``auto`` (any erroneous DUMMY is caught by
     ``env.step``'s ``is_illegal`` check).
@@ -565,7 +565,7 @@ def _dispatch_action_auto(
     chi_state = _chi(state, action)
     pass_state = _pass(state, game_config)
     special_next_round_state = _special_next_round(state, key, game_config)
-    fn_idx = ACTION_FUN_MAP[action]
+    fn_idx = ACTION_KIND[action]
     return jax.lax.switch(
         fn_idx,
         [
@@ -591,7 +591,7 @@ def _dispatch_action_lazy(
     so ``jax.lax.switch`` only traces the selected branch. Slower compile but
     smaller working set; reserved for replay verification.
     """
-    fn_idx = ACTION_FUN_MAP[action]
+    fn_idx = ACTION_KIND[action]
     return jax.lax.switch(
         fn_idx,
         [
@@ -615,7 +615,7 @@ def _step_verify_lazy(
 ) -> State:
     state = _append_action_history(state, action)
     state = _dispatch_action_lazy(state, action, key, game_config)
-    return _finalize_step_state(state, game_config)
+    return _advance_to_next_decision(state, game_config)
 
 
 def verify_step(
@@ -626,7 +626,7 @@ def verify_step(
 ) -> tuple[State, Array]:
     """Step variant for replay verification.
 
-    Returns ``(state_after, is_illegal)``. Unlike :class:`RedMahjong`'s public
+    Returns ``(state_after, is_illegal)``. Unlike :class:`Mahjong4p`'s public
     ``step``, this does **not** apply the illegal-action penalty: when ``action``
     is illegal, the input state is returned unchanged together with
     ``is_illegal=True``. Used by ``mahjax_tenhou_test`` to compare env behavior
@@ -649,7 +649,7 @@ def verify_step(
     return state, is_illegal
 
 
-def _finalize_step_state(
+def _advance_to_next_decision(
     state: State,
     game_config: Optional[GameConfig] = None,
 ) -> State:
@@ -662,7 +662,7 @@ def _finalize_step_state(
         state.round_state.kan_declared
         & ~state.round_state.is_abortive_draw_normal
         & ~state.players.legal_action_mask[:, Action.RON].any(),
-        lambda: _draw_after_kan(state, game_config),
+        lambda: _draw_rinshan(state, game_config),
         lambda: state,
     )
     state = jax.lax.cond(
@@ -716,8 +716,8 @@ def _draw(state: State, game_config: Optional[GameConfig] = None) -> State:
     draw_eval_state = _replace_state(state, is_haitei=is_haitei)
     legal_action_mask_c_p = jax.lax.select(
         state.players.riichi[c_p],
-        _make_legal_action_mask_after_draw_w_riichi(draw_eval_state, hand_with_red, c_p, new_tile),
-        _make_legal_action_mask_after_draw(draw_eval_state, hand_with_red, c_p, new_tile, game_config),
+        _mask_after_draw_in_riichi(draw_eval_state, hand_with_red, c_p, new_tile),
+        _mask_after_draw(draw_eval_state, hand_with_red, c_p, new_tile, game_config),
     )
     legal_action_mask_4p = state.players.legal_action_mask.at[c_p, :].set(legal_action_mask_c_p)
     normal_state = _replace_state(
@@ -744,7 +744,7 @@ def _draw(state: State, game_config: Optional[GameConfig] = None) -> State:
     )
 
 
-def _make_legal_action_mask_after_draw(
+def _mask_after_draw(
     state: State,
     hand: Array,
     c_p: Array,
@@ -826,7 +826,7 @@ def _make_legal_action_mask_after_draw(
     return mask
 
 
-def _make_legal_action_mask_after_draw_w_riichi(
+def _mask_after_draw_in_riichi(
     state: State, hand: Array, c_p: Array, new_tile: Array
 ) -> Array:
     """
@@ -902,7 +902,7 @@ def _discard(state: State, tile: Array, game_config: Optional[GameConfig] = None
         ippatsu=state.players.ippatsu.at[c_p].set(FALSE),
     )
     legal_action_mask_4p = jax.vmap(
-        _make_legal_action_mask_after_discard, in_axes=(None, 0, 0, None)
+        _claim_mask, in_axes=(None, 0, 0, None)
     )(
         state, state.players.hand_with_red, jnp.arange(4), tile
     )
@@ -975,7 +975,7 @@ def _discard(state: State, tile: Array, game_config: Optional[GameConfig] = None
     return state
 
 
-def _make_legal_action_mask_after_discard(
+def _claim_mask(
     state: State, hand: Array, c_p: Array, tile: Array
 ) -> Array:
     """
@@ -1231,7 +1231,7 @@ def _reveal_pending_kan_dora(state: State) -> State:
     )
 
 
-def _draw_after_kan(state: State, game_config: Optional[GameConfig] = None):
+def _draw_rinshan(state: State, game_config: Optional[GameConfig] = None):
     """
     Process when a KAN is Accepted
     - Disable Ippatsu
@@ -1297,11 +1297,11 @@ def _draw_after_kan(state: State, game_config: Optional[GameConfig] = None):
     )
     legal_action_mask_c_p = jax.lax.cond(
         is_riichi,
-        lambda: _make_legal_action_mask_after_draw_w_riichi(draw_eval_state, hand_with_red, c_p, rinshan_tile),
+        lambda: _mask_after_draw_in_riichi(draw_eval_state, hand_with_red, c_p, rinshan_tile),
         # Rinshan comes off the dead wall: next_deck_ix is untouched and
         # last_deck_ix has already advanced (王牌繰り above), so the live
         # draws remaining after this draw is the between-turns count.
-        lambda: _make_legal_action_mask_after_draw(
+        lambda: _mask_after_draw(
             draw_eval_state, hand_with_red, c_p, rinshan_tile, game_config,
             live_draws_left=state.round_state.next_deck_ix
             - _live_wall_end_ix(state) + 1),
@@ -1333,7 +1333,7 @@ def _kan(state: State, action, game_config: Optional[GameConfig] = None):
     # A kan made before discarding turns over the previous open or added kan's indicator
     # before its own rinshan draw. An added kan can be robbed first, and that ron is
     # scored, and seen, with the indicator still face down (tenhou: "明槓/加槓は後めくり
-    # （打牌または続く嶺上の直前）"); ``_draw_after_kan`` turns it over if nobody robs.
+    # （打牌または続く嶺上の直前）"); ``_draw_rinshan`` turns it over if nobody robs.
     face_down = state.round_state
     state = _reveal_pending_kan_dora(state)
     c_p = state.current_player
@@ -1366,7 +1366,7 @@ def _kan(state: State, action, game_config: Optional[GameConfig] = None):
         lambda: open_kan_state,
         lambda: selfkan_state,
     )
-    # 暗槓のみ実際の卓と同様に槓ドラが即開示される。嶺上牌はまだ引かない（``_draw_after_kan``）。
+    # 暗槓のみ実際の卓と同様に槓ドラが即開示される。嶺上牌はまだ引かない（``_draw_rinshan``）。
     is_closed_kan = (~is_open_kan) & (~is_added_kan)
     state = jax.lax.cond(
         is_closed_kan,
@@ -1590,7 +1590,7 @@ def _chi(state: State, action: Array):
     hand = state.players.hand.at[c_p].set(Hand.to_34(chi_hand))
     is_hand_concealed = state.players.is_hand_concealed.at[c_p].set(FALSE)
     legal_action_mask_4p = (
-        _make_legal_action_mask_after_chi(state, hand_with_red, c_p, tar, action)
+        _mask_after_chi(state, hand_with_red, c_p, tar, action)
         .at[c_p, Action.PASS]
         .set(FALSE)
     )
@@ -1611,7 +1611,7 @@ def _chi(state: State, action: Array):
     )
 
 
-def _make_legal_action_mask_after_chi(
+def _mask_after_chi(
     state: State, hand: Array, c_p: Array, target: Array, action: Array
 ) -> Array:
     """
@@ -2248,12 +2248,12 @@ def _next_round(
     )
 
 
-def _advance_to_next_round_auto(
+def _start_next_round_or_end_game(
     state: State,
     key: PRNGKey,
     game_config: Optional[GameConfig] = None,
 ) -> State:
-    """``auto`` next_round_style round transition (no DUMMY sharing) for red_mahjong.
+    """``auto`` round_end round transition (no DUMMY sharing) for red_mahjong.
 
     Called when
     ``terminated_round`` becomes True (RON / TSUMO / 流局) and the env is not in

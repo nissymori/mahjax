@@ -23,7 +23,7 @@ rng = jax.random.PRNGKey(0)
 env = mahjax.make(
     "red_mahjong",
     round_mode="single",   # "single", "east" (tonpuusen), or "half" (hanchan)
-    next_round_style="auto",  # "auto" (default, RL) or "dummy_share" (interactive / mjai)
+    round_end="auto",  # "auto" (default, RL) or "confirm" (interactive / mjai)
     order_points=[0, 0, 0, 0],
 )
 step_fn = jax.jit(jax.vmap(env.step))
@@ -105,7 +105,7 @@ Held common across all four players.
 | `history_overflow` | `()` | `bool` | `True` once a round produced more actions than `action_history` can hold; the newest action then overwrites the last slot. Makes truncation observable instead of silent. |
 | `round` | `()` | `int8` | Round index (`0`-based). |
 | `round_limit` | `()` | `int8` | Index of the last regular kyoku, derived from `round_mode`: `3` for `east`, `7` for `half`. Play continues past it while nobody has 30000 points. |
-| `terminated_round` | `()` | `bool` | `True` on the step that ends the round (RON / TSUMO / 流局). See the round-transition section for how `auto` vs `dummy_share` expose this. |
+| `terminated_round` | `()` | `bool` | `True` on the step that ends the round (RON / TSUMO / 流局). See the round-transition section for how `auto` vs `confirm` expose this. |
 | `honba` | `()` | `int32` | Honba count (renchan counter). |
 | `kyotaku` | `()` | `int8` | Number of unclaimed riichi sticks on the table. |
 | `init_wind` | `(4,)` | `int8` | Initial seat winds at the start of the game. |
@@ -128,7 +128,7 @@ Held common across all four players.
 | `can_after_kan` | `()` | `bool` | After-kan / 嶺上開花 still possible. |
 | `can_robbing_kan` | `()` | `bool` | A robbing-a-kan / 槍槓 window is open. |
 | `draw_next` | `()` | `bool` | Internal flag: the env should draw a tile next. |
-| `dummy_count` | `()` | `int8` | Counter for the DUMMY-rotation phase. Only used by `next_round_style="dummy_share"` (see below); always `0` under `auto`. |
+| `dummy_count` | `()` | `int8` | Counter for the DUMMY-rotation phase. Only used by `round_end="confirm"` (see below); always `0` under `auto`. |
 
 ## Observation (`env.observe`)
 
@@ -205,19 +205,19 @@ deployed against real opponents. It always returns a dict, independent of `obser
 Rows use the same seat-relative frame as `scores`: index 0 is the player to the observer's
 right, 1 across, 2 left. The observer's own hand is not repeated — it is already `hand`.
 
-## Round Transition Style (`next_round_style`)
+## Round Transition Style (`round_end`)
 
-In multi-round modes (`east` / `half`) the env can either advance to the next round **automatically inside a single `env.step`**, or expose an explicit DUMMY-action phase that lets every seat observe the round-end state before the next round begins. This is controlled by `next_round_style`:
+In multi-round modes (`east` / `half`) the env can either advance to the next round **automatically inside a single `env.step`**, or expose an explicit DUMMY-action phase that lets every seat observe the round-end state before the next round begins. This is controlled by `round_end`:
 
 ```py
-env = mahjax.make("red_mahjong", round_mode="half", next_round_style="auto")  # default
-env = mahjax.make("red_mahjong", round_mode="half", next_round_style="dummy_share")
+env = mahjax.make("red_mahjong", round_mode="half", round_end="auto")  # default
+env = mahjax.make("red_mahjong", round_mode="half", round_end="confirm")
 ```
 
 | Style | Default | When to use |
 | :--- | :--- | :--- |
 | `auto` | ✅ | RL / training. One round transition = one `env.step`. |
-| `dummy_share` |  | Interactive UI, mjai-compatible replays, anything that needs per-player round-end observation. |
+| `confirm` |  | Interactive UI, mjai-compatible replays, anything that needs per-player round-end observation. |
 
 In `single` mode the two styles are identical — there is no "next round."
 
@@ -235,7 +235,7 @@ When the agent plays the action that ends a round (RON / TSUMO / exhaustive draw
 
 The state returned by `env.step` is already the **next round's init state** (new deck, new dealer if needed, fresh hands, `legal_action_mask` for the new dealer). `terminated` is `False` until the game itself ends; on the game-ending round it is `True` and the score is updated with rank points + kyotaku bonuses.
 
-**`dummy_share`** — make the round-end phase explicit. After the winning action, the env exposes a state with `legal_action_mask` containing only `DUMMY` for every seat. Each of the four players must then play `DUMMY`; the fourth `DUMMY` advances to the next round.
+**`confirm`** — make the round-end phase explicit. After the winning action, the env exposes a state with `legal_action_mask` containing only `DUMMY` for every seat. Each of the four players must then play `DUMMY`; the fourth `DUMMY` advances to the next round.
 
 ```
    t      action      terminated_round   dummy_count   rewards
@@ -248,7 +248,7 @@ The state returned by `env.step` is already the **next round's init state** (new
 
 This matches the "次の局へ" / "next round" button in interactive UIs.
 
-State equivalence (proved by `TestAutoDummyShareParity` in `tests/`): for the same initial state, the next-round init produced by **one `auto` step** equals the next-round init produced by **five `dummy_share` steps (RON + 4 × DUMMY)**, comparing every round-level and player-level field. The only intentional differences are `step_count` (which advances per `env.step` call) and `rewards` (preserved by `auto` on the transition step; delivered by `dummy_share` on the RON step and zeroed thereafter).
+State equivalence (asserted by the auto/confirm comparison tests in `tests/mahjong_4p/rule/test_round_progression.py`): for the same initial state, the next-round init produced by **one `auto` step** equals the next-round init produced by **five `confirm` steps (RON + 4 × DUMMY)**, comparing every round-level and player-level field. The only intentional differences are `step_count` (which advances per `env.step` call) and `rewards` (preserved by `auto` on the transition step; delivered by `confirm` on the RON step and zeroed thereafter).
 
 ### Using `auto` rewards in RL
 
@@ -296,9 +296,9 @@ Round transitions under `auto` slot into this naturally:
 - The discarder seat that paid out is *not* `current_player` on this step (the RON player is). The discarder's reward sits in its accumulator until the discarder's next on-turn step (which is now in the new round).
 - This is consistent with how mahjong logically works: the discarder learns about the loss on the same observation that opens its next turn.
 
-With `dummy_share` instead, the rewarded step (RON) is followed by four DUMMY steps with zero reward, and the next-round init shows up only at step `k+4`. RL-wise this is wasteful (one logical decision = five env steps, four of them no-op) and clutters the trajectory with "DUMMY" actions that should not appear in a policy's action distribution. That is why `auto` is the default — it gives the same state equivalence as `dummy_share` but exposes a clean one-step-per-decision API.
+With `confirm` instead, the rewarded step (RON) is followed by four DUMMY steps with zero reward, and the next-round init shows up only at step `k+4`. RL-wise this is wasteful (one logical decision = five env steps, four of them no-op) and clutters the trajectory with "DUMMY" actions that should not appear in a policy's action distribution. That is why `auto` is the default — it gives the same state equivalence as `confirm` but exposes a clean one-step-per-decision API.
 
-### When to choose `dummy_share`
+### When to choose `confirm`
 
 - Driving an interactive UI (the user clicks "next round" after seeing the round-end summary).
 - Round-end packet replay against external logs (e.g. mjai / mjlog) where every seat is expected to observe the round-end state.

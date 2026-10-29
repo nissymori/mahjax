@@ -12,9 +12,9 @@ or load the environment class directly:
 
 ```py
 from mahjax.mahjong_4p.config import RED
-from mahjax.mahjong_4p.env import RedMahjong
+from mahjax.mahjong_4p.env import Mahjong4p
 
-env = RedMahjong(
+env = Mahjong4p(
     round_mode="half",
     observe_type="dict",
     game_config=RED,
@@ -61,7 +61,7 @@ Two presets are provided: `RED` (the default) turns every rule above on, and `NO
 - `state.players` — per-player arrays (`PlayerStateArrays`)
 - `state.round_state` — round-level arrays (`RoundState`)
 
-The shared field list and the round-transition style (`auto` / `dummy_share`) are documented once in [API](api.md). `red_mahjong` adds the following **red-five-aware fields** on top of the shared `PlayerStateArrays`:
+The shared field list and the round-transition style (`auto` / `confirm`) are documented once in [API](api.md). `red_mahjong` adds the following **red-five-aware fields** on top of the shared `PlayerStateArrays`:
 
 | Field | Shape | Type | Meaning |
 | :--- | :---: | :--- | :--- |
@@ -107,7 +107,7 @@ The action space (87 actions):
 | `78-83` | Chi variants including red-five-aware actions |
 | `84` | `PASS` |
 | `85` | `KYUUSHU` |
-| `86` | `DUMMY` (only legal under `next_round_style="dummy_share"`) |
+| `86` | `DUMMY` (only legal under `round_end="confirm"`) |
 
 ## Dict Observation
 
@@ -173,7 +173,7 @@ For how to consume these rewards in turn-based MARL training (per-player reward 
 - If nobody holds 30000 points or more when the last kyoku ends, the deal runs on into the
   extra rounds (西入) and stops as soon as somebody does, or after four extra kyoku.
 
-In multi-round modes, the next-round transition behavior is controlled by `next_round_style` (see [API](api.md#round-transition-style-next_round_style)).
+In multi-round modes, the next-round transition behavior is controlled by `round_end` (see [API](api.md#round-transition-style-round_end)).
 
 `red_mahjong` is the env used by `mahjax_tenhou_test`, which validates round trajectories against real tenhou mjlogs using `next_round_style="dummy_share"`. The state-level equivalence between `auto` and `dummy_share` at round boundaries is asserted by the parity tests in `tests/red_mahjong/test_env.py`, so the same correctness target also covers `auto` mode end-to-end.
 

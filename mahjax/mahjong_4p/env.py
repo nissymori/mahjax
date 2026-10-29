@@ -23,7 +23,7 @@ from mahjax.core import Env
 from .config import GameConfig
 from .constants import TRUE
 from .logic import (
-    _advance_to_next_round_auto,
+    _start_next_round_or_end_game,
     _init,
     _replace_state,
     _resolve_game_config,
@@ -36,7 +36,7 @@ from .state import State, default_state
 from .types import Array, PRNGKey
 
 
-class RedMahjong(Env):
+class Mahjong4p(Env):
     def __init__(
         self,
         round_mode: Literal["single", "east", "half"] = "half",
@@ -48,15 +48,15 @@ class RedMahjong(Env):
             0,
         ],  # No uma by default; in hundreds of points like ``score`` (10-30 uma is [300, 100, -100, -300])
         game_config: Optional[GameConfig] = None,
-        next_round_style: Literal["auto", "dummy_share"] = "auto",
+        round_end: Literal["auto", "confirm"] = "auto",
     ):
         if round_mode not in ("single", "east", "half"):
             raise ValueError(f"round_mode must be one of ('single', 'east', 'half'), got: {round_mode}")
         if observe_type == "2D":
             raise ValueError(f"observe type 2D is not developed yet")
-        if next_round_style not in ("auto", "dummy_share"):
+        if round_end not in ("auto", "confirm"):
             raise ValueError(
-                f"next_round_style must be one of ('auto', 'dummy_share'), got: {next_round_style}"
+                f"round_end must be one of ('auto', 'confirm'), got: {round_end}"
             )
         self.round_mode = round_mode
         self.one_round = round_mode == "single"
@@ -65,8 +65,8 @@ class RedMahjong(Env):
         self.observe_privileged_func = _observe_privileged_dict if observe_type == "dict" else _observe_privileged_2D
         self.order_points = order_points
         self.game_config = _resolve_game_config(game_config)
-        self.next_round_style = next_round_style
-        self._step_fn = _step_auto if next_round_style == "auto" else _step_dummy_share
+        self.round_end = round_end
+        self._step_fn = _step_auto if round_end == "auto" else _step_dummy_share
 
     def init(self, key: PRNGKey) -> State:
         """Return the initial state. Note that no internal state of
@@ -123,15 +123,15 @@ class RedMahjong(Env):
             lambda: _replace_state(state, terminated=TRUE),
             lambda: state,
         )
-        # ``auto`` next_round_style: when a round ends mid-game (not single mode, not
+        # ``auto`` round_end: when a round ends mid-game (not single mode, not
         # yet game-terminated), advance straight to the next round init state in this
         # same step instead of requiring four DUMMY rotations. If the round-end
         # coincides with the game-end, terminate=True and update the final score
         # with rank points + kyotaku.
-        if self.next_round_style == "auto":
+        if self.round_end == "auto":
             state = jax.lax.cond(
                 state.round_state.terminated_round & ~state.terminated & ~jnp.bool_(self.one_round),
-                lambda: _advance_to_next_round_auto(state, key, self.game_config),
+                lambda: _start_next_round_or_end_game(state, key, self.game_config),
                 lambda: state,
             )
         state = jax.lax.cond(

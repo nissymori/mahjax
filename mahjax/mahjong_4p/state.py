@@ -66,7 +66,7 @@ class RoundState:
     # Write cursor into ``action_history``. It lives on RoundState so that it is
     # reset to 0 together with the buffer at every round boundary. Do NOT index
     # ``action_history`` with ``EnvState.step_count``: that counter is
-    # hanchan-global (``_advance_to_next_round_auto`` carries it across rounds),
+    # hanchan-global (``_start_next_round_or_end_game`` carries it across rounds),
     # so it walks past the end of a per-round buffer and JAX silently drops the
     # out-of-bounds scatter, leaving the history all -1.
     round_step: jnp.int32 = jnp.int32(0)

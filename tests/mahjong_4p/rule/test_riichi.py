@@ -4,7 +4,7 @@ import jax
 import jax.numpy as jnp
 
 from mahjax.mahjong_4p.action import Action
-from mahjax.mahjong_4p.logic import _draw_after_kan, _init, _make_legal_action_mask_after_draw, _make_legal_action_mask_after_draw_w_riichi, _replace_state
+from mahjax.mahjong_4p.logic import _draw_rinshan, _init, _mask_after_draw, _mask_after_draw_in_riichi, _replace_state
 from mahjax.mahjong_4p.hand import Hand
 from mahjax.mahjong_4p.state import default_state
 from mahjax.mahjong_4p.tile import Tile
@@ -34,7 +34,7 @@ def _riichi_ready_state(**round_overrides):
 
 
 def _mask(state, c_p, hand, **kw):
-    return _make_legal_action_mask_after_draw(
+    return _mask_after_draw(
         state, hand, jnp.int32(c_p), jnp.int8(13), **kw)
 
 
@@ -76,7 +76,7 @@ def test_explicit_live_draws_left_overrides_the_derivation():
 # --- the rinshan call site, end to end ------------------------------------
 #
 # The tests above pin the mask function in isolation, so they stay green even
-# if ``_draw_after_kan`` hands it the wrong count. These pin the wiring: the
+# if ``_draw_rinshan`` hands it the wrong count. These pin the wiring: the
 # replacement tile comes off the dead wall, so ``next_deck_ix`` is untouched
 # while ``last_deck_ix`` advances by one (王牌繰り), and the live wall left
 # after the draw is the between-turns count read off the RESULT state -- the
@@ -89,7 +89,7 @@ def test_rinshan_riichi_gate_matches_the_live_wall_after_the_kan():
     for pre_flipped in (False, True):
         for wall_left in range(1, 8):
             state, c_p = _post_ankan_state(wall_left, kan_dora_pre_flipped=pre_flipped)
-            out = _draw_after_kan(state)
+            out = _draw_rinshan(state)
             remaining = (
                 int(out.round_state.next_deck_ix)
                 - int(out.round_state.last_deck_ix)
@@ -103,9 +103,9 @@ def test_rinshan_riichi_gate_matches_the_live_wall_after_the_kan():
 def test_rinshan_riichi_also_needs_1000_points():
     state, c_p = _post_ankan_state(6)
     poor = _replace_state(state, score=state.round_state.score.at[c_p].set(9))
-    assert not bool(_draw_after_kan(poor).players.legal_action_mask[c_p, Action.RIICHI])
+    assert not bool(_draw_rinshan(poor).players.legal_action_mask[c_p, Action.RIICHI])
     exact = _replace_state(state, score=state.round_state.score.at[c_p].set(10))
-    assert bool(_draw_after_kan(exact).players.legal_action_mask[c_p, Action.RIICHI])
+    assert bool(_draw_rinshan(exact).players.legal_action_mask[c_p, Action.RIICHI])
 
 
 def _riichi_draw_state(concealed: list[int], drawn: int):
@@ -134,7 +134,7 @@ def test_riichi_closed_kan_is_offered_only_for_the_drawn_tile() -> None:
     # already complete at the riichi declaration, so it cannot be kanned.
     state, hand = _riichi_draw_state([0, 0, 0, 0, 1, 2, 12, 13, 14, 15, 16, 17, 26], 3)
 
-    mask = _make_legal_action_mask_after_draw_w_riichi(state, hand, jnp.int8(0), jnp.int8(3))
+    mask = _mask_after_draw_in_riichi(state, hand, jnp.int8(0), jnp.int8(3))
 
     assert not bool(mask[Tile.NUM_TILE_TYPE_WITH_RED : Action.TSUMOGIRI].any())
 
@@ -143,7 +143,7 @@ def test_riichi_closed_kan_is_offered_for_the_drawn_tile() -> None:
     # 111m 234m 456p 789p 9s waiting on 9s, then draws the 4th 1m.
     state, hand = _riichi_draw_state([0, 0, 0, 1, 2, 3, 12, 13, 14, 15, 16, 17, 26], 0)
 
-    mask = _make_legal_action_mask_after_draw_w_riichi(state, hand, jnp.int8(0), jnp.int8(0))
+    mask = _mask_after_draw_in_riichi(state, hand, jnp.int8(0), jnp.int8(0))
 
     kan_mask = mask[Tile.NUM_TILE_TYPE_WITH_RED : Action.TSUMOGIRI]
     assert bool(kan_mask[0])
@@ -157,6 +157,6 @@ def test_riichi_closed_kan_is_not_offered_once_four_kans_are_on_the_table() -> N
     for kans, offered in (([0, 3, 0, 0], True), ([0, 4, 0, 0], False)):
         at_kans = state.replace(players=state.players.replace(n_kan=jnp.array(kans, dtype=jnp.int8)))
 
-        mask = _make_legal_action_mask_after_draw_w_riichi(at_kans, hand, jnp.int8(0), jnp.int8(0))
+        mask = _mask_after_draw_in_riichi(at_kans, hand, jnp.int8(0), jnp.int8(0))
 
         assert bool(mask[Tile.NUM_TILE_TYPE_WITH_RED + 0]) == offered

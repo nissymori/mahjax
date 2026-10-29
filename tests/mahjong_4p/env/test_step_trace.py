@@ -2,7 +2,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from mahjax.mahjong_4p.env import RedMahjong
+from mahjax.mahjong_4p.env import Mahjong4p
 from mahjax.mahjong_4p.yaku import Yaku
 
 
@@ -20,15 +20,15 @@ def _count_calls(jaxpr, name: str) -> int:
     return count
 
 
-@pytest.mark.parametrize("next_round_style", ["auto", "dummy_share"])
-def test_a_step_calls_yaku_judge_four_times(monkeypatch, next_round_style: str) -> None:
+@pytest.mark.parametrize("round_end", ["auto", "confirm"])
+def test_a_step_calls_yaku_judge_four_times(monkeypatch, round_end: str) -> None:
     """A step computes every branch before picking one, so each ``Yaku.judge`` in any
     branch is computed on every step. The discard and the kan each judge every player's
     ron on the tile and tsumo on the next draw (one call each, batched over players),
     and the next round's deal judges the dealer's first draw twice: after a special
     abortive draw and after any other round end (under ``auto`` the latter is the
     round advance in ``env.step``)."""
-    env = RedMahjong(next_round_style=next_round_style)
+    env = Mahjong4p(round_end=round_end)
     state = env.init(jax.random.PRNGKey(0))
     judge = Yaku.judge
 

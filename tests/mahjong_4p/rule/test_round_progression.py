@@ -2,14 +2,14 @@ import jax
 import jax.numpy as jnp
 
 from mahjax.mahjong_4p.action import Action
-from mahjax.mahjong_4p.env import RedMahjong
-from mahjax.mahjong_4p.logic import _advance_to_next_round_auto, _replace_state
+from mahjax.mahjong_4p.env import Mahjong4p
+from mahjax.mahjong_4p.logic import _start_next_round_or_end_game, _replace_state
 from mahjax.mahjong_4p.state import default_state
 
 from ..helpers import STEP_KEY, compiled_env
 
 
-# ----------------- next_round_style tests -----------------
+# ----------------- round_end tests -----------------
 
 
 def _ron_legal_mask(ron_player: int = 0):
@@ -20,7 +20,7 @@ def _ron_legal_mask(ron_player: int = 0):
 
 
 def test_red_auto_single_mode_terminates_like_legacy() -> None:
-    env_auto = compiled_env(round_mode="single", next_round_style="auto")
+    env_auto = compiled_env(round_mode="single", round_end="auto")
     state = env_auto.init(jax.random.PRNGKey(11))
     state = _replace_state(
         state,
@@ -37,7 +37,7 @@ def test_red_auto_single_mode_terminates_like_legacy() -> None:
 # phase into a single env.step while producing the same end state.
 
 
-def _force_ron_state(env: RedMahjong, key, ron_player: int = 0):
+def _force_ron_state(env: Mahjong4p, key, ron_player: int = 0):
     state = env.init(key)
     return _replace_state(
         state,
@@ -53,8 +53,8 @@ def test_red_auto_matches_dummy_share_at_mid_game_round_transition() -> None:
     - ``rewards`` (auto preserves the round-end vector from the RON step;
       dummy_share resets it to zero in the ``_make_state``-based init).
     """
-    env_auto = compiled_env(round_mode="half", next_round_style="auto")
-    env_share = compiled_env(round_mode="half", next_round_style="dummy_share")
+    env_auto = compiled_env(round_mode="half", round_end="auto")
+    env_share = compiled_env(round_mode="half", round_end="confirm")
     key = jax.random.PRNGKey(2026)
 
     state_auto = env_auto.step(_force_ron_state(env_auto, key), jnp.int32(Action.RON), STEP_KEY)
@@ -100,8 +100,8 @@ def test_red_auto_matches_dummy_share_at_game_end() -> None:
     Compare the two terminal states: same ``terminated``, same final ``score``
     (the expected one, uma included), same ``rewards``.
     """
-    env_auto = compiled_env(round_mode="half", next_round_style="auto", order_points=[300, 100, -100, -300])
-    env_share = compiled_env(round_mode="half", next_round_style="dummy_share", order_points=[300, 100, -100, -300])
+    env_auto = compiled_env(round_mode="half", round_end="auto", order_points=[300, 100, -100, -300])
+    env_share = compiled_env(round_mode="half", round_end="confirm", order_points=[300, 100, -100, -300])
     key = jax.random.PRNGKey(2026)
     forced = dict(
         dealer=jnp.int8(0),
@@ -174,46 +174,46 @@ def _end_of_round_state(env, **overrides):
 
 
 def test_red_half_game_is_eight_kyoku_long() -> None:
-    assert int(RedMahjong(round_mode="half").round_limit) == 7
-    assert int(RedMahjong(round_mode="east").round_limit) == 3
+    assert int(Mahjong4p(round_mode="half").round_limit) == 7
+    assert int(Mahjong4p(round_mode="east").round_limit) == 3
 
 
 def test_red_final_round_ends_the_game_once_someone_has_30000() -> None:
-    env = compiled_env(round_mode="half", next_round_style="auto")
+    env = compiled_env(round_mode="half", round_end="auto")
     state = _end_of_round_state(env, score=jnp.array([300, 250, 240, 210], dtype=jnp.int32))
 
-    out = _advance_to_next_round_auto(state, jax.random.PRNGKey(0))
+    out = _start_next_round_or_end_game(state, jax.random.PRNGKey(0))
 
     assert bool(out.terminated)
 
 
 def test_red_final_round_runs_on_when_nobody_has_30000() -> None:
-    env = compiled_env(round_mode="half", next_round_style="auto")
+    env = compiled_env(round_mode="half", round_end="auto")
     state = _end_of_round_state(env, score=jnp.array([280, 250, 240, 230], dtype=jnp.int32))
 
-    out = _advance_to_next_round_auto(state, jax.random.PRNGKey(0))
+    out = _start_next_round_or_end_game(state, jax.random.PRNGKey(0))
 
     assert not bool(out.terminated)
     assert int(out.round_state.round) == 8
 
 
 def test_red_sudden_death_ends_at_the_last_extra_round() -> None:
-    env = compiled_env(round_mode="half", next_round_style="auto")
+    env = compiled_env(round_mode="half", round_end="auto")
     state = _end_of_round_state(
         env, round=jnp.int8(11), score=jnp.array([280, 250, 240, 230], dtype=jnp.int32)
     )
 
-    out = _advance_to_next_round_auto(state, jax.random.PRNGKey(0))
+    out = _start_next_round_or_end_game(state, jax.random.PRNGKey(0))
 
     assert bool(out.terminated)
 
 
 def test_red_sudden_death_runs_for_exactly_four_extra_rounds() -> None:
-    env = compiled_env(round_mode="half", next_round_style="auto")
+    env = compiled_env(round_mode="half", round_end="auto")
     below = jnp.array([280, 250, 240, 230], dtype=jnp.int32)
     terminated = [
         bool(
-            _advance_to_next_round_auto(
+            _start_next_round_or_end_game(
                 _end_of_round_state(env, round=jnp.int8(r), score=below), jax.random.PRNGKey(0)
             ).terminated
         )
@@ -225,7 +225,7 @@ def test_red_sudden_death_runs_for_exactly_four_extra_rounds() -> None:
 
 def test_red_last_extra_round_continues_when_the_dealer_keeps_the_deal() -> None:
     """West-4 is the last round, but a dealer's renchan still comes first."""
-    env = compiled_env(round_mode="half", next_round_style="auto")
+    env = compiled_env(round_mode="half", round_end="auto")
     state = _end_of_round_state(
         env,
         round=jnp.int8(11),
@@ -233,7 +233,7 @@ def test_red_last_extra_round_continues_when_the_dealer_keeps_the_deal() -> None
         can_win=jnp.zeros_like(env.init(jax.random.PRNGKey(7)).players.can_win).at[0, 0].set(True),  # dealer tenpai
     )
 
-    out = _advance_to_next_round_auto(state, jax.random.PRNGKey(0))
+    out = _start_next_round_or_end_game(state, jax.random.PRNGKey(0))
 
     assert not bool(out.terminated)
     assert int(out.round_state.round) == 11
@@ -243,7 +243,7 @@ def test_red_last_extra_round_continues_when_the_dealer_keeps_the_deal() -> None
 
 def test_red_the_dealer_keeps_the_deal_at_eight_honba() -> None:
     """There is no renchan limit: a dealer win or a tenpai draw keeps the deal however many honba are up."""
-    env = compiled_env(round_mode="half", next_round_style="auto")
+    env = compiled_env(round_mode="half", round_end="auto")
     dealer_won = dict(has_won=jnp.zeros(4, dtype=jnp.bool_).at[0].set(True))
     dealer_tenpai = dict(can_win=jnp.zeros_like(env.init(jax.random.PRNGKey(7)).players.can_win).at[0, 0].set(True))
     for renchan in (dealer_won, dealer_tenpai):
@@ -251,7 +251,7 @@ def test_red_the_dealer_keeps_the_deal_at_eight_honba() -> None:
             env, round=jnp.int8(0), honba=jnp.int8(8), score=jnp.array([250, 250, 250, 250], dtype=jnp.int32), **renchan
         )
 
-        out = _advance_to_next_round_auto(state, jax.random.PRNGKey(0))
+        out = _start_next_round_or_end_game(state, jax.random.PRNGKey(0))
 
         assert int(out.round_state.round) == 0
         assert int(out.round_state.dealer) == 0
@@ -260,8 +260,8 @@ def test_red_the_dealer_keeps_the_deal_at_eight_honba() -> None:
 
 def test_red_a_dealer_win_in_second_place_does_not_end_south_four_at_eight_honba() -> None:
     """P1 is past 30000, but the dealer is not top, so the dealer's win is a renchan and the game goes on."""
-    for style in ("auto", "dummy_share"):
-        env = compiled_env(round_mode="half", next_round_style=style)
+    for style in ("auto", "confirm"):
+        env = compiled_env(round_mode="half", round_end=style)
         state = _end_of_round_state(
             env,
             honba=jnp.int8(8),
@@ -270,7 +270,7 @@ def test_red_a_dealer_win_in_second_place_does_not_end_south_four_at_eight_honba
         )
 
         if style == "auto":
-            out = _advance_to_next_round_auto(state, jax.random.PRNGKey(0))
+            out = _start_next_round_or_end_game(state, jax.random.PRNGKey(0))
         else:
             step = env.step
             out = state
@@ -285,8 +285,8 @@ def test_red_a_dealer_win_in_second_place_does_not_end_south_four_at_eight_honba
 
 def test_red_honba_does_not_wrap_after_127() -> None:
     """With no renchan limit honba can keep growing, and a renchan at 127 honba makes 128, not -128."""
-    for style in ("auto", "dummy_share"):
-        env = compiled_env(round_mode="half", next_round_style=style)
+    for style in ("auto", "confirm"):
+        env = compiled_env(round_mode="half", round_end=style)
         state = _end_of_round_state(
             env,
             round=jnp.int8(0),
@@ -297,7 +297,7 @@ def test_red_honba_does_not_wrap_after_127() -> None:
         )
 
         if style == "auto":
-            out = _advance_to_next_round_auto(state, jax.random.PRNGKey(0))
+            out = _start_next_round_or_end_game(state, jax.random.PRNGKey(0))
         else:
             step = env.step
             out = state
@@ -329,18 +329,18 @@ def test_red_forty_three_honba_do_not_wrap_negative() -> None:
 
 
 def test_red_uma_is_added_to_the_final_score() -> None:
-    env = compiled_env(round_mode="half", next_round_style="auto", order_points=[300, 100, -100, -300])
+    env = compiled_env(round_mode="half", round_end="auto", order_points=[300, 100, -100, -300])
     before = jnp.array([310, 300, 200, 190], dtype=jnp.int32)
     state = _end_of_round_state(env, score=before)
 
-    out = _advance_to_next_round_auto(state, jax.random.PRNGKey(0))
+    out = _start_next_round_or_end_game(state, jax.random.PRNGKey(0))
 
     assert bool(out.terminated)
     assert jnp.array_equal(out.round_state.score - before, jnp.array([300, 100, -100, -300]))
 
 
 def test_red_dummy_share_applies_uma_when_a_non_dealer_won_the_final_round() -> None:
-    env = compiled_env(round_mode="half", next_round_style="dummy_share", order_points=[300, 100, -100, -300])
+    env = compiled_env(round_mode="half", round_end="confirm", order_points=[300, 100, -100, -300])
     state = _end_of_round_state(
         env,
         score=jnp.array([200, 300, 260, 240], dtype=jnp.int32),
@@ -356,11 +356,11 @@ def test_red_dummy_share_applies_uma_when_a_non_dealer_won_the_final_round() -> 
 
 
 def test_red_uma_scales_a_custom_order_points() -> None:
-    env = compiled_env(round_mode="half", next_round_style="auto", order_points=[200, 50, -50, -200])
+    env = compiled_env(round_mode="half", round_end="auto", order_points=[200, 50, -50, -200])
     before = jnp.array([310, 300, 200, 190], dtype=jnp.int32)
     state = _end_of_round_state(env, score=before)
 
-    out = _advance_to_next_round_auto(state, jax.random.PRNGKey(0))
+    out = _start_next_round_or_end_game(state, jax.random.PRNGKey(0))
 
     assert jnp.array_equal(out.round_state.score - before, jnp.array([200, 50, -50, -200]))
 
@@ -386,13 +386,13 @@ def test_red_tied_players_are_ranked_by_their_starting_wind() -> None:
     assert not bool(m._is_game_end(round_state, jnp.bool_(True)))
 
     # The starting winds survive a round change.
-    env = compiled_env(round_mode="half", next_round_style="auto")
+    env = compiled_env(round_mode="half", round_end="auto")
     state = _end_of_round_state(
         env,
         round=jnp.int8(0),
         init_wind=jnp.array([2, 3, 0, 1], dtype=jnp.int8),
         score=jnp.array([250, 250, 250, 250], dtype=jnp.int32),
     )
-    out = _advance_to_next_round_auto(state, jax.random.PRNGKey(0))
+    out = _start_next_round_or_end_game(state, jax.random.PRNGKey(0))
     assert int(out.round_state.round) == 1
     assert jnp.array_equal(out.round_state.init_wind, jnp.array([2, 3, 0, 1]))
