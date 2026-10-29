@@ -28,7 +28,6 @@ from .logic import (
     _replace_state,
     _resolve_game_config,
     _step,
-    verify_step,
 )
 from .observation import _observe_2D, _observe_dict, _observe_privileged_2D, _observe_privileged_dict
 from .state import State, default_state
@@ -143,16 +142,6 @@ class Mahjong4p(Env):
             lambda: state,
         )
         return state
-
-    def verify_step(
-        self,
-        state: State,
-        action: Array,
-        key: Optional[Array] = None,
-    ) -> tuple[State, Array]:
-        if key is None:
-            raise ValueError("verify_step() requires a PRNG key; see step().")
-        return verify_step(state, action, key, self.game_config)
 
     def observe(self, state: State) -> Array:
         assert isinstance(state, State)
