@@ -902,7 +902,7 @@ def _discard(state: State, tile: Array, game_config: Optional[GameConfig] = None
         ippatsu=state.players.ippatsu.at[c_p].set(FALSE),
     )
     legal_action_mask_4p = jax.vmap(
-        _claim_mask, in_axes=(None, 0, 0, None)
+        _mask_after_discard, in_axes=(None, 0, 0, None)
     )(
         state, state.players.hand_with_red, jnp.arange(4), tile
     )
@@ -975,7 +975,7 @@ def _discard(state: State, tile: Array, game_config: Optional[GameConfig] = None
     return state
 
 
-def _claim_mask(
+def _mask_after_discard(
     state: State, hand: Array, c_p: Array, tile: Array
 ) -> Array:
     """
