@@ -138,7 +138,9 @@ class Mahjong4p(Env):
         )
         state = jax.lax.cond(
             state.terminated,
-            lambda: _replace_state(state, legal_action_mask=jnp.ones_like(state.legal_action_mask)),
+            lambda: _replace_state(
+                state, legal_action_mask=state.players.legal_action_mask.at[state.current_player].set(TRUE)
+            ),
             lambda: state,
         )
         return state

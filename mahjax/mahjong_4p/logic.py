@@ -13,6 +13,7 @@
 # limitations under the License.
 
 
+import dataclasses
 from typing import Literal, Optional, Tuple
 
 import jax
@@ -24,7 +25,7 @@ from .constants import (DORA_ARRAY, FALSE, FIRST_DRAW_IDX, SUDDEN_DEATH_ROUNDS, 
                         TILE_RANGE, TRUE, ZERO_MASK_1D, ZERO_MASK_2D)
 from .hand import Hand
 from .meld import Meld
-from .state import State, default_state
+from .state import PlayerStateArrays, RoundState, State, default_state
 from .tile import River, Tile
 from .types import Array, PRNGKey
 from .yaku import Yaku
@@ -51,100 +52,35 @@ ACTION_KIND = ACTION_KIND.at[Action.PASS].set(7)
 ACTION_KIND = ACTION_KIND.at[Action.KYUUSHU].set(8)
 ACTION_KIND = ACTION_KIND.at[Action.DUMMY].set(9)
 
-_PLAYER_FIELDS = {
-    "hand",
-    "hand_with_red",
-    "hand_ids",
-    "hand_counts",
-    "drawn_tile",
-    "legal_action_mask",
-    "can_win",
-    "has_yaku",
-    "fan",
-    "fu",
-    "melds",
-    "meld_tiles",
-    "meld_info",
-    "meld_counts",
-    "river",
-    "discards",
-    "discard_info",
-    "discard_counts",
-    "riichi",
-    "riichi_declared",
-    "riichi_step",
-    "double_riichi",
-    "ippatsu",
-    "furiten_by_discard",
-    "furiten_by_pass",
-    "is_hand_concealed",
-    "pon",
-    "has_won",
-    "n_kan",
-    "has_nagashi_mangan",
-}
-
-_ROUND_FIELDS = {
-    "action_history",
-    "round_step",
-    "history_overflow",
-    "round",
-    "round_limit",
-    "terminated_round",
-    "honba",
-    "kyotaku",
-    "init_wind",
-    "seat_wind",
-    "dealer",
-    "order_points",
-    "score",
-    "deck",
-    "next_deck_ix",
-    "last_deck_ix",
-    "draw_next",
-    "last_draw",
-    "last_player",
-    "dora_indicators",
-    "ura_dora_indicators",
-    "is_abortive_draw_normal",
-    "dummy_count",
-    "is_haitei",
-    "target",
-    "n_kan_doras",
-    "kan_declared",
-    "can_after_kan",
-    "can_robbing_kan",
-    "use_red_fives",
-}
+_PLAYER_FIELDS = frozenset(field.name for field in dataclasses.fields(PlayerStateArrays))
+_ROUND_FIELDS = frozenset(field.name for field in dataclasses.fields(RoundState))
 
 
 def _replace_state(state: State, **updates) -> State:
+    """Replace fields of ``state`` by name, wherever they live.
+
+    ``legal_action_mask`` is every player's mask, shaped (NUM_PLAYERS, NUM_ACTION).
+    When it or ``current_player`` changes, the env-level mask becomes the current
+    player's row; ``_advance_to_next_decision`` then narrows it to the claims open
+    to them.
+    """
     env_updates = {}
     player_updates = {}
     round_updates = {}
     for key, value in updates.items():
-        if key == "legal_action_mask":
-            ndim = getattr(value, "ndim", None)
-            if ndim == 1:
-                env_updates[key] = value
-            else:
-                player_updates[key] = value
-        elif key in _PLAYER_FIELDS:
+        if key in _PLAYER_FIELDS:
             player_updates[key] = value
         elif key in _ROUND_FIELDS:
             round_updates[key] = value
         else:
             env_updates[key] = value
+    if "legal_action_mask" in player_updates and jnp.ndim(player_updates["legal_action_mask"]) != 2:
+        raise ValueError("legal_action_mask takes every player's mask, shaped (NUM_PLAYERS, NUM_ACTION)")
 
     players = state.players if not player_updates else state.players.replace(**player_updates)
     round_state = state.round_state if not round_updates else state.round_state.replace(**round_updates)
-    current_player = env_updates.get("current_player", state.current_player)
-
-    if "legal_action_mask" in env_updates and "legal_action_mask" not in player_updates:
-        players = players.replace(
-            legal_action_mask=players.legal_action_mask.at[current_player].set(env_updates["legal_action_mask"])
-        )
-    elif "legal_action_mask" not in env_updates and ("legal_action_mask" in player_updates or "current_player" in env_updates):
+    if "legal_action_mask" in player_updates or "current_player" in env_updates:
+        current_player = env_updates.get("current_player", state.current_player)
         env_updates["legal_action_mask"] = players.legal_action_mask[current_player]
 
     env_updates.setdefault("players", players)
@@ -181,7 +117,13 @@ def _set_tile_type_action(mask: Array, tile_type: Array, value: Array) -> Array:
     )
 
 
+def _set_hands(state: State, hand_with_red: Array) -> State:
+    """Write every player's hand. ``hand`` is always ``hand_with_red`` with red fives counted as fives."""
+    return _replace_state(state, hand=jax.vmap(Hand.to_34)(hand_with_red), hand_with_red=hand_with_red)
+
+
 def _set_player_hand(state: State, player: Array, hand_with_red_row: Array) -> State:
+    """Write one player's hand; see ``_set_hands``."""
     hand_with_red = state.players.hand_with_red.at[player].set(hand_with_red_row)
     hand = state.players.hand.at[player].set(Hand.to_34(hand_with_red_row))
     return _replace_state(state, hand=hand, hand_with_red=hand_with_red)
@@ -290,7 +232,7 @@ def _init_for_next_round(
 def _prepare_next_round_assets(
     rng: PRNGKey,
     game_config: Optional[GameConfig] = None,
-) -> Tuple[Array, Array, Array, Array, Array, Array]:
+) -> Tuple[Array, Array, Array, Array, Array]:
     """Deal the next round's wall from ``rng`` (the key given to ``step``)."""
     deck = Tile.from_tile_id_to_tile(jax.random.permutation(rng, jnp.arange(136))).astype(jnp.int8)
     deck = _apply_red_five_config(deck, game_config)
@@ -299,26 +241,25 @@ def _prepare_next_round_assets(
     dora_indicators = jnp.array([deck[9], -1, -1, -1, -1], dtype=jnp.int8)
     ura_dora_indicators = jnp.array([deck[8], -1, -1, -1, -1], dtype=jnp.int8)
     can_ron = v_can_win(init_hand, TILE_RANGE)
-    return deck, dora_indicators, ura_dora_indicators, init_hand, init_hand_with_red, can_ron
+    return deck, dora_indicators, ura_dora_indicators, init_hand_with_red, can_ron
 
 
 def _init_for_next_round_from_prepared(
     state: State,
-    prepared: Tuple[Array, Array, Array, Array, Array, Array],
+    prepared: Tuple[Array, Array, Array, Array, Array],
     game_config: Optional[GameConfig] = None,
 ) -> State:
     last_player = jnp.int8(-1)
-    deck, dora_indicators, ura_dora_indicators, init_hand, init_hand_with_red, can_ron = prepared
+    deck, dora_indicators, ura_dora_indicators, init_hand_with_red, can_ron = prepared
     state = _replace_state(
         state,
         last_player=last_player,
         deck=deck,
         dora_indicators=dora_indicators,
         ura_dora_indicators=ura_dora_indicators,
-        hand=init_hand,
-        hand_with_red=init_hand_with_red,
         use_red_fives=jnp.bool_(_resolve_game_config(game_config).use_red_fives),
     )
+    state = _set_hands(state, init_hand_with_red)
     c_p = state.current_player
     new_tile = state.round_state.deck[state.round_state.next_deck_ix]
     new_tile_type = Tile.to_tile_type(new_tile)
@@ -333,7 +274,6 @@ def _init_for_next_round_from_prepared(
         c_p,
         eval_state,
     )
-    hand = state.players.hand.at[c_p].set(Hand.add(state.players.hand[c_p], new_tile))
     hand_with_red = state.players.hand_with_red.at[c_p].set(Hand.add(state.players.hand_with_red[c_p], new_tile))
     # The mask reads ``can_win``, which is only written below.
     legal_action_mask_c_p = _mask_after_draw(
@@ -348,12 +288,10 @@ def _init_for_next_round_from_prepared(
         can_win=can_ron,
         legal_action_mask=legal_action_mask_4p,
         next_deck_ix=next_deck_ix,
-        hand=hand,
-        hand_with_red=hand_with_red,
         last_draw=new_tile,
         target=jnp.int8(-1),
     )
-    return state
+    return _set_player_hand(state, c_p, hand_with_red[c_p])
 
 
 def _calc_wind(east_player: Array) -> Array:
@@ -508,8 +446,8 @@ def _advance_to_next_decision(
         lambda: _abortive_draw_normal(state),
         lambda: state,
     )
-    # ``state.replace`` rather than ``_replace_state``: the latter writes a 1D mask
-    # back into the player's row, which would drop the calls still waiting there.
+    # ``state.replace`` rather than ``_replace_state``: only the env-level mask is
+    # narrowed, and the player's row keeps the calls still waiting there.
     return state.replace(
         legal_action_mask=_claims_open_to(state.players.legal_action_mask, state.current_player),
     )
@@ -565,8 +503,6 @@ def _draw(state: State, game_config: Optional[GameConfig] = None) -> State:
         fan=state.players.fan.at[c_p, 0].set(state.players.fan[c_p, 1]),
         fu=state.players.fu.at[c_p, 0].set(state.players.fu[c_p, 1]),
         next_deck_ix=next_deck_ix,
-        hand=state.players.hand.at[c_p].set(Hand.to_34(hand_with_red[c_p])),
-        hand_with_red=hand_with_red,
         last_draw=new_tile,
         legal_action_mask=legal_action_mask_4p,
         furiten_by_pass=state.players.furiten_by_pass.at[c_p].set(
@@ -575,6 +511,7 @@ def _draw(state: State, game_config: Optional[GameConfig] = None) -> State:
         is_haitei=is_haitei,
         draw_next=FALSE,
     )
+    normal_state = _set_player_hand(normal_state, c_p, hand_with_red[c_p])
     return jax.lax.cond(
         is_special_abortive_draw,
         lambda: special_state,
@@ -707,21 +644,17 @@ def _discard(state: State, tile: Array, game_config: Optional[GameConfig] = None
         state.players.river, tile, c_p, state.players.discard_counts[c_p], is_tsumogiri, is_riichi
     )
     n_river = state.players.discard_counts.at[c_p].add(1)
-    hand_with_red = state.players.hand_with_red.at[c_p].set(
-        Hand.sub(state.players.hand_with_red[c_p], tile)
-    )
-    hand = state.players.hand.at[c_p].set(Hand.to_34(hand_with_red[c_p]))
+    hand_with_red_row = Hand.sub(state.players.hand_with_red[c_p], tile)
     state = _replace_state(
         state,
         last_draw=jnp.int8(-1),
-        hand=hand,
-        hand_with_red=hand_with_red,
         river=river,
         discard_counts=n_river,
         has_nagashi_mangan=state.players.has_nagashi_mangan.at[c_p].set(
             state.players.has_nagashi_mangan[c_p] & Tile.is_yaochu(tile)
         ),
     )
+    state = _set_player_hand(state, c_p, hand_with_red_row)
     next_tile = state.round_state.deck[state.round_state.next_deck_ix]
     has_yaku, fan, fu = yaku_judge_for_discarded_or_kanned_tile_and_next_draw_tile(
         state, tile, next_tile
@@ -1121,7 +1054,6 @@ def _draw_rinshan(state: State, game_config: Optional[GameConfig] = None):
     hand_with_red = state.players.hand_with_red.at[c_p].set(
         Hand.add(state.players.hand_with_red[c_p], rinshan_tile)
     )
-    hand = state.players.hand.at[c_p].set(Hand.to_34(hand_with_red[c_p]))
     # ``can_win`` caches waits for a 13-tile hand before the winning tile is added.
     # Normal draws reuse values computed on the previous discard boundary; rinshan
     # draws need the same convention using the post-kan 13-tile hand.
@@ -1149,15 +1081,13 @@ def _draw_rinshan(state: State, game_config: Optional[GameConfig] = None):
     )  # Update the legal action for the player who drew the tile
     normal_state = _replace_state(state,   # type:ignore
         last_draw=rinshan_tile,
-        hand=hand,
-        hand_with_red=hand_with_red,
         legal_action_mask=legal_action_mask_4p,
         has_yaku=state.players.has_yaku.at[c_p, 0].set(state.players.has_yaku[c_p, 1]),
         fan=state.players.fan.at[c_p, 0].set(state.players.fan[c_p, 1]),
         fu=state.players.fu.at[c_p, 0].set(state.players.fu[c_p, 1]),
         is_haitei=is_haitei,
     )
-    return normal_state
+    return _set_player_hand(normal_state, c_p, hand_with_red[c_p])
 
 
 def _kan(state: State, action, game_config: Optional[GameConfig] = None):
@@ -1294,8 +1224,7 @@ def _closed_kan(state: State, target):
     c_p = state.current_player
     meld = Meld.init(target + Tile.NUM_TILE_TYPE_WITH_RED, target, src=0)
     state = _append_meld(state, meld, c_p)
-    hand_with_red = state.players.hand_with_red.at[c_p].set(Hand.closed_kan(state.players.hand_with_red[c_p], target))
-    return _replace_state(state, hand=state.players.hand.at[c_p].set(Hand.to_34(hand_with_red[c_p])), hand_with_red=hand_with_red)
+    return _set_player_hand(state, c_p, Hand.closed_kan(state.players.hand_with_red[c_p], target))
 
 
 def _added_kan(state: State, target):
@@ -1311,15 +1240,9 @@ def _added_kan(state: State, target):
     melds = state.players.melds.at[(c_p, pon_idx)].set(
         Meld.init(target + Tile.NUM_TILE_TYPE_WITH_RED, target, pon_src)
     )
-    hand_with_red = state.players.hand_with_red.at[c_p].set(Hand.added_kan(state.players.hand_with_red[c_p], target))
+    hand_with_red_row = Hand.added_kan(state.players.hand_with_red[c_p], target)
     pon = state.players.pon.at[(c_p, target)].set(jnp.int8(0))
-    return _replace_state(
-        state,
-        melds=melds,
-        hand=state.players.hand.at[c_p].set(Hand.to_34(hand_with_red[c_p])),
-        hand_with_red=hand_with_red,
-        pon=pon,
-    )
+    return _set_player_hand(_replace_state(state, melds=melds, pon=pon), c_p, hand_with_red_row)
 
 
 def _clear_furiten_by_pass(state: State, c_p: Array) -> State:
@@ -1349,23 +1272,19 @@ def _open_kan(state: State):
     src = (l_p - c_p) % 4
     meld = Meld.init(Action.OPEN_KAN, state.round_state.target, src)
     state = _append_meld(state, meld, c_p)
-    hand_with_red = state.players.hand_with_red.at[c_p].set(
-        Hand.open_kan(state.players.hand_with_red[c_p], state.round_state.target)
-    )
-    hand = state.players.hand.at[c_p].set(Hand.to_34(hand_with_red[c_p]))
+    hand_with_red_row = Hand.open_kan(state.players.hand_with_red[c_p], state.round_state.target)
     is_hand_concealed = state.players.is_hand_concealed.at[c_p].set(FALSE)
     # Add the meld to the river
     river = River.add_meld(
         state.players.river, Action.OPEN_KAN, l_p, state.players.discard_counts[l_p] - 1, src
     )
-    return _replace_state(state,   # type:ignore
-        hand=hand,
-        hand_with_red=hand_with_red,
+    state = _replace_state(state,   # type:ignore
         target=jnp.int8(-1),
         is_hand_concealed=is_hand_concealed,
         river=river,
         has_nagashi_mangan=state.players.has_nagashi_mangan.at[l_p].set(FALSE),
     )
+    return _set_player_hand(state, c_p, hand_with_red_row)
 
 
 def _pon(state: State, action: Array):
@@ -1384,7 +1303,6 @@ def _pon(state: State, action: Array):
     state = _append_meld(state, meld, c_p)
     pon_hand = Hand.pon(state.players.hand_with_red[c_p], tar, action)
     hand_with_red = state.players.hand_with_red.at[c_p].set(pon_hand)
-    hand = state.players.hand.at[c_p].set(Hand.to_34(pon_hand))
     is_hand_concealed = state.players.is_hand_concealed.at[c_p].set(FALSE)
     tar_type = Tile.to_tile_type(tar)
     pon = state.players.pon.at[(c_p, tar_type)].set(jnp.int8(src << 2 | state.players.meld_counts[c_p] - 1))
@@ -1396,18 +1314,17 @@ def _pon(state: State, action: Array):
         .at[c_p, Action.PASS]
         .set(FALSE)
     )
-    return _replace_state(state,   # type:ignore
+    state = _replace_state(state,   # type:ignore
         target=jnp.int8(-1),
         is_hand_concealed=is_hand_concealed,
         pon=pon,
-        hand=hand,
-        hand_with_red=hand_with_red,
         legal_action_mask=legal_action_mask_4p,
         river=river,
         has_nagashi_mangan=state.players.has_nagashi_mangan.at[l_p].set(FALSE),
         ippatsu=jnp.zeros(4, dtype=jnp.bool_),  # Disable Ippatsu
         draw_next=FALSE,
     )
+    return _set_player_hand(state, c_p, pon_hand)
 
 
 def _chi(state: State, action: Array):
@@ -1425,7 +1342,6 @@ def _chi(state: State, action: Array):
     state = _append_meld(state, meld, c_p)
     chi_hand = Hand.chi(state.players.hand_with_red[c_p], tar, action)
     hand_with_red = state.players.hand_with_red.at[c_p].set(chi_hand)
-    hand = state.players.hand.at[c_p].set(Hand.to_34(chi_hand))
     is_hand_concealed = state.players.is_hand_concealed.at[c_p].set(FALSE)
     legal_action_mask_4p = (
         _mask_after_chi(state, hand_with_red, c_p, tar, action)
@@ -1436,17 +1352,16 @@ def _chi(state: State, action: Array):
     river = River.add_meld(
         state.players.river, action, tar_p, state.players.discard_counts[tar_p] - 1, jnp.int32(3)
     )
-    return _replace_state(state,   # type:ignore
+    state = _replace_state(state,   # type:ignore
         target=jnp.int8(-1),
         is_hand_concealed=is_hand_concealed,
-        hand=hand,
-        hand_with_red=hand_with_red,
         legal_action_mask=legal_action_mask_4p,
         river=river,
         has_nagashi_mangan=state.players.has_nagashi_mangan.at[tar_p].set(FALSE),
         ippatsu=jnp.zeros(4, dtype=jnp.bool_),  # Disable Ippatsu
         draw_next=FALSE,
     )
+    return _set_player_hand(state, c_p, chi_hand)
 
 
 def _mask_after_chi(
@@ -1866,7 +1781,7 @@ def _special_next_round(
     key: PRNGKey,
     game_config: Optional[GameConfig] = None,
     *,
-    prepared_next_round: Optional[Tuple[Array, Array, Array, Array, Array, Array]] = None,
+    prepared_next_round: Optional[Tuple[Array, Array, Array, Array, Array]] = None,
 ) -> State:
     """After a special abortive draw the dealer deals again, with one more honba."""
     if prepared_next_round is None:
@@ -2002,7 +1917,7 @@ def _next_round(
     key: PRNGKey,
     game_config: Optional[GameConfig] = None,
     *,
-    prepared_next_round: Optional[Tuple[Array, Array, Array, Array, Array, Array]] = None,
+    prepared_next_round: Optional[Tuple[Array, Array, Array, Array, Array]] = None,
 ) -> State:
     """
     Move to the next round (``key`` deals the new wall)
