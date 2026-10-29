@@ -46,3 +46,31 @@ def test_no_red_deals_no_red_fives() -> None:
     assert int((red.round_state.deck >= Tile.NUM_TILE_TYPE).sum()) == 3
     assert int((no_red.round_state.deck >= Tile.NUM_TILE_TYPE).sum()) == 0
     assert not bool(no_red.round_state.use_red_fives)
+
+
+def test_red_use_red_fives_survives_round_transitions() -> None:
+    from mahjax.red_mahjong.config import GameConfig as RedGameConfig
+
+    env = RedMahjong(
+        round_mode="half",
+        game_config=RedGameConfig(use_red_fives=False),
+        next_round_style="dummy_share",
+    )
+    step = jax.jit(env.step)
+    key = jax.random.PRNGKey(3)
+    key, sub = jax.random.split(key)
+    state = env.init(sub)
+    rounds = set()
+
+    for _ in range(4000):
+        assert not bool(state.round_state.use_red_fives)
+        rounds.add(int(state.round_state.round))
+        key, action_key, step_key = jax.random.split(key, 3)
+        action = jax.random.categorical(
+            action_key, jnp.log(jnp.where(state.legal_action_mask, 1.0, 0.0))
+        )
+        state = step(state, action.astype(jnp.int8), step_key)
+        if bool(state.terminated) or bool(state.truncated):
+            break
+
+    assert len(rounds) > 1

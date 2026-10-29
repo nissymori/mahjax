@@ -43,3 +43,17 @@ def test_chi_prohibitive_tile_type_behavior() -> None:
     assert int(Meld.prohibitive_tile_type_after_chi(Action.CHI_L, 0)) == 3
     assert int(Meld.prohibitive_tile_type_after_chi(Action.CHI_R, 8)) == 5
     assert int(Meld.prohibitive_tile_type_after_chi(Action.CHI_L, 6)) == -1
+
+
+def test_meld_red_flags_match_action_and_target() -> None:
+    pon_red = Meld.init(Action.PON_RED, Tile.BLACK_FIVE['m'], 1)
+    chi_red = Meld.init(Action.CHI_M_RED, 13, 3)
+    open_kan_red_target = Meld.init(Action.OPEN_KAN, Tile.RED_FIVE['s'], 2)
+    normal_chi = Meld.init(Action.CHI_M, 13, 3)
+
+    assert bool(Meld.contains_red(pon_red))
+    assert bool(Meld.contains_red(chi_red))
+    assert bool(Meld.contains_red(open_kan_red_target))
+    assert not bool(Meld.contains_red(normal_chi))
+    assert int(Meld.target(open_kan_red_target)) == Tile.BLACK_FIVE['s']
+    assert int(Meld.target_tile(open_kan_red_target)) == Tile.RED_FIVE['s']
