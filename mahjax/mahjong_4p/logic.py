@@ -163,6 +163,7 @@ def yaku_judge_for_discarded_or_kanned_tile_and_next_draw_tile(
     next_tile: Array,
     ron_dora_indicators: Optional[Array] = None,
     ron_ura_dora_indicators: Optional[Array] = None,
+    use_red_fives: Array = jnp.bool_(True),
 ) -> Tuple[Array, Array, Array]:
     """
     Calculate YAKU for the discarded tile and the next drawn tile.
@@ -188,7 +189,7 @@ def yaku_judge_for_discarded_or_kanned_tile_and_next_draw_tile(
 
     def f(hand, player, is_ron):
         rs = jax.lax.cond(is_ron, lambda: ron_state, lambda: tsumo_state)
-        return Yaku.judge(hand, is_ron, player, rs)
+        return Yaku.judge(hand, is_ron, player, rs, use_red_fives=use_red_fives)
 
     yaku8, fan8, fu8 = jax.vmap(f)(hand_b, player_idx, is_ron_b)
     yaku42 = yaku8.reshape(4, 2, -1)
@@ -257,7 +258,6 @@ def _init_for_next_round_from_prepared(
         deck=deck,
         dora_indicators=dora_indicators,
         ura_dora_indicators=ura_dora_indicators,
-        use_red_fives=jnp.bool_(_resolve_game_config(game_config).use_red_fives),
     )
     state = _set_hands(state, init_hand_with_red)
     c_p = state.current_player
@@ -273,6 +273,7 @@ def _init_for_next_round_from_prepared(
         FALSE,
         c_p,
         eval_state,
+        use_red_fives=_resolve_game_config(game_config).use_red_fives,
     )
     hand_with_red = state.players.hand_with_red.at[c_p].set(Hand.add(state.players.hand_with_red[c_p], new_tile))
     # The mask reads ``can_win``, which is only written below.
@@ -657,7 +658,7 @@ def _discard(state: State, tile: Array, game_config: Optional[GameConfig] = None
     state = _set_player_hand(state, c_p, hand_with_red_row)
     next_tile = state.round_state.deck[state.round_state.next_deck_ix]
     has_yaku, fan, fu = yaku_judge_for_discarded_or_kanned_tile_and_next_draw_tile(
-        state, tile, next_tile
+        state, tile, next_tile, use_red_fives=config.use_red_fives
     )
     can_win = jax.vmap(Hand.can_ron, in_axes=(None, 0))(state.players.hand[c_p], TILE_RANGE)
     is_furiten_by_river = jax.vmap(_is_waiting_tile, in_axes=(None, 0))(
@@ -1153,7 +1154,12 @@ def _kan(state: State, action, game_config: Optional[GameConfig] = None):
         state,
     )
     has_yaku, fan, fu = yaku_judge_for_discarded_or_kanned_tile_and_next_draw_tile(
-        state, tile, rinshan_tile, face_down.dora_indicators, face_down.ura_dora_indicators
+        state,
+        tile,
+        rinshan_tile,
+        face_down.dora_indicators,
+        face_down.ura_dora_indicators,
+        use_red_fives=config.use_red_fives,
     )  # (4, 2); the RON half only matters for a robbed added kan
     state = _replace_state(state, 
         has_yaku=has_yaku,

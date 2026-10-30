@@ -596,6 +596,7 @@ class Yaku:
         is_ron: Array,
         player: Array,
         rs: object,
+        use_red_fives: Array = jnp.bool_(True),
     ) -> Tuple[Array, Array, Array]:
         p = jnp.int32(player)
         melds = rs.players.melds[p]
@@ -615,7 +616,7 @@ class Yaku:
             prevalent_wind=prevalent_wind,
             seat_wind=seat_wind,
             dora=dora,
-            use_red_fives=rs.round_state.use_red_fives,
+            use_red_fives=use_red_fives,
         )
 
     @staticmethod

@@ -243,7 +243,9 @@ def test_red_kan_of_fives_scores_no_red_dora_without_red_fives() -> None:
                 target=jnp.int8(27), dora_indicators=jnp.full((5,), -1, dtype=jnp.int8)
             ),
         )
-        _, fan, _ = RedYaku.judge(hand, jnp.bool_(True), jnp.int8(0), state)
+        _, fan, _ = RedYaku.judge(
+            hand, jnp.bool_(True), jnp.int8(0), state, use_red_fives=use_red_fives
+        )
         return int(fan)
 
     assert fan_for(False) == fan_for(True) - 1

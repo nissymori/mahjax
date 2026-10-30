@@ -100,7 +100,6 @@ class RoundState:
     kan_declared: jnp.bool_ = FALSE
     can_after_kan: jnp.bool_ = FALSE
     can_robbing_kan: jnp.bool_ = FALSE
-    use_red_fives: jnp.bool_ = TRUE
 
 
 @dataclass

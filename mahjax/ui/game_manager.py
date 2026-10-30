@@ -490,7 +490,13 @@ class GameSession:
         if self._is_terminated_round(next_state) and not self._is_terminated_round(
             prev_state
         ):
-            summary = build_round_summary_red(prev_state, next_state, event, self.player_names)
+            summary = build_round_summary_red(
+                prev_state,
+                next_state,
+                event,
+                self.player_names,
+                use_red_fives=self.env.game_config.use_red_fives,
+            )
             self.round_summary = summary
             self.round_history.append(summary)
         return event
@@ -1009,6 +1015,8 @@ def build_round_summary_red(
     next_state: Any,
     event: ActionEvent,
     player_names: List[str],
+    *,
+    use_red_fives: bool = True,
 ) -> RoundSummary:
     rewards = [int(np.round(r * 100)) for r in np.array(next_state.rewards)]
     reason = "abortive_draw_normal"
@@ -1024,6 +1032,7 @@ def build_round_summary_red(
                 winning_tile=int(prev_state.round_state.last_draw),
                 from_player=None,
                 is_ron=False,
+                use_red_fives=use_red_fives,
             )
         )
     elif event.action == RedAction.RON:
@@ -1037,6 +1046,7 @@ def build_round_summary_red(
                 winning_tile=int(prev_state.round_state.target),
                 from_player=int(prev_state.round_state.last_player),
                 is_ron=True,
+                use_red_fives=use_red_fives,
             )
         )
     return RoundSummary(
@@ -1059,6 +1069,7 @@ def summarise_winner_red(
     winning_tile: int,
     from_player: Optional[int],
     is_ron: bool,
+    use_red_fives: bool = True,
 ) -> WinnerSummary:
     hand = jnp.asarray(prev_state.players.hand_with_red[player])
     melds = jnp.asarray(prev_state.players.melds[player])
@@ -1074,7 +1085,9 @@ def summarise_winner_red(
     ura_dora = int(np.dot(flatten_np, dora_np[1])) if riichi else 0
     dora_tile_list = resolve_dora_tiles(prev_state.round_state.dora_indicators)
     ura_dora_tile_list = resolve_dora_tiles(prev_state.round_state.ura_dora_indicators)
-    yaku_mask, fan, fu = RedYaku.judge(hand, jnp.bool_(is_ron), jnp.int32(player), prev_state)
+    yaku_mask, fan, fu = RedYaku.judge(
+        hand, jnp.bool_(is_ron), jnp.int32(player), prev_state, use_red_fives=use_red_fives
+    )
     yaku_mask_np = np.array(yaku_mask, dtype=bool)
     fan_val = int(np.array(fan))
     fu_val = int(np.array(fu))
