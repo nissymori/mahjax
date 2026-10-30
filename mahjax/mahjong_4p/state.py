@@ -17,6 +17,8 @@ from mahjax.common.meld import EMPTY_MELD
 from mahjax.common.tile import EMPTY_RIVER
 
 from .constants import (
+    DEAD_WALL_TILES,
+    FIRST_DRAW_IDX,
     LEGAL_ACTION_SIZE,
     MAX_DISCARDS_PER_PLAYER,
     MAX_DORA_INDICATORS,
@@ -88,8 +90,8 @@ class RoundState:
     order_points: jnp.ndarray = jnp.array([0, 0, 0, 0], dtype=jnp.int32)
     score: jnp.ndarray = jnp.full((NUM_PLAYERS,), 250, dtype=jnp.int32)
     deck: jnp.ndarray = jnp.zeros((NUM_PHYSICAL_TILES,), dtype=jnp.int8)
-    next_deck_ix: jnp.int32 = jnp.int32(83)
-    last_deck_ix: jnp.int8 = jnp.int8(14)
+    next_deck_ix: jnp.int32 = jnp.int32(FIRST_DRAW_IDX)
+    last_deck_ix: jnp.int8 = jnp.int8(DEAD_WALL_TILES)
     draw_next: jnp.bool_ = FALSE
     last_draw: jnp.int8 = jnp.int8(-1)
     last_player: jnp.int8 = jnp.int8(-1)

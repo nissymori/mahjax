@@ -8,6 +8,7 @@ NUM_TILE_TYPES: Final[int] = 34
 NUM_TILE_TYPES_WITH_RED: Final[int] = 37
 COPIES_PER_TILE: Final[int] = 4
 
+INITIAL_HAND_TILES: Final[int] = 13
 MAX_HAND_TILES: Final[int] = 14
 MAX_MELDS_PER_PLAYER: Final[int] = 4
 

@@ -22,7 +22,7 @@ import jax.numpy as jnp
 from mahjax._src.types import Array, PRNGKey
 from mahjax.common.action import Action
 from mahjax.common.config import GameConfig
-from mahjax.common.constants import DORA_ARRAY, TILE_RANGE
+from mahjax.common.constants import DORA_ARRAY, INITIAL_HAND_TILES, TILE_RANGE
 from mahjax.common.hand import Hand
 from mahjax.common.meld import Meld
 from mahjax.common.tile import River, Tile
@@ -31,7 +31,11 @@ from mahjax.common.yaku import Yaku
 from .config import RED
 from .constants import (
     FALSE,
+    FIRST_DORA_INDICATOR_IX,
     FIRST_DRAW_IDX,
+    NUM_PHYSICAL_TILES,
+    NUM_PLAYERS,
+    RINSHAN_IX,
     SUDDEN_DEATH_ROUNDS,
     TARGET_SCORE,
     TRUE,
@@ -115,6 +119,37 @@ def _apply_red_five_config(deck: Array, game_config: Optional[GameConfig] = None
 def _live_wall_end_ix(state: State) -> jnp.ndarray:
     """Haitei line: last drawable wall index; ``last_deck_ix`` advances per kan (王牌繰り)."""
     return state.round_state.last_deck_ix.astype(jnp.int32)
+
+
+def _live_wall_is_empty(state: State) -> Array:
+    """No live-wall tile is left to draw: ``next_deck_ix`` has passed the haitei line."""
+    return state.round_state.next_deck_ix < _live_wall_end_ix(state)
+
+
+def _rinshan_ix(n_kan: Array) -> Array:
+    """Wall index of the replacement tile drawn after the ``n_kan``-th kan (0-based)."""
+    return jnp.int32(RINSHAN_IX + n_kan)
+
+
+def _dora_indicator_ix(k: Array) -> Array:
+    """Wall index of the ``k``-th dora indicator: 0 is the first, each kan adds one."""
+    return FIRST_DORA_INDICATOR_IX - 2 * k
+
+
+def _ura_dora_indicator_ix(k: Array) -> Array:
+    """Wall index of the ``k``-th ura dora indicator, the tile below the dora indicator."""
+    return _dora_indicator_ix(k) - 1
+
+
+def _deal_hands(deck: Array) -> Array:
+    """Every player's starting hand, dealt from the end of the wall."""
+    hand = jnp.zeros((NUM_PLAYERS, Tile.NUM_TILE_TYPE_WITH_RED), dtype=jnp.int8)
+    hand_ids = deck[-(INITIAL_HAND_TILES * NUM_PLAYERS) :].reshape(NUM_PLAYERS, INITIAL_HAND_TILES)
+
+    def add_tiles(h, tiles):
+        return h.at[tiles].add(1)
+
+    return jax.vmap(add_tiles)(hand, hand_ids)
 
 
 def _set_tile_type_action(mask: Array, tile_type: Array, value: Array) -> Array:
@@ -245,12 +280,12 @@ def _prepare_next_round_assets(
     game_config: Optional[GameConfig] = None,
 ) -> Tuple[Array, Array, Array, Array, Array]:
     """Deal the next round's wall from ``rng`` (the key given to ``step``)."""
-    deck = Tile.from_tile_id_to_tile(jax.random.permutation(rng, jnp.arange(136))).astype(jnp.int8)
+    deck = Tile.from_tile_id_to_tile(jax.random.permutation(rng, jnp.arange(NUM_PHYSICAL_TILES))).astype(jnp.int8)
     deck = _apply_red_five_config(deck, game_config)
-    init_hand_with_red = Hand.make_init_hand(deck)
+    init_hand_with_red = _deal_hands(deck)
     init_hand = jax.vmap(Hand.to_34)(init_hand_with_red)
-    dora_indicators = jnp.array([deck[9], -1, -1, -1, -1], dtype=jnp.int8)
-    ura_dora_indicators = jnp.array([deck[8], -1, -1, -1, -1], dtype=jnp.int8)
+    dora_indicators = jnp.array([deck[_dora_indicator_ix(0)], -1, -1, -1, -1], dtype=jnp.int8)
+    ura_dora_indicators = jnp.array([deck[_ura_dora_indicator_ix(0)], -1, -1, -1, -1], dtype=jnp.int8)
     can_ron = v_can_win(init_hand, TILE_RANGE)
     return deck, dora_indicators, ura_dora_indicators, init_hand_with_red, can_ron
 
@@ -720,7 +755,7 @@ def _discard(state: State, tile: Array, game_config: Optional[GameConfig] = None
     no_ron_player = jnp.logical_not(legal_action_mask_4p[:, Action.RON].any())
     no_meld_player = jnp.logical_not(can_any)
     # Check if the game is ended (abortive_draw_normal)
-    is_abortive_draw_normal = state.round_state.next_deck_ix < _live_wall_end_ix(state)
+    is_abortive_draw_normal = _live_wall_is_empty(state)
     state = _replace_state(
         state,
         can_after_kan=FALSE,
@@ -768,9 +803,7 @@ def _mask_after_discard(
     # ``Houtei`` is the final discard before exhaustive draw. Normal last-tile
     # draws propagate via ``is_haitei``; after-kan discard chains can also be
     # the final discard once the live wall is exhausted, so we detect that here.
-    haitei = state.round_state.is_haitei | (
-        state.round_state.next_deck_ix < _live_wall_end_ix(state)
-    )
+    haitei = state.round_state.is_haitei | _live_wall_is_empty(state)
     riichi = state.players.riichi[c_p]
     discarder = state.current_player
     src = (discarder - c_p) % 4
@@ -1002,10 +1035,10 @@ def _reveal_pending_kan_dora(state: State) -> State:
             s,
             n_kan_doras=n_kan_doras + 1,
             dora_indicators=s.round_state.dora_indicators.at[n_kan_doras + 1].set(
-                s.round_state.deck[9 - 2 * (n_kan_doras + 1)]
+                s.round_state.deck[_dora_indicator_ix(n_kan_doras + 1)]
             ),
             ura_dora_indicators=s.round_state.ura_dora_indicators.at[n_kan_doras + 1].set(
-                s.round_state.deck[8 - 2 * (n_kan_doras + 1)]
+                s.round_state.deck[_ura_dora_indicator_ix(n_kan_doras + 1)]
             ),
         ),
         lambda s: s,
@@ -1033,7 +1066,7 @@ def _draw_rinshan(state: State, game_config: Optional[GameConfig] = None):
     c_p = state.current_player
     config = _resolve_game_config(game_config)
     n_kan = state.players.n_kan.sum()
-    rinshan_tile = state.round_state.deck[jnp.int32(10 + n_kan)]
+    rinshan_tile = state.round_state.deck[_rinshan_ix(n_kan)]
     kan_dora_pre_flipped = state.round_state.n_kan_doras.astype(jnp.int32) > n_kan.astype(
         jnp.int32
     )
@@ -1073,9 +1106,7 @@ def _draw_rinshan(state: State, game_config: Optional[GameConfig] = None):
     is_riichi = state.players.riichi[c_p]
     # For the masks only: a kan moves a live-wall tile to the dead wall, so once the
     # live wall is empty this rinshan tile cannot be kanned, just like a haitei tile.
-    draw_eval_state = _replace_state(
-        state, is_haitei=state.round_state.next_deck_ix < _live_wall_end_ix(state)
-    )
+    draw_eval_state = _replace_state(state, is_haitei=_live_wall_is_empty(state))
     legal_action_mask_c_p = jax.lax.cond(
         is_riichi,
         lambda: _mask_after_draw_in_riichi(draw_eval_state, hand_with_red, c_p, rinshan_tile),
@@ -1131,9 +1162,7 @@ def _kan(state: State, action, game_config: Optional[GameConfig] = None):
         state.round_state.target,
         self_kan_tile,
     )
-    rinshan_tile = state.round_state.deck[
-        jnp.int32(10 + state.players.n_kan.sum())
-    ]  # Reference the deck in _state.py
+    rinshan_tile = state.round_state.deck[_rinshan_ix(state.players.n_kan.sum())]
     # Apply KAN action to hand, meld, river
     is_open_kan = action == Action.OPEN_KAN
     pon = state.players.pon[(c_p, Tile.to_tile_type(tile))]
@@ -1153,11 +1182,11 @@ def _kan(state: State, action, game_config: Optional[GameConfig] = None):
             s,
             n_kan_doras=s.round_state.n_kan_doras + 1,
             dora_indicators=s.round_state.dora_indicators.at[s.round_state.n_kan_doras + 1].set(
-                s.round_state.deck[9 - 2 * (s.round_state.n_kan_doras + 1)]
+                s.round_state.deck[_dora_indicator_ix(s.round_state.n_kan_doras + 1)]
             ),
             ura_dora_indicators=s.round_state.ura_dora_indicators.at[
                 s.round_state.n_kan_doras + 1
-            ].set(s.round_state.deck[8 - 2 * (s.round_state.n_kan_doras + 1)]),
+            ].set(s.round_state.deck[_ura_dora_indicator_ix(s.round_state.n_kan_doras + 1)]),
             last_deck_ix=s.round_state.last_deck_ix + 1,
         ),
         lambda s: s,
@@ -1422,7 +1451,7 @@ def _pass(state: State, game_config: Optional[GameConfig] = None):
     )  # Reference the current wind for the next meld player
     no_meld_player = jnp.logical_not(can_any)
     # Check if the game is ended (abortive_draw_normal (流局))
-    is_abortive_draw_normal = state.round_state.next_deck_ix < _live_wall_end_ix(state)
+    is_abortive_draw_normal = _live_wall_is_empty(state)
     post_ron_state = jax.lax.cond(
         config.allow_double_ron & can_any_ron,
         lambda: _replace_state(

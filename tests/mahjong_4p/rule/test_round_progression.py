@@ -2,8 +2,9 @@ import jax
 import jax.numpy as jnp
 
 from mahjax.common.action import Action
+from mahjax.common.tile import Tile
 from mahjax.mahjong_4p.env import Mahjong4p
-from mahjax.mahjong_4p.logic import _start_next_round_or_end_game, _replace_state
+from mahjax.mahjong_4p.logic import _deal_hands, _replace_state, _start_next_round_or_end_game
 from mahjax.mahjong_4p.state import default_state
 
 from ..helpers import STEP_KEY, compiled_env
@@ -131,6 +132,14 @@ def test_red_auto_matches_dummy_share_at_game_end() -> None:
     )
     assert bool(jnp.all(state_auto.round_state.score == state_share.round_state.score))
     assert bool(jnp.all(total_auto == total_share))
+
+
+def test_deal_hands_returns_red_aware_shape() -> None:
+    rng = jax.random.PRNGKey(1)
+    deck = Tile.from_tile_id_to_tile(jax.random.permutation(rng, jnp.arange(136)))
+    hand = _deal_hands(deck)
+    assert hand.shape == (4, Tile.NUM_TILE_TYPE_WITH_RED)
+    assert bool(jnp.all(hand.sum(axis=1) == 13))
 
 
 def test_calc_wind_assigns_east_to_dealer() -> None:

@@ -84,16 +84,6 @@ class Hand:
     )
 
     @staticmethod
-    def make_init_hand(deck: Array) -> Array:
-        hand = jnp.zeros((4, Tile.NUM_TILE_TYPE_WITH_RED), dtype=jnp.int8)
-        hand_ids = deck[-(13 * 4) :].reshape(4, 13)
-
-        def add_tiles(h, tiles):
-            return h.at[tiles].add(1)
-
-        return jax.vmap(add_tiles)(hand, hand_ids)
-
-    @staticmethod
     def to_34(hand: Array) -> Array:
         if hand.shape[0] == Tile.NUM_TILE_TYPE:
             return hand

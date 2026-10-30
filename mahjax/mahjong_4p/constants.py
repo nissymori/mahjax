@@ -5,6 +5,7 @@ from typing import Final
 import jax.numpy as jnp
 
 from mahjax.common.action import Action
+from mahjax.common.constants import INITIAL_HAND_TILES
 
 NUM_PLAYERS: Final[int] = 4
 NUM_PHYSICAL_TILES: Final[int] = 136
@@ -33,4 +34,10 @@ TRUE = jnp.bool_(True)
 ZERO_MASK_1D = jnp.zeros(Action.NUM_ACTION, dtype=jnp.bool_)
 ZERO_MASK_2D = jnp.zeros((NUM_PLAYERS, Action.NUM_ACTION), dtype=jnp.bool_)
 
-FIRST_DRAW_IDX = 135 - 13 * 4
+# The wall is ``deck``. The hands are dealt from its end and the draws go down from
+# ``FIRST_DRAW_IDX``. ``deck[:DEAD_WALL_TILES]`` is the dead wall: the n-th kan's
+# replacement tile is ``deck[RINSHAN_IX + n]``, the k-th dora indicator is
+# ``deck[FIRST_DORA_INDICATOR_IX - 2 * k]`` and its ura is the tile below it.
+FIRST_DRAW_IDX = NUM_PHYSICAL_TILES - 1 - INITIAL_HAND_TILES * NUM_PLAYERS
+RINSHAN_IX: Final[int] = 10
+FIRST_DORA_INDICATOR_IX: Final[int] = 9

@@ -7,14 +7,6 @@ from mahjax.common.hand import Hand
 from mahjax.common.tile import Tile
 
 
-def test_make_init_hand_returns_red_aware_shape() -> None:
-    rng = jax.random.PRNGKey(1)
-    deck = Tile.from_tile_id_to_tile(jax.random.permutation(rng, jnp.arange(136)))
-    hand = Hand.make_init_hand(deck)
-    assert hand.shape == (4, Tile.NUM_TILE_TYPE_WITH_RED)
-    assert bool(jnp.all(hand.sum(axis=1) == 13))
-
-
 def test_red_pon_consumes_red_five_first() -> None:
     hand = jnp.zeros((Tile.NUM_TILE_TYPE_WITH_RED,), dtype=jnp.int8)
     hand = hand.at[Tile.BLACK_FIVE["m"]].set(2)
