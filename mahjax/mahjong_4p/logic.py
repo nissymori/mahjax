@@ -19,16 +19,26 @@ from typing import Literal, Optional, Tuple
 import jax
 import jax.numpy as jnp
 
-from .action import Action
-from .config import RED, GameConfig
-from .constants import (DORA_ARRAY, FALSE, FIRST_DRAW_IDX, SUDDEN_DEATH_ROUNDS, TARGET_SCORE,
-                        TILE_RANGE, TRUE, ZERO_MASK_1D, ZERO_MASK_2D)
-from .hand import Hand
-from .meld import Meld
+from mahjax._src.types import Array, PRNGKey
+from mahjax.common.action import Action
+from mahjax.common.config import GameConfig
+from mahjax.common.constants import DORA_ARRAY, TILE_RANGE
+from mahjax.common.hand import Hand
+from mahjax.common.meld import Meld
+from mahjax.common.tile import River, Tile
+from mahjax.common.yaku import Yaku
+
+from .config import RED
+from .constants import (
+    FALSE,
+    FIRST_DRAW_IDX,
+    SUDDEN_DEATH_ROUNDS,
+    TARGET_SCORE,
+    TRUE,
+    ZERO_MASK_1D,
+    ZERO_MASK_2D,
+)
 from .state import PlayerStateArrays, RoundState, State, default_state
-from .tile import River, Tile
-from .types import Array, PRNGKey
-from .yaku import Yaku
 
 v_can_win = jax.vmap(
     jax.vmap(Hand.can_ron, in_axes=(None, 0)), in_axes=(0, None)

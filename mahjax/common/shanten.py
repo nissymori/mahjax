@@ -21,7 +21,8 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from .types import Array
+from mahjax._src.types import Array
+
 from .hand import THIRTEEN_ORPHAN_IDX
 
 

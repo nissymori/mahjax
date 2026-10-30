@@ -2,24 +2,27 @@ from __future__ import annotations
 
 import jax.numpy as jnp
 
-from .constants import (
+from mahjax._src.struct import dataclass
+from mahjax.common.constants import (
     COPIES_PER_TILE,
-    LEGAL_ACTION_SIZE,
-    MAX_DISCARDS_PER_PLAYER,
-    MAX_DORA_INDICATORS,
     MAX_HAND_TILES,
     MAX_MELDS_PER_PLAYER,
-    NUM_PHYSICAL_TILES,
-    NUM_PLAYERS,
     NUM_TILE_TYPES,
     NUM_TILE_TYPES_WITH_RED,
     SENTINEL_DISCARD_VALUE,
     SENTINEL_MELD_VALUE,
     SENTINEL_TILE_ID,
 )
-from .meld import EMPTY_MELD
-from .struct import dataclass
-from .tile import EMPTY_RIVER
+from mahjax.common.meld import EMPTY_MELD
+from mahjax.common.tile import EMPTY_RIVER
+
+from .constants import (
+    LEGAL_ACTION_SIZE,
+    MAX_DISCARDS_PER_PLAYER,
+    MAX_DORA_INDICATORS,
+    NUM_PHYSICAL_TILES,
+    NUM_PLAYERS,
+)
 
 
 FALSE = jnp.bool_(False)

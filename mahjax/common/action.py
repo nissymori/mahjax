@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .struct import dataclass
+from mahjax._src.struct import dataclass
 
 
 @dataclass

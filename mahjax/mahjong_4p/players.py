@@ -16,14 +16,15 @@
 import jax
 import jax.numpy as jnp
 
-from .types import Array, PRNGKey
-from .action import Action
-from .hand import Hand
-from .meld import Meld
-from .shanten import Shanten
+from mahjax._src.types import Array, PRNGKey
+from mahjax.common.action import Action
+from mahjax.common.hand import Hand
+from mahjax.common.meld import Meld
+from mahjax.common.shanten import Shanten
+from mahjax.common.tile import River, Tile
+from mahjax.common.yaku import Yaku
+
 from .state import State
-from .tile import River, Tile
-from .yaku import Yaku
 
 PRIORITY_MASK = jnp.array(
     [

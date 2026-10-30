@@ -3,12 +3,12 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
-from mahjax.mahjong_4p.action import Action
+from mahjax.common.action import Action
+from mahjax.common.hand import Hand
+from mahjax.common.meld import Meld
+from mahjax.common.tile import Tile
 from mahjax.mahjong_4p.logic import _draw_rinshan, _init, _kan, _replace_state, _step
-from mahjax.mahjong_4p.hand import Hand
-from mahjax.mahjong_4p.meld import Meld
 from mahjax.mahjong_4p.state import default_state
-from mahjax.mahjong_4p.tile import Tile
 
 from ..helpers import STEP_KEY, _post_ankan_state, compiled_env
 
@@ -34,9 +34,9 @@ def test_draw_after_kan_advances_nothing_when_the_kan_dora_was_pre_flipped():
 def test_open_and_added_kan_dora_turns_over_at_the_discard():
     """A closed kan's new indicator shows at once; an open or added kan's only at the
     kanner's discard or next kan, so it is hidden while deciding on the rinshan tile."""
+    from mahjax.common.meld import Meld
+    from mahjax.common.tile import Tile
     from mahjax.mahjong_4p import logic as m
-    from mahjax.mahjong_4p.meld import Meld
-    from mahjax.mahjong_4p.tile import Tile
 
     kan = jax.jit(m._kan)
     discard = jax.jit(m._discard)
@@ -99,9 +99,9 @@ def test_a_robbed_added_kan_is_scored_before_the_previous_kans_indicator_turns_o
     that is robbed, that draw never comes: the first kan's indicator stays face down,
     for the robbing player's view and for the ron's score. If nobody robs it, the
     indicator turns over before the rinshan draw and counts for a rinshan tsumo."""
+    from mahjax.common.meld import Meld
+    from mahjax.common.tile import Tile
     from mahjax.mahjong_4p import logic as m
-    from mahjax.mahjong_4p.meld import Meld
-    from mahjax.mahjong_4p.tile import Tile
 
     kan = jax.jit(m._kan)
     draw_after_kan = jax.jit(_draw_rinshan)
@@ -439,8 +439,8 @@ def test_red_added_kan_hides_whether_anyone_could_rob_it() -> None:
 
 def test_red_robbing_kan_on_a_red_five_keeps_the_red_dora() -> None:
     """A chankan must score and report the robbed five's redness."""
-    from mahjax.mahjong_4p.meld import Meld as RedMeld
-    from mahjax.mahjong_4p.config import GameConfig as RedGameConfig  # noqa: F401
+    from mahjax.common.meld import Meld as RedMeld
+    from mahjax.common.config import GameConfig as RedGameConfig  # noqa: F401
 
     five_p, red_five_p = 13, Tile.RED_FIVE["p"]
 

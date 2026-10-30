@@ -22,10 +22,10 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
+from mahjax.common.shanten import Shanten
+from mahjax.mahjong_4p.constants import MAX_DORA_INDICATORS
 from mahjax.mahjong_4p.env import _observe_dict
 from mahjax.mahjong_4p.observation import _observe_privileged_dict
-from mahjax.mahjong_4p.shanten import Shanten
-from mahjax.mahjong_4p.constants import MAX_DORA_INDICATORS
 
 from ..helpers import compiled_env
 
@@ -326,7 +326,7 @@ def test_target_is_present_whenever_a_call_is_legal(rollout):
 
 
 def test_melds_match_the_raw_state_and_counts(rollout):
-    from mahjax.mahjong_4p.meld import Meld
+    from mahjax.common.meld import Meld
 
     for state, obs in rollout:
         c_p = int(state.current_player)
@@ -426,8 +426,8 @@ def _expected_tiles_seen(state) -> np.ndarray:
     Walks the raw packed state via the public decoders and expands each meld by its
     action id, so a bug in the observation's own reconstruction cannot cancel out.
     """
-    from mahjax.mahjong_4p.meld import EMPTY_MELD, Meld
-    from mahjax.mahjong_4p.tile import River, Tile
+    from mahjax.common.meld import EMPTY_MELD, Meld
+    from mahjax.common.tile import River, Tile
 
     seen = np.zeros(34, dtype=np.int32)
     seen += np.asarray(state.players.hand[state.current_player]).astype(np.int32)
@@ -487,7 +487,7 @@ def test_tiles_seen_never_exceeds_four(rollout):
 
 def test_tiles_seen_counts_a_called_tile_exactly_once(rollout):
     """Regression for the double-count: rivers keep called tiles, melds repeat them."""
-    from mahjax.mahjong_4p.tile import River
+    from mahjax.common.tile import River
 
     saw_a_call = False
     for state, obs in rollout:
@@ -515,7 +515,7 @@ def test_tiles_seen_includes_own_hand_and_dora(rollout):
         assert bool((seen >= hand).all())
     # Dora indicators are visible too.
     state, obs = rollout[-1]
-    from mahjax.mahjong_4p.tile import Tile
+    from mahjax.common.tile import Tile
 
     for ind in np.asarray(state.round_state.dora_indicators):
         if int(ind) >= 0:

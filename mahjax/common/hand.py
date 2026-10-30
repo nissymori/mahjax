@@ -20,7 +20,8 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from .types import Array
+from mahjax._src.types import Array
+
 from .action import Action
 from .tile import Tile
 

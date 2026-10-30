@@ -41,10 +41,10 @@ import flax.linen as nn
 import jax
 import jax.numpy as jnp
 
-from mahjax.mahjong_4p.action import Action
-from mahjax.mahjong_4p.shanten import Shanten
+from mahjax.common.action import Action
+from mahjax.common.shanten import Shanten
+from mahjax.common.tile import Tile
 from mahjax.mahjong_4p.state import RoundState
-from mahjax.mahjong_4p.tile import Tile
 
 try:
     from .transformer import orthogonal_init

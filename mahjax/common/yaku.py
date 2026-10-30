@@ -8,11 +8,12 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
+from mahjax._src.types import Array
+
 from .constants import DORA_ARRAY
 from .hand import Hand
 from .meld import EMPTY_MELD, Meld
 from .tile import Tile
-from .types import Array
 
 
 def load_yaku_cache() -> jnp.ndarray:

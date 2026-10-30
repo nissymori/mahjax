@@ -1,10 +1,17 @@
 import jax.numpy as jnp
 
-from mahjax.mahjong_4p.action import Action
-from mahjax.mahjong_4p.logic import _claims_open_to, _advance_to_next_decision, _mask_for_chi, _next_meld_player, _next_ron_player, _replace_state
-from mahjax.mahjong_4p.hand import Hand
+from mahjax.common.action import Action
+from mahjax.common.hand import Hand
+from mahjax.common.tile import Tile
+from mahjax.mahjong_4p.logic import (
+    _claims_open_to,
+    _advance_to_next_decision,
+    _mask_for_chi,
+    _next_meld_player,
+    _next_ron_player,
+    _replace_state,
+)
 from mahjax.mahjong_4p.state import default_state
-from mahjax.mahjong_4p.tile import Tile
 
 from ..helpers import STEP_KEY, compiled_env
 

@@ -1,1 +1,1 @@
-"""4-player riichi mahjong: the env (``env``), its rules (``logic``) and their parts."""
+"""4-player riichi mahjong: the env (``env``) and its rules (``logic``). Their parts live in ``mahjax.common``."""

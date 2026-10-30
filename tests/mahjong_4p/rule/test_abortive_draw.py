@@ -3,13 +3,22 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
-from mahjax.mahjong_4p.action import Action
-from mahjax.mahjong_4p.config import GameConfig
+from mahjax.common.action import Action
+from mahjax.common.config import GameConfig
+from mahjax.common.hand import Hand
+from mahjax.common.tile import River, Tile
 from mahjax.mahjong_4p.constants import FIRST_DRAW_IDX
-from mahjax.mahjong_4p.logic import _abortive_draw_normal, _draw, _init, _mask_after_draw, _replace_state, _ron, _special_next_round, _step
-from mahjax.mahjong_4p.hand import Hand
+from mahjax.mahjong_4p.logic import (
+    _abortive_draw_normal,
+    _draw,
+    _init,
+    _mask_after_draw,
+    _replace_state,
+    _ron,
+    _special_next_round,
+    _step,
+)
 from mahjax.mahjong_4p.state import default_state
-from mahjax.mahjong_4p.tile import River, Tile
 
 from ..helpers import STEP_KEY, compiled_env
 

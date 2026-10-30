@@ -1,12 +1,12 @@
 import numpy as np
 import jax.numpy as jnp
 
-from mahjax.mahjong_4p.action import Action
+from mahjax.common.action import Action
+from mahjax.common.meld import Meld
+from mahjax.common.shanten import Shanten
+from mahjax.common.tile import River, Tile
 from mahjax.mahjong_4p.env import _observe_dict
-from mahjax.mahjong_4p.meld import Meld
-from mahjax.mahjong_4p.shanten import Shanten
 from mahjax.mahjong_4p.state import default_state
-from mahjax.mahjong_4p.tile import River, Tile
 
 
 HAND_END = 7

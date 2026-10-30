@@ -3,14 +3,14 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
-from mahjax.mahjong_4p.action import Action
+from mahjax.common.action import Action
 
-from mahjax.mahjong_4p.meld import Meld
+from mahjax.common.meld import Meld
+from mahjax.common.tile import Tile
+from mahjax.common.yaku import Yaku
 from mahjax.mahjong_4p.state import default_state
-from mahjax.mahjong_4p.tile import Tile
-from mahjax.mahjong_4p.yaku import Yaku
 
-from ..helpers import compiled_env
+from ..mahjong_4p.helpers import compiled_env
 
 
 def test_yaku_red_dora_adds_one_fan_without_changing_fu() -> None:
@@ -222,9 +222,9 @@ def test_score_is_a_limit_hand_from_five_fan_whatever_the_fu() -> None:
 
 
 def test_red_kan_of_fives_scores_no_red_dora_without_red_fives() -> None:
-    from mahjax.mahjong_4p.meld import Meld as RedMeld
-    from mahjax.mahjong_4p.config import GameConfig as RedGameConfig
-    from mahjax.mahjong_4p.yaku import Yaku as RedYaku
+    from mahjax.common.config import GameConfig as RedGameConfig
+    from mahjax.common.meld import Meld as RedMeld
+    from mahjax.common.yaku import Yaku as RedYaku
 
     def fan_for(use_red_fives: bool) -> int:
         env = compiled_env(

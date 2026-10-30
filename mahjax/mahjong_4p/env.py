@@ -18,9 +18,11 @@ from typing import Dict, List, Literal, Optional, Tuple
 import jax
 import jax.numpy as jnp
 
+from mahjax._src.types import Array, PRNGKey
+from mahjax.common.config import GameConfig
 from mahjax.core import Env
 
-from .config import NO_RED, GameConfig
+from .config import NO_RED
 from .constants import TRUE
 from .logic import (
     _start_next_round_or_end_game,
@@ -31,7 +33,6 @@ from .logic import (
 )
 from .observation import _observe_2D, _observe_dict, _observe_privileged_2D, _observe_privileged_dict
 from .state import State, default_state
-from .types import Array, PRNGKey
 
 
 class Mahjong4p(Env):

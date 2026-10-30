@@ -1,12 +1,12 @@
 import jax
 import jax.numpy as jnp
 
-from mahjax.mahjong_4p.action import Action
+from mahjax.common.action import Action
+from mahjax.common.hand import Hand
+from mahjax.common.meld import Meld
+from mahjax.common.tile import Tile
 from mahjax.mahjong_4p.logic import _draw, _kan, _pass, _replace_state
-from mahjax.mahjong_4p.hand import Hand
-from mahjax.mahjong_4p.meld import Meld
 from mahjax.mahjong_4p.state import default_state
-from mahjax.mahjong_4p.tile import Tile
 
 from ..helpers import STEP_KEY, compiled_env
 

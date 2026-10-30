@@ -16,7 +16,8 @@
 import jax
 import jax.numpy as jnp
 
-from .types import Array
+from mahjax._src.types import Array
+
 from .action import Action
 from .constants import RED_FIVE_TILE_IDS, RED_FIVE_TILE_TYPES
 

@@ -9,18 +9,14 @@ from typing import Literal
 import jax
 import jax.numpy as jnp
 
-from .action import Action
-from .constants import (
-    LEGAL_ACTION_SIZE,
-    MAX_DISCARDS_PER_PLAYER,
-    MAX_MELDS_PER_PLAYER,
-    NUM_PLAYERS,
-    NUM_TILE_TYPES_WITH_RED,
-)
+from mahjax.common.action import Action
+from mahjax.common.constants import MAX_MELDS_PER_PLAYER, NUM_TILE_TYPES_WITH_RED
+from mahjax.common.meld import Meld
+from mahjax.common.tile import River, Tile
+
+from .constants import LEGAL_ACTION_SIZE, MAX_DISCARDS_PER_PLAYER, NUM_PLAYERS
 from .env import Mahjong4p
-from .meld import Meld
 from .state import EnvState
-from .tile import River, Tile
 
 _W = 32.0
 _H = 48.0

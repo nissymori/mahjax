@@ -1,7 +1,7 @@
 import jax
 import jax.numpy as jnp
 
-from mahjax.mahjong_4p.action import Action
+from mahjax.common.action import Action
 from mahjax.mahjong_4p.env import Mahjong4p
 from mahjax.mahjong_4p.logic import _start_next_round_or_end_game, _replace_state
 from mahjax.mahjong_4p.state import default_state
