@@ -198,7 +198,7 @@ class Visualizer:
 
 
 def _mahjong_svg_backend(env_id: str):
-    if env_id in ("mahjong", "red_mahjong", "no_red_mahjong"):
+    if env_id in ("red_4p", "no_red_4p"):
         from mahjax.mahjong_4p import visualization as backend
 
         return backend

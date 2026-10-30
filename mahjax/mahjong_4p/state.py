@@ -119,7 +119,8 @@ class EnvState:
 
     @property
     def env_id(self) -> str:
-        return "red_mahjong"
+        # The state does not record its preset; this only picks the renderer.
+        return "red_4p"
 
 
 State = EnvState

@@ -440,7 +440,7 @@ class GameSession:
     ) -> None:
         self.id = uuid.uuid4().hex
         self.env_id = env_id
-        self.is_red = env_id == "red_mahjong"
+        self.is_red = env_id == "red_4p"
         self.env = env
         self.state = jax.device_get(state)
         self.rng = rng
@@ -743,7 +743,7 @@ class GameManager:
         auto_pass_calls: bool = False,
     ) -> GameSession:
         agent = self.registry.get(agent_id)
-        if env_id == "red_mahjong":
+        if env_id == "red_4p":
             env = Mahjong4p(round_mode=round_mode, round_end="confirm")
         else:
             env = Mahjong4p(round_mode=round_mode, game_config=NO_RED, round_end="confirm")

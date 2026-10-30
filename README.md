@@ -66,7 +66,7 @@ rng = jax.random.PRNGKey(0)
 
 # Initialize environment
 env = mahjax.make(
-    "red_mahjong",
+    "red_4p",
     round_mode="single", # "single", "east" (tonpuusen), or "half" (hanchan)
     observe_type="dict", # "dict" for Transformer, "2D" for CNN
     order_points=[0, 0, 0, 0], # Final score bonuses (uma), in hundreds of points
@@ -137,28 +137,28 @@ Currently, MahJax supports the following rules:
 
 | Rule | id | Status | Code | Speed (steps/sec) |
 |------|------|--------|------|--------|
-| No-Red Mahjong | `no_red_mahjong` | ✅ | [red_mahjong](https://github.com/nissymori/mahjax/tree/main/mahjax/mahjax/mahjong_4p) with `NO_RED` | ≈ `red_mahjong` |
-| Red Mahjong | `red_mahjong` | ✅ | [red_mahjong](https://github.com/nissymori/mahjax/tree/main/mahjax/mahjax/mahjong_4p) | ~1M |
+| No-Red Mahjong | `no_red_4p` | ✅ | [mahjong_4p](https://github.com/nissymori/mahjax/tree/main/mahjax/mahjong_4p) with `NO_RED` | ≈ `red_4p` |
+| Red Mahjong | `red_4p` | ✅ | [mahjong_4p](https://github.com/nissymori/mahjax/tree/main/mahjax/mahjong_4p) | ~1M |
 | Selective Rules | - | 🚧 | - | - |
 | 3-player Mahjong | - | 🚧 | - | - |
 
-`red_mahjong` implements standard 4-player riichi mahjong with red fives.
+`red_4p` implements standard 4-player riichi mahjong with red fives.
 Its rules are designed to follow [Tenhou](https://tenhou.net/), one of the most widely used online mahjong platforms in Japan, and we validate the implementation against downloaded Tenhou game logs.
 For the detailed rule specification, see the [official Tenhou rules](https://tenhou.net/0/mj/mjlog/en/mjlog-en-rules.html).
 
-`no_red_mahjong` is `red_mahjong` with the `NO_RED` rule preset: no red fives, no double ron, no pao and no special abortive draws (`特殊流局`).
-It runs on the same engine and has the same observation and action space as `red_mahjong`.
+`no_red_4p` is `red_4p` with the `NO_RED` rule preset: no red fives, no double ron, no pao and no special abortive draws (`特殊流局`).
+It runs on the same engine and has the same observation and action space as `red_4p`.
 
 You can configure the environment with:
 
-- `id`: the rule set, such as `red_mahjong` or `no_red_mahjong`
+- `id`: the rule set, such as `red_4p` or `no_red_4p`
 - `round_mode`: `single` for a single round, `east` for tonpuusen (East-only), or `half` for hanchan (East-South)
 - `observe_type`: `dict` for transformer-style inputs or `2D` for CNN-style inputs
 - `order_points`: final placement bonuses (uma), in hundreds of points like `score`. Defaults to no uma; pass `[300, 100, -100, -300]` for 10-30 uma
 
 ```python
 env = mahjax.make(
-    "red_mahjong",
+    "red_4p",
     round_mode="single",
     observe_type="dict",
     order_points=[0, 0, 0, 0],

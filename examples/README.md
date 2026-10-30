@@ -17,7 +17,7 @@ We collect training data using a hand-crafted rule-based agent (designed to mini
 
 In this example, we adopt a Transformer architecture that utilizes dictionary-based observations.
 - **Network Architecture:** Refer to [`networks/`](https://github.com/nissymori/mahjax/blob/main/examples/networks/) for details.
-- **Observation Semantics:** See the [observation reference](https://nissymori.github.io/mahjax/api/#observation-envobserve). `no_red_mahjong` is `red_mahjong` with the `NO_RED` preset and has the same observation.
+- **Observation Semantics:** See the [observation reference](https://nissymori.github.io/mahjax/api/#observation-envobserve). `no_red_4p` is `red_4p` with the `NO_RED` preset and has the same observation.
 - **Note for CNN Users:** `observe_type="2D"` is still experimental and not yet finalized.
 
 ### Behavior Cloning and RL with Regularization

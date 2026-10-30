@@ -26,7 +26,7 @@ The quickest path is:
 import jax
 import mahjax
 
-env = mahjax.make("no_red_mahjong")
+env = mahjax.make("no_red_4p")
 state = env.init(jax.random.PRNGKey(0))
 
 mahjax.save_svg(state, "round-standard.svg")
@@ -38,7 +38,7 @@ mahjax.save_svg(state, "round-standard.svg")
 import jax
 import mahjax
 
-env = mahjax.make("no_red_mahjong")
+env = mahjax.make("no_red_4p")
 state = env.init(jax.random.PRNGKey(0))
 
 mahjax.save_svg(state, "round-bilingual.svg", tile_style="bilingual")
@@ -58,7 +58,7 @@ import jax
 import jax.numpy as jnp
 import mahjax
 
-env = mahjax.make("no_red_mahjong")
+env = mahjax.make("no_red_4p")
 rng = jax.random.PRNGKey(0)
 state = env.init(rng)
 history = [state]
@@ -85,7 +85,7 @@ import jax
 import jax.numpy as jnp
 import mahjax
 
-env = mahjax.make("no_red_mahjong")
+env = mahjax.make("no_red_4p")
 rng = jax.random.PRNGKey(0)
 state = env.init(rng)
 history = [state]
@@ -151,7 +151,7 @@ These examples are useful when you want to:
 ## 6. Practical notes
 
 - The output of `save_svg_animation(...)` is an **animated SVG**, not a GIF or MP4.
-- The same visualization API works for both `no_red_mahjong` and `red_mahjong`.
+- The same visualization API works for both `no_red_4p` and `red_4p`.
 - `frame_duration_seconds` controls playback speed.
 - For riichi mahjong in MahJax, `tile_style="bilingual"` is the switch you want for non-kanji readers.
 

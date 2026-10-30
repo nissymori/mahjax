@@ -27,7 +27,7 @@ from common import (
 
 @dataclass
 class TrainConfig:
-    env_name: str = "no_red_mahjong"
+    env_name: str = "no_red_4p"
     dataset_path: str | None = None
     batch_size: int = 1024
     lr: float = 3e-4

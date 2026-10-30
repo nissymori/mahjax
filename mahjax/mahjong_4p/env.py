@@ -20,7 +20,7 @@ import jax.numpy as jnp
 
 from mahjax.core import Env
 
-from .config import GameConfig
+from .config import NO_RED, GameConfig
 from .constants import TRUE
 from .logic import (
     _start_next_round_or_end_game,
@@ -161,7 +161,7 @@ class Mahjong4p(Env):
 
     @property
     def id(self) -> str:
-        return "red_mahjong"  # type:ignore
+        return "no_red_4p" if self.game_config == NO_RED else "red_4p"  # type:ignore
 
     @property
     def version(self) -> str:

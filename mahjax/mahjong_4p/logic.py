@@ -2003,7 +2003,7 @@ def _start_next_round_or_end_game(
     key: PRNGKey,
     game_config: Optional[GameConfig] = None,
 ) -> State:
-    """``auto`` round_end round transition (no DUMMY sharing) for red_mahjong.
+    """``auto`` round_end round transition (no DUMMY sharing).
 
     Called when
     ``terminated_round`` becomes True (RON / TSUMO / 流局) and the env is not in

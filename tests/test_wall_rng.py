@@ -14,7 +14,7 @@ import pytest
 
 import mahjax
 
-ENV_NAMES = ["red_mahjong", "no_red_mahjong"]
+ENV_NAMES = ["red_4p", "no_red_4p"]
 STYLES = ["auto", "confirm"]
 
 

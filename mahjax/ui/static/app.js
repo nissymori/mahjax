@@ -46,8 +46,8 @@ const controlTextRefs = {
   end: document.querySelector('[data-i18n="controls.end"]'),
 };
 const envOptionRefs = {
-  no_red_mahjong: document.querySelector('[data-i18n-env="no_red_mahjong"]'),
-  red_mahjong: document.querySelector('[data-i18n-env="red_mahjong"]'),
+  no_red_4p: document.querySelector('[data-i18n-env="no_red_4p"]'),
+  red_4p: document.querySelector('[data-i18n-env="red_4p"]'),
 };
 const modeOptionRefs = {
   half: document.querySelector('[data-i18n-mode="half"]'),
@@ -112,8 +112,8 @@ const I18N = {
         north: '北',
       },
       envs: {
-        no_red_mahjong: '赤なし',
-        red_mahjong: '赤あり',
+        no_red_4p: '赤なし',
+        red_4p: '赤あり',
       },
     },
     scoreboardHeaders: ['席', '名前', '点数', '直近'],
@@ -235,8 +235,8 @@ const I18N = {
         north: 'North',
       },
       envs: {
-        no_red_mahjong: 'No red fives',
-        red_mahjong: 'With red fives',
+        no_red_4p: 'No red fives',
+        red_4p: 'With red fives',
       },
     },
     scoreboardHeaders: ['Seat', 'Name', 'Points', 'Delta'],
@@ -355,8 +355,8 @@ const I18N = {
         north: '北家',
       },
       envs: {
-        no_red_mahjong: '无赤牌',
-        red_mahjong: '有赤牌',
+        no_red_4p: '无赤牌',
+        red_4p: '有赤牌',
       },
     },
     scoreboardHeaders: ['座位', '名称', '点数', '增减'],
@@ -701,7 +701,7 @@ function collectGameRequest() {
   const mode = modeSelect.value;
   const seatValue = seatSelect.value;
   const body = {
-    env_id: envSelect?.value || 'no_red_mahjong',
+    env_id: envSelect?.value || 'no_red_4p',
     agent_id: agentId,
     mode,
     random_seat: seatValue === 'auto',

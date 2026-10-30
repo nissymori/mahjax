@@ -39,7 +39,7 @@ Observation = Dict[str, jnp.ndarray]  # Observation type
 class PPOWithRegArgs(BaseModel):
     algo: str = "ppo_with_reg"
     # Environment
-    env_name: str = "no_red_mahjong"
+    env_name: str = "no_red_4p"
     # Free-form label appended to the RL checkpoint filename, so concurrent ablations
     # sharing env and seed do not overwrite each other.
     run_tag: str = ""

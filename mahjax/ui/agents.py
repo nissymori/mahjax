@@ -57,7 +57,7 @@ class AgentRegistry:
         self.add_agent(
             agent_id="rule_based_red",
             name="Rule-based (Red)",
-            description="Heuristic rule-based agent for red_mahjong.",
+            description="Heuristic rule-based agent for red_4p.",
             act=_rule_based_act,
         )
         self.add_agent(

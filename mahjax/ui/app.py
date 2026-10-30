@@ -31,7 +31,7 @@ STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 
 class CreateGameRequest(BaseModel):
-    env_id: Literal["no_red_mahjong", "red_mahjong"] = Field("no_red_mahjong")
+    env_id: Literal["no_red_4p", "red_4p"] = Field("no_red_4p")
     agent_id: Optional[str] = Field(None, description="Agent identifier")
     mode: Literal["single", "east", "half"] = Field("half")
     seed: Optional[int] = Field(None, description="RNG seed. Random if omitted.")
@@ -49,7 +49,7 @@ class CreateGameRequest(BaseModel):
 
 
 class ActionRequest(BaseModel):
-    # Both env ids use red_mahjong's action space (0-86).
+    # Both env ids share one action space (0-86).
     action: int = Field(..., ge=0, le=86)
 
 

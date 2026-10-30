@@ -5,7 +5,7 @@
 ```py
 import mahjax
 
-env = mahjax.make("red_mahjong", observe_type="dict")
+env = mahjax.make("red_4p", observe_type="dict")
 ```
 
 or load the environment class directly:
@@ -23,7 +23,7 @@ env = Mahjong4p(
 
 ## Description
 
-`red_mahjong` is the full red-five riichi mahjong environment in MahJax. It is the environment intended to track modern online riichi mahjong more closely.
+`red_4p` is the full red-five riichi mahjong environment in MahJax. It is the environment intended to track modern online riichi mahjong more closely.
 
 This implementation is designed to follow **Tenhou** as closely as practical, and we validate it against downloaded Tenhou game logs. We do not describe the log-test details here, but this is the main correctness target for the environment.
 
@@ -55,13 +55,13 @@ Two presets are provided: `RED` (the default) turns every rule above on, and `NO
 
 ## State
 
-`red_mahjong`'s state, which `no_red_mahjong` shares, is a nested layout:
+`red_4p`'s state, which `no_red_4p` shares, is a nested layout:
 
 - top-level RL handles (`current_player`, `terminated`, `rewards`, …)
 - `state.players` — per-player arrays (`PlayerStateArrays`)
 - `state.round_state` — round-level arrays (`RoundState`)
 
-The shared field list and the round-transition style (`auto` / `confirm`) are documented once in [API](api.md). `red_mahjong` adds the following **red-five-aware fields** on top of the shared `PlayerStateArrays`:
+The shared field list and the round-transition style (`auto` / `confirm`) are documented once in [API](api.md). `red_4p` adds the following **red-five-aware fields** on top of the shared `PlayerStateArrays`:
 
 | Field | Shape | Type | Meaning |
 | :--- | :---: | :--- | :--- |
@@ -121,7 +121,7 @@ a 25-key table drift apart. The keys specific to this env are:
 
 | Key | Shape | Meaning |
 | :--- | :---: | :--- |
-| `is_red` | `(34,)` | Whether the concealed hand holds the RED five of that type (indices 4 / 13 / 22 only). Always `False` under `NO_RED` (`no_red_mahjong`). |
+| `is_red` | `(34,)` | Whether the concealed hand holds the RED five of that type (indices 4 / 13 / 22 only). Always `False` under `NO_RED` (`no_red_4p`). |
 
 Tile ids are red-aware `[0, 36]` wherever a tile appears (`last_draw`, `target`,
 `dora_indicators`, the meld and history channels). Tile **types** stay `[0, 33]`, with red
@@ -145,7 +145,7 @@ The semantics are:
 - `PASS` is not recorded: a declined call or ron is not public
 - `RON` is recorded once everyone who can ron the tile has answered, one entry per winner in turn order from the discarder
 
-For `red_mahjong`, discard tiles are in `[0, 36]` because red fives have dedicated tile ids in the action space, while raw action ids are in `[0, 86]`.
+For `red_4p`, discard tiles are in `[0, 36]` because red fives have dedicated tile ids in the action space, while raw action ids are in `[0, 86]`.
 
 ## 2D Observation
 

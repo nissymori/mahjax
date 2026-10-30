@@ -25,8 +25,8 @@ TRUE = jnp.bool_(True)
 FALSE = jnp.bool_(False)
 
 EnvId = Literal[
-    "no_red_mahjong",
-    "red_mahjong",
+    "no_red_4p",
+    "red_4p",
 ]
 
 
@@ -94,7 +94,7 @@ class State(abc.ABC):
         Returns:
             str: SVG string
         """
-        if self.env_id in ("mahjong", "red_mahjong", "no_red_mahjong"):
+        if self.env_id in ("red_4p", "no_red_4p"):
             from mahjax.mahjong_4p.visualization import render_round_svg
 
             del color_theme, scale
@@ -143,7 +143,7 @@ class Env(abc.ABC):
     !!! example "Example usage"
 
         ```py
-        env: Env = mahjax.make("no_red_mahjong")
+        env: Env = mahjax.make("no_red_4p")
         state = env.init(jax.random.PRNGKey(0))
         action = jax.random.int32(4)
         state = env.step(state, action, jax.random.PRNGKey(1))
@@ -244,7 +244,7 @@ def available_envs() -> Tuple[EnvId, ...]:
 
         ```py
         mahjax.available_envs()
-        ('no_red_mahjong', 'red_mahjong')
+        ('no_red_4p', 'red_4p')
         ```
     """
     games = get_args(EnvId)
@@ -258,7 +258,7 @@ def make(env_id: EnvId, **kwargs):  # noqa: C901
 
         ```py
         env = mahjax.make(
-            "no_red_mahjong",
+            "no_red_4p",
             round_mode="single",  # "single", "east" (tonpuusen), or "half" (hanchan)
             observe_type="dict", # "dict" for Transformer, "2D" for CNN
             order_points=[0, 0, 0, 0],  # Final score bonuses (uma), in hundreds of points
@@ -268,11 +268,11 @@ def make(env_id: EnvId, **kwargs):  # noqa: C901
     from mahjax.mahjong_4p.config import NO_RED
     from mahjax.mahjong_4p.env import Mahjong4p
 
-    if env_id == "no_red_mahjong":
-        # red_mahjong with every optional rule off: no red fives, no double ron,
+    if env_id == "no_red_4p":
+        # red_4p with every optional rule off: no red fives, no double ron,
         # no pao and no special abortive draws.
         return Mahjong4p(game_config=NO_RED, **kwargs)
-    elif env_id == "red_mahjong":
+    elif env_id == "red_4p":
         return Mahjong4p(**kwargs)
     else:
         raise ValueError(

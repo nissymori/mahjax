@@ -3,7 +3,7 @@
 This module knows about mahjong and about red fives. It turns the observation dict
 into a flat sequence of tokens plus a validity mask, and nothing else. ``network.py``
 holds the sequence models, which are env-agnostic and consume whatever tokenizer they
-are handed. It also serves ``no_red_mahjong``, which is red_mahjong with the NO_RED
+are handed. It also serves ``no_red_4p``, which is red_4p with the NO_RED
 rules and the same observation.
 
 Every observation key is REQUIRED. There are no ``if key in obs`` fallbacks: a

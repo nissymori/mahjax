@@ -21,7 +21,7 @@ rng = jax.random.PRNGKey(0)
 
 # Initialize environment and state
 env = mahjax.make(
-    "red_mahjong",
+    "red_4p",
     round_mode="single",   # "single", "east" (tonpuusen), or "half" (hanchan)
     round_end="auto",  # "auto" (default, RL) or "confirm" (interactive / mjai)
     order_points=[0, 0, 0, 0],
@@ -46,13 +46,13 @@ while not state.terminated.all():
 
 ## State
 
-`no_red_mahjong` is `red_mahjong` with the `NO_RED` preset, so both have the same nested state layout. The state is an immutable JAX dataclass (`EnvState`) made of:
+`no_red_4p` is `red_4p` with the `NO_RED` preset, so both have the same nested state layout. The state is an immutable JAX dataclass (`EnvState`) made of:
 
 - a small set of **top-level fields** (the standard RL handles)
 - a per-player array group (`state.players`, a `PlayerStateArrays`)
 - a round-level array group (`state.round_state`, a `RoundState`)
 
-`red_mahjong` adds a few extra fields on top of this — those are listed in [Red Mahjong](red_mahjong.md). The common fields are the same.
+`red_4p` adds a few extra fields on top of this — those are listed in [Red Mahjong](red_mahjong.md). The common fields are the same.
 
 ### Top-level fields (`state`)
 
@@ -144,7 +144,7 @@ the right / across / left.
 | Key | Shape | Type | Meaning |
 | :--- | :---: | :--- | :--- |
 | `hand` | `(34,)` | `int8` | **Count** of each tile type in the concealed hand, `[0, 4]`. Red fives fold into their type; `is_red` carries the redness. Melded tiles are **not** here — see `melds`. |
-| `is_red` | `(34,)` | `bool` | Whether the concealed hand holds the **red** five of that type. Only indices 4 / 13 / 22 can be `True`. Always `False` under the `NO_RED` preset (`no_red_mahjong`), which deals no red fives. |
+| `is_red` | `(34,)` | `bool` | Whether the concealed hand holds the **red** five of that type. Only indices 4 / 13 / 22 can be `True`. Always `False` under the `NO_RED` preset (`no_red_4p`), which deals no red fives. |
 | `last_draw` | `()` | `int8` | The observer's own most recent draw `[0-36]`, `-1` if none. This is the tile `TSUMOGIRI` discards. Masked: the underlying state field is round-level, so during a robbing-a-kan window it would otherwise expose the kan declarer's private draw to the responder. |
 | `shanten_count` | `()` | `int8` | Shanten of the concealed hand, `[-1, 6]` (`-1` complete, `0` tenpai). |
 | `discard_shanten` | `(34, 3)` | `int8` | Shanten after discarding each tile **type**, split `[normal, seven pairs, thirteen orphans]`, per-column ranges `[0,8]`/`[0,13]`/`[0,13]`. `Shanten.NOT_IN_HAND` (14) marks types the hand does not hold. At a 3n+1 response node these describe the 3n hands one further discard out — see `is_discard_node`. |
@@ -200,7 +200,7 @@ deployed against real opponents. It always returns a dict, independent of `obser
 | Key | Shape | Type | Meaning |
 | :--- | :---: | :--- | :--- |
 | `others_hand` | `(3, 34)` | `int8` | Per-type counts of each **other** player's concealed hand, `[0, 4]`. Melds excluded, as for `hand`. |
-| `others_is_red` | `(3, 34)` | `bool` | Whether that player holds the red five of the type. **`red_mahjong` only.** |
+| `others_is_red` | `(3, 34)` | `bool` | Whether that player holds the red five of the type. Always `False` under `NO_RED`. |
 
 Rows use the same seat-relative frame as `scores`: index 0 is the player to the observer's
 right, 1 across, 2 left. The observer's own hand is not repeated — it is already `hand`.
@@ -210,8 +210,8 @@ right, 1 across, 2 left. The observer's own hand is not repeated — it is alrea
 In multi-round modes (`east` / `half`) the env can either advance to the next round **automatically inside a single `env.step`**, or expose an explicit DUMMY-action phase that lets every seat observe the round-end state before the next round begins. This is controlled by `round_end`:
 
 ```py
-env = mahjax.make("red_mahjong", round_mode="half", round_end="auto")  # default
-env = mahjax.make("red_mahjong", round_mode="half", round_end="confirm")
+env = mahjax.make("red_4p", round_mode="half", round_end="auto")  # default
+env = mahjax.make("red_4p", round_mode="half", round_end="confirm")
 ```
 
 | Style | Default | When to use |

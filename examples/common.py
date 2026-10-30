@@ -27,8 +27,8 @@ def default_rl_params_path(env_name: str, seed: int, run_tag: str = "") -> str:
 
 
 def get_rule_based_player(env_name: str) -> Callable[..., Any]:
-    # no_red_mahjong is red_mahjong with the NO_RED rules, so both use red's player.
-    if env_name in ("red_mahjong", "no_red_mahjong"):
+    # no_red_4p is red_4p with the NO_RED rules, so both use red's player.
+    if env_name in ("red_4p", "no_red_4p"):
         from mahjax.mahjong_4p.players import rule_based_player
 
         return rule_based_player
@@ -39,7 +39,7 @@ def get_network_cls(env_name: str):
     """Bind the env's tokenizer to the transformer.
 
     ``network.py`` is env-agnostic; the tokenizer in ``red_feature`` serves both env
-    ids, since no_red_mahjong is red_mahjong with the NO_RED rules and has the same
+    ids, since no_red_4p is red_4p with the NO_RED rules and has the same
     observation and action space.
     """
     try:
@@ -47,7 +47,7 @@ def get_network_cls(env_name: str):
     except ImportError:
         from networks.network import make_acnet
 
-    if env_name in ("red_mahjong", "no_red_mahjong"):
+    if env_name in ("red_4p", "no_red_4p"):
         try:
             from .networks.red_feature import ObservationTokenizer
         except ImportError:

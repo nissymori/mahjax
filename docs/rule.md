@@ -34,7 +34,7 @@ These rules emphasize careful yaku construction and more traditional scoring wit
 ## Red Mahjong
 
 Red mahjong, especially the rule set used by [Tenhou](https://tenhou.net/), is currently the **most popular** variant both in AI research and in commercial online games.
-MahJax includes a `red_mahjong` environment with red fives.
+MahJax includes a `red_4p` environment with red fives.
 
 ### Research Projects Using/Targeting Red Rules
 

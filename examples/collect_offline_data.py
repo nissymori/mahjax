@@ -24,7 +24,7 @@ from common import attach_dataset_metadata, default_dataset_path, get_rule_based
 
 # --- Config ---
 class CollectConfig(BaseModel):
-    env_name: str = "no_red_mahjong"
+    env_name: str = "no_red_4p"
     seed: int = 0
     num_envs: int = 4
     num_steps: int = 32
