@@ -33,8 +33,8 @@ const NORTH = 30; // the tile a kita sets aside
 const ACTION_ORDER = ["ron", "tsumo", "kan", "pon", "chi", "riichi", "kita", "kyuushu"];
 
 /** The words this script writes, in each language of the 言語 menu. The
- *  page's fixed words are in index.html, with the other languages in data-en
- *  and data-ko. */
+ *  page's fixed words are in index.html, with the other languages in data-en,
+ *  data-ko and data-zh. */
 const TEXT = {
   ja: {
     winds: ["東", "南", "西", "北"],
@@ -199,6 +199,61 @@ const TEXT = {
     loading: "패보를 불러오는 중…",
     cannotOpen: (message) => `이 페이지를 열 수 없습니다: ${message}`,
   },
+  // Simplified Chinese, mostly in the words the UI before #147 used.
+  zh: {
+    winds: ["东", "南", "西", "北"],
+    windMarks: ["东", "南", "西", "北"],
+    honours: ["东", "南", "西", "北", "白", "发", "中"],
+    tileGap: "",
+    redFive: (tile) => `赤${tile}`,
+    action: { ron: "荣和", tsumo: "自摸", kan: "杠", pon: "碰", chi: "吃", riichi: "立直", kyuushu: "九种九牌", kita: "拔北", pass: "跳过" },
+    resultTitle: { tsumo: "自摸", ron: "荣和", draw: "流局", abortive: "途中流局" },
+    abortive: { kyuushu: "九种九牌", four_winds: "四风连打", four_riichi: "四家立直", four_kans: "四杠散了", triple_ron: "三家和了" },
+    event: {
+      discard: "打", riichi: "立直", tsumo: "自摸", ron: "荣和", pass: "跳过", dummy: "", kyuushu: "九种九牌",
+      pon: "碰", chi: "吃", kan_open: "明杠", kan_added: "加杠", kan_closed: "暗杠", kita: "拔北",
+    },
+    round: (wind, n) => `${wind}${n}局`,
+    honba: (n) => ` ${n}本场`,
+    sticks: (honba, kyotaku) => `${honba}本场　立直棒 ${kyotaku}`,
+    remaining: (n) => `余牌 ${n}`,
+    deal: "配牌",
+    sep: " · ",
+    gameOver: "终局",
+    claim: "要鸣牌吗？",
+    yourTurn: "你的回合",
+    toFinal: "最终结果",
+    nextRound: "下一局",
+    score: "点数",
+    change: "增减",
+    rank: "顺位",
+    uma: "顺位点",
+    rankOf: (n) => `${n}位`,
+    winLine: (who, from, points) => `${who} · ${from === null ? "自摸" : `${from} 放铳`} · ${points}点`,
+    nagashi: (who) => `流局满贯 ${who}`,
+    tenpai: "听牌",
+    noten: "未听牌",
+    doraMarker: "宝牌",
+    uraMarker: "里宝牌",
+    doraHan: "宝牌",
+    akaHan: "赤宝牌",
+    uraHan: "里宝牌",
+    kitaHan: "拔北宝牌",
+    han: (n) => `${n}番`,
+    total: (han, fu) => `${han}番 ${fu}符`,
+    yakuman: (n) => `${n}倍役满`,
+    notSaved: "此对局未保存",
+    play: "播放",
+    stop: "停止",
+    noRecords: "没有已保存的牌谱。",
+    modes: { half: "半庄战", east: "东风战", single: "单局战" },
+    redRule: (red) => (red ? "有赤牌" : "无赤牌"),
+    threePlayer: "三人麻将",
+    unfinished: "中断",
+    starting: "准备中…",
+    loading: "正在读取牌谱…",
+    cannotOpen: (message) => `无法打开此页面：${message}`,
+  },
 };
 
 /** One word or phrase in the page's language; phrases take their numbers and names. */
@@ -214,7 +269,7 @@ function seatLabel(seat) {
 
 /** A name the server sends in every language (an option's label, a yaku's
  *  name): ``label`` holds the Japanese, ``labelEn`` the English, ``labelKo``
- *  the Korean. */
+ *  the Korean and ``labelZh`` the Chinese. */
 function localized(item, key) {
   if (S.lang === "ja") return item[key];
   return item[key + S.lang[0].toUpperCase() + S.lang.slice(1)] || item[key];
@@ -335,7 +390,7 @@ function tileImg(tile, cls) {
   const img = document.createElement("img");
   img.className = cls ? `tile ${cls}` : "tile";
   const file = tile === null || tile === undefined ? "back.svg" : tileFile(tile);
-  // Only English has tiles of its own: Korean tiles carry the same characters as Japanese ones.
+  // Only English has tiles of its own: Korean and Chinese tiles carry the same characters as Japanese ones.
   const set = S.lang === "en" ? "en" : "ja";
   img.src = embedded ? embedded.tiles[set][file] : `/tiles/${set}/${file}`;
   img.alt = "";
@@ -1473,8 +1528,8 @@ $("optDelay").addEventListener("input", (e) => {
 });
 
 /** index.html's fixed words: each element keeps its Japanese the first time it
- *  is switched, and takes another language from data-en or data-ko (or
- *  data-en-*, data-ko-*, for an attribute). */
+ *  is switched, and takes another language from data-en, data-ko or data-zh
+ *  (or data-en-*, data-ko-*, data-zh-*, for an attribute). */
 const SWAPPED_ATTRIBUTES = [
   ["title", "[data-en-title]", "Title"],
   ["aria-label", "[data-en-label]", "Label"],
@@ -1482,7 +1537,8 @@ const SWAPPED_ATTRIBUTES = [
 ];
 
 function applyLang() {
-  document.documentElement.lang = S.lang;
+  // Simplified Chinese is tagged as such, so that the browser picks its fonts.
+  document.documentElement.lang = S.lang === "zh" ? "zh-CN" : S.lang;
   for (const node of document.querySelectorAll("[data-en]")) {
     if (node.dataset.ja === undefined) node.dataset.ja = node.textContent;
     node.textContent = node.dataset[S.lang] ?? node.dataset.ja;
