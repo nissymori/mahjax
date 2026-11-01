@@ -8,21 +8,22 @@
 </head>
 <body>
 <!-- The words here are the Japanese; data-en, data-en-title, data-en-label and
-     data-en-placeholder hold the English the 言語 menu switches to. -->
+     data-en-placeholder hold the English the 言語 menu switches to, and data-ko
+     and data-ko-* the Korean. -->
 
 <header class="topbar">
-  <button id="menuBtn" class="icon-btn" aria-label="メニュー" data-en-label="Menu" aria-expanded="false">☰</button>
+  <button id="menuBtn" class="icon-btn" aria-label="メニュー" data-en-label="Menu" data-ko-label="메뉴" aria-expanded="false">☰</button>
   <span class="brand">mahjax</span>
   <span id="status" class="status" role="status"></span>
   <span class="grow"></span>
   <div id="replayTools" class="replay-tools" hidden>
-    <label><span data-en="View">視点</span>
+    <label><span data-en="View" data-ko="시점">視点</span>
       <select id="viewpoint"></select>
     </label>
-    <label><span data-en="Hands">手牌</span>
+    <label><span data-en="Hands" data-ko="손패">手牌</span>
       <select id="showAll">
-        <option value="1" data-en="All">全員</option>
-        <option value="0" data-en="Viewpoint only">視点のみ</option>
+        <option value="1" data-en="All" data-ko="전원">全員</option>
+        <option value="0" data-en="Viewpoint only" data-ko="시점만">視点のみ</option>
       </select>
     </label>
   </div>
@@ -35,92 +36,93 @@
     <div id="actions" class="actions"></div>
   </div>
   <div id="empty" class="empty server-only">
-    <p data-en="Start a game, or open a record.">対局を始めるか、牌譜を開いてください。</p>
-    <button id="emptyStart" class="primary" data-en="Start a game">対局を始める</button>
+    <p data-en="Start a game, or open a record." data-ko="대국을 시작하거나 패보를 여세요.">対局を始めるか、牌譜を開いてください。</p>
+    <button id="emptyStart" class="primary" data-en="Start a game" data-ko="대국 시작">対局を始める</button>
   </div>
 </main>
 
 <footer id="replayBar" class="replay-bar" hidden>
-  <button data-jump="first" class="icon-btn" title="最初へ" data-en-title="First">|◀</button>
-  <button data-jump="prevRound" class="icon-btn" title="前の局へ" data-en-title="Previous round" data-en="◀◀">◀局</button>
-  <button data-jump="prev" class="icon-btn" title="1手戻す" data-en-title="Back one step">◀</button>
+  <button data-jump="first" class="icon-btn" title="最初へ" data-en-title="First" data-ko-title="처음으로">|◀</button>
+  <button data-jump="prevRound" class="icon-btn" title="前の局へ" data-en-title="Previous round" data-ko-title="이전 국으로" data-en="◀◀" data-ko="◀◀">◀局</button>
+  <button data-jump="prev" class="icon-btn" title="1手戻す" data-en-title="Back one step" data-ko-title="한 수 뒤로">◀</button>
   <span id="replayLabel" class="replay-label"></span>
-  <button data-jump="next" class="icon-btn" title="1手進める" data-en-title="Forward one step">▶</button>
-  <button data-jump="nextRound" class="icon-btn" title="次の局へ" data-en-title="Next round" data-en="▶▶">局▶</button>
-  <button data-jump="last" class="icon-btn" title="最後へ" data-en-title="Last">▶|</button>
-  <button id="replayAuto" class="icon-btn auto" title="自動再生" data-en-title="Play automatically">再生</button>
+  <button data-jump="next" class="icon-btn" title="1手進める" data-en-title="Forward one step" data-ko-title="한 수 앞으로">▶</button>
+  <button data-jump="nextRound" class="icon-btn" title="次の局へ" data-en-title="Next round" data-ko-title="다음 국으로" data-en="▶▶" data-ko="▶▶">局▶</button>
+  <button data-jump="last" class="icon-btn" title="最後へ" data-en-title="Last" data-ko-title="마지막으로">▶|</button>
+  <button id="replayAuto" class="icon-btn auto" title="自動再生" data-en-title="Play automatically" data-ko-title="자동 재생">再生</button>
 </footer>
 
 <div id="scrim" class="scrim" hidden></div>
 
-<aside id="drawer" class="drawer" hidden aria-label="メニュー" data-en-label="Menu">
+<aside id="drawer" class="drawer" hidden aria-label="メニュー" data-en-label="Menu" data-ko-label="메뉴">
   <section class="server-only">
-    <h2 data-en="New game">新規対局</h2>
-    <label><span data-en="Rules">ルール</span>
+    <h2 data-en="New game" data-ko="새 대국">新規対局</h2>
+    <label><span data-en="Rules" data-ko="규칙">ルール</span>
       <select id="cfgEnv">
-        <option value="red_4p" data-en="Red fives">赤あり</option>
-        <option value="no_red_4p" data-en="No red fives">赤なし</option>
-        <option value="red_3p" data-en="3-player, red fives">三人麻雀 赤あり</option>
-        <option value="no_red_3p" data-en="3-player, no red fives">三人麻雀 赤なし</option>
+        <option value="red_4p" data-en="Red fives" data-ko="적도라 있음">赤あり</option>
+        <option value="no_red_4p" data-en="No red fives" data-ko="적도라 없음">赤なし</option>
+        <option value="red_3p" data-en="3-player, red fives" data-ko="3인 마작 적도라 있음">三人麻雀 赤あり</option>
+        <option value="no_red_3p" data-en="3-player, no red fives" data-ko="3인 마작 적도라 없음">三人麻雀 赤なし</option>
       </select>
     </label>
-    <label><span data-en="Length">長さ</span>
+    <label><span data-en="Length" data-ko="길이">長さ</span>
       <select id="cfgMode">
-        <option value="half" data-en="Half game">半荘</option>
-        <option value="east" data-en="East only">東風</option>
-        <option value="single" data-en="One round">一局</option>
+        <option value="half" data-en="Half game" data-ko="반장전">半荘</option>
+        <option value="east" data-en="East only" data-ko="동풍전">東風</option>
+        <option value="single" data-en="One round" data-ko="단판전">一局</option>
       </select>
     </label>
-    <label><span data-en="Opponent">相手</span>
+    <label><span data-en="Opponent" data-ko="상대">相手</span>
       <select id="cfgAgent"></select>
     </label>
-    <label><span data-en="Your seat">自席</span>
+    <label><span data-en="Your seat" data-ko="내 자리">自席</span>
       <select id="cfgSeat">
-        <option value="random" data-en="Random">ランダム</option>
-        <option value="0" data-en="East">東</option>
-        <option value="1" data-en="South">南</option>
-        <option value="2" data-en="West">西</option>
-        <option value="3" data-en="North">北</option>
-        <option value="none" data-en="None (agents only)">なし（エージェント同士）</option>
+        <option value="random" data-en="Random" data-ko="무작위">ランダム</option>
+        <option value="0" data-en="East" data-ko="동">東</option>
+        <option value="1" data-en="South" data-ko="남">南</option>
+        <option value="2" data-en="West" data-ko="서">西</option>
+        <option value="3" data-en="North" data-ko="북">北</option>
+        <option value="none" data-en="None (agents only)" data-ko="없음 (에이전트끼리)">なし（エージェント同士）</option>
       </select>
     </label>
-    <label><span data-en="Seed">シード</span>
-      <input id="cfgSeed" type="number" min="0" placeholder="空欄でランダム" data-en-placeholder="Random if empty">
+    <label><span data-en="Seed" data-ko="시드">シード</span>
+      <input id="cfgSeed" type="number" min="0" placeholder="空欄でランダム" data-en-placeholder="Random if empty" data-ko-placeholder="비워 두면 무작위">
     </label>
-    <label><span data-en="Name">名前</span>
+    <label><span data-en="Name" data-ko="이름">名前</span>
       <input id="cfgName" type="text" value="You">
     </label>
     <label class="check">
-      <input id="cfgSave" type="checkbox" checked> <span data-en="Save the record">対局記録を保存</span>
+      <input id="cfgSave" type="checkbox" checked> <span data-en="Save the record" data-ko="대국 기록 저장">対局記録を保存</span>
     </label>
-    <button id="startBtn" class="primary" data-en="Start">開始</button>
+    <button id="startBtn" class="primary" data-en="Start" data-ko="시작">開始</button>
   </section>
 
   <section>
-    <h2 data-en="Settings">対局中の設定</h2>
+    <h2 data-en="Settings" data-ko="대국 중 설정">対局中の設定</h2>
     <label class="check server-only">
-      <input id="optHide" type="checkbox" checked> <span data-en="Hide the opponents' hands">相手の手牌を隠す</span>
+      <input id="optHide" type="checkbox" checked> <span data-en="Hide the opponents' hands" data-ko="상대 패 숨기기">相手の手牌を隠す</span>
     </label>
     <label class="check server-only">
-      <input id="optNoCalls" type="checkbox"> <span data-en="No calls">鳴きなし</span>
+      <input id="optNoCalls" type="checkbox"> <span data-en="No calls" data-ko="울기 없음">鳴きなし</span>
     </label>
-    <label><span data-en="Move delay">手の間隔</span>
+    <label><span data-en="Move delay" data-ko="수 간격">手の間隔</span>
       <input id="optDelay" type="range" min="0" max="1600" step="100" value="700">
       <span id="optDelayValue" class="hint">700ms</span>
     </label>
-    <label><span data-en="Language">言語</span>
+    <label><span data-en="Language" data-ko="언어">言語</span>
       <select id="optLang">
         <option value="ja">日本語</option>
         <option value="en">English</option>
+        <option value="ko">한국어</option>
       </select>
     </label>
-    <button id="endBtn" class="danger server-only" data-en="End the game">対局を終了</button>
+    <button id="endBtn" class="danger server-only" data-en="End the game" data-ko="대국 종료">対局を終了</button>
   </section>
 
   <section class="server-only">
-    <h2 data-en="Records">牌譜</h2>
+    <h2 data-en="Records" data-ko="패보">牌譜</h2>
     <div id="recordList" class="record-list"></div>
-    <button id="refreshRecords" class="ghost" data-en="Reload">再読み込み</button>
+    <button id="refreshRecords" class="ghost" data-en="Reload" data-ko="새로 고침">再読み込み</button>
   </section>
 </aside>
 
@@ -133,12 +135,12 @@
     </div>
   </div>
   <div id="finalPanel" class="result" role="dialog" aria-modal="true" hidden>
-    <h2 data-en="Final standings">終局</h2>
+    <h2 data-en="Final standings" data-ko="최종 결과">終局</h2>
     <div id="finalBody"></div>
     <div class="result-actions">
-      <button id="finalQuit" class="ghost" data-en="Quit">終了</button>
-      <button id="finalAgain" class="primary" data-en="Play again">もう一局</button>
-      <button id="finalReplay" data-en="Review">解析</button>
+      <button id="finalQuit" class="ghost" data-en="Quit" data-ko="종료">終了</button>
+      <button id="finalAgain" class="primary" data-en="Play again" data-ko="한 판 더">もう一局</button>
+      <button id="finalReplay" data-en="Review" data-ko="복기">解析</button>
     </div>
   </div>
 </div>

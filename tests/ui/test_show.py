@@ -175,3 +175,15 @@ def test_a_notebook_gets_the_page_in_an_iframe() -> None:
     found = re.fullmatch(r'<iframe srcdoc="([^"]*)" style="([^"]*)"></iframe>', standalone._iframe(page, 500))
     assert html.unescape(found.group(1)) == page
     assert "height: 500px" in found.group(2)
+
+
+def test_every_fixed_word_on_the_page_is_in_every_language() -> None:
+    page = (standalone.STATIC_DIR / "index.html").read_text(encoding="utf-8")
+    tags = [dict(re.findall(r'([\w-]+)="([^"]*)"', tag)) for tag in re.findall(r"<\w[^>]*>", page)]
+    translated = [attrs for attrs in tags if any(name.startswith("data-en") for name in attrs)]
+    assert len(translated) > 40
+    for attrs in translated:
+        for name in [name for name in attrs if name.startswith("data-en")]:
+            assert attrs.get(name.replace("data-en", "data-ko")), attrs
+    menu = re.search(r'<select id="optLang">(.*?)</select>', page, re.S).group(1)
+    assert re.findall(r'<option value="(\w+)"', menu) == ["ja", "en", "ko"]

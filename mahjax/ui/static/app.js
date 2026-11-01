@@ -32,13 +32,15 @@ const HONOURS = ["east", "south", "west", "north", "white", "gd", "rd"];
 const NORTH = 30; // the tile a kita sets aside
 const ACTION_ORDER = ["ron", "tsumo", "kan", "pon", "chi", "riichi", "kita", "kyuushu"];
 
-/** The words this script writes, in both languages of the 言語 menu. The
- *  page's fixed words are in index.html, with their English in data-en. */
+/** The words this script writes, in each language of the 言語 menu. The
+ *  page's fixed words are in index.html, with the other languages in data-en
+ *  and data-ko. */
 const TEXT = {
   ja: {
     winds: ["東", "南", "西", "北"],
     windMarks: ["東", "南", "西", "北"],
     honours: ["東", "南", "西", "北", "白", "發", "中"],
+    tileGap: "",
     redFive: (tile) => `赤${tile}`,
     action: { ron: "ロン", tsumo: "ツモ", kan: "カン", pon: "ポン", chi: "チー", riichi: "リーチ", kyuushu: "九種九牌", kita: "北抜き", pass: "パス" },
     resultTitle: { tsumo: "ツモ", ron: "ロン", draw: "流局", abortive: "途中流局" },
@@ -92,6 +94,7 @@ const TEXT = {
     winds: ["East", "South", "West", "North"],
     windMarks: ["E", "S", "W", "N"],
     honours: ["East", "South", "West", "North", "White", "Green", "Red"],
+    tileGap: " ",
     redFive: (tile) => `red ${tile}`,
     action: { ron: "Ron", tsumo: "Tsumo", kan: "Kan", pon: "Pon", chi: "Chi", riichi: "Riichi", kyuushu: "Nine Terminals", kita: "Kita", pass: "Pass" },
     resultTitle: { tsumo: "Tsumo", ron: "Ron", draw: "Exhaustive Draw", abortive: "Abortive Draw" },
@@ -141,6 +144,61 @@ const TEXT = {
     loading: "Loading the record…",
     cannotOpen: (message) => `Cannot open this page: ${message}`,
   },
+  // Mostly the words of the Korean translation in #86.
+  ko: {
+    winds: ["동", "남", "서", "북"],
+    windMarks: ["동", "남", "서", "북"],
+    honours: ["동", "남", "서", "북", "백", "발", "중"],
+    tileGap: " ",
+    redFive: (tile) => `적${tile}`,
+    action: { ron: "론", tsumo: "쯔모", kan: "깡", pon: "퐁", chi: "치", riichi: "리치", kyuushu: "구종구패", kita: "북 빼기", pass: "스킵" },
+    resultTitle: { tsumo: "쯔모", ron: "론", draw: "유국", abortive: "도중유국" },
+    abortive: { kyuushu: "구종구패", four_winds: "사풍연타", four_riichi: "사가리치", four_kans: "사깡산료", triple_ron: "삼가화" },
+    event: {
+      discard: "타패", riichi: "리치", tsumo: "쯔모", ron: "론", pass: "패스", dummy: "", kyuushu: "구종구패",
+      pon: "퐁", chi: "치", kan_open: "대명깡", kan_added: "소명깡", kan_closed: "안깡", kita: "북 빼기",
+    },
+    round: (wind, n) => `${wind}${n}국`,
+    honba: (n) => ` ${n}본장`,
+    sticks: (honba, kyotaku) => `${honba}본장 공탁 ${kyotaku}`,
+    remaining: (n) => `남은 패 ${n}`,
+    deal: "배패",
+    sep: " · ",
+    gameOver: "종국",
+    claim: "울겠습니까?",
+    yourTurn: "당신의 차례",
+    toFinal: "최종 결과",
+    nextRound: "다음 국",
+    score: "점수",
+    change: "증감",
+    rank: "순위",
+    uma: "순위점",
+    rankOf: (n) => `${n}위`,
+    winLine: (who, from, points) => `${who} · ${from === null ? "쯔모" : `${from}에게서 론`} · ${points}점`,
+    nagashi: (who) => `유국만관 ${who}`,
+    tenpai: "텐파이",
+    noten: "노텐",
+    doraMarker: "도라",
+    uraMarker: "뒷도라",
+    doraHan: "도라",
+    akaHan: "적도라",
+    uraHan: "뒷도라",
+    kitaHan: "북도라",
+    han: (n) => `${n}판`,
+    total: (han, fu) => `${han}판 ${fu}부`,
+    yakuman: (n) => `${n}배 역만`,
+    notSaved: "이 대국은 저장되지 않았습니다",
+    play: "재생",
+    stop: "정지",
+    noRecords: "저장된 패보가 없습니다.",
+    modes: { half: "반장전", east: "동풍전", single: "단판전" },
+    redRule: (red) => (red ? "적도라 있음" : "적도라 없음"),
+    threePlayer: "3인 마작",
+    unfinished: "중단",
+    starting: "준비 중…",
+    loading: "패보를 불러오는 중…",
+    cannotOpen: (message) => `이 페이지를 열 수 없습니다: ${message}`,
+  },
 };
 
 /** One word or phrase in the page's language; phrases take their numbers and names. */
@@ -154,9 +212,12 @@ function seatLabel(seat) {
   return `Player ${seat}`;
 }
 
-/** A name the server sends in both languages (an option's label, a yaku's name). */
+/** A name the server sends in every language (an option's label, a yaku's
+ *  name): ``label`` holds the Japanese, ``labelEn`` the English, ``labelKo``
+ *  the Korean. */
 function localized(item, key) {
-  return (S.lang === "en" && item[`${key}En`]) || item[key];
+  if (S.lang === "ja") return item[key];
+  return item[key + S.lang[0].toUpperCase() + S.lang.slice(1)] || item[key];
 }
 
 const S = {
@@ -274,7 +335,9 @@ function tileImg(tile, cls) {
   const img = document.createElement("img");
   img.className = cls ? `tile ${cls}` : "tile";
   const file = tile === null || tile === undefined ? "back.svg" : tileFile(tile);
-  img.src = embedded ? embedded.tiles[S.lang][file] : `/tiles/${S.lang}/${file}`;
+  // Only English has tiles of its own: Korean tiles carry the same characters as Japanese ones.
+  const set = S.lang === "en" ? "en" : "ja";
+  img.src = embedded ? embedded.tiles[set][file] : `/tiles/${set}/${file}`;
   img.alt = "";
   img.draggable = false;
   return img;
@@ -1097,7 +1160,7 @@ function renderReplayBar(v) {
 function describeEvent(v, event) {
   const who = v.seats[event.seat] ? seatLabel(event.seat) : "";
   const kind = say("event")[event.kind] ?? event.kind;
-  const tiles = (event.tiles || []).length ? ` ${event.tiles.map(tileName).join(S.lang === "en" ? " " : "")}` : "";
+  const tiles = (event.tiles || []).length ? ` ${event.tiles.map(tileName).join(say("tileGap"))}` : "";
   return `${who} ${kind}${tiles}`.trim();
 }
 
@@ -1410,24 +1473,25 @@ $("optDelay").addEventListener("input", (e) => {
 });
 
 /** index.html's fixed words: each element keeps its Japanese the first time it
- *  is switched, and takes its English from data-en (or data-en-*, for an
- *  attribute). */
+ *  is switched, and takes another language from data-en or data-ko (or
+ *  data-en-*, data-ko-*, for an attribute). */
 const SWAPPED_ATTRIBUTES = [
-  ["title", "[data-en-title]", "enTitle", "jaTitle"],
-  ["aria-label", "[data-en-label]", "enLabel", "jaLabel"],
-  ["placeholder", "[data-en-placeholder]", "enPlaceholder", "jaPlaceholder"],
+  ["title", "[data-en-title]", "Title"],
+  ["aria-label", "[data-en-label]", "Label"],
+  ["placeholder", "[data-en-placeholder]", "Placeholder"],
 ];
 
 function applyLang() {
   document.documentElement.lang = S.lang;
   for (const node of document.querySelectorAll("[data-en]")) {
     if (node.dataset.ja === undefined) node.dataset.ja = node.textContent;
-    node.textContent = S.lang === "en" ? node.dataset.en : node.dataset.ja;
+    node.textContent = node.dataset[S.lang] ?? node.dataset.ja;
   }
-  for (const [attribute, selector, en, ja] of SWAPPED_ATTRIBUTES) {
+  for (const [attribute, selector, suffix] of SWAPPED_ATTRIBUTES) {
     for (const node of document.querySelectorAll(selector)) {
+      const ja = `ja${suffix}`;
       if (node.dataset[ja] === undefined) node.dataset[ja] = node.getAttribute(attribute) || "";
-      node.setAttribute(attribute, S.lang === "en" ? node.dataset[en] : node.dataset[ja]);
+      node.setAttribute(attribute, node.dataset[`${S.lang}${suffix}`] ?? node.dataset[ja]);
     }
   }
 }

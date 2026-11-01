@@ -37,7 +37,7 @@ These settings change during a game:
 - hide the opponents' hands;
 - **no calls**: pass every call offer automatically, but still offer ron;
 - the delay between agent moves;
-- the language: 日本語, or English, which also switches to tiles with English labels.
+- the language: 日本語, English or 한국어. English also switches to tiles with English labels.
 
 A round ends with a summary of the winners, yaku, han and fu, and the score changes. The han add up to the points the env paid.
 
