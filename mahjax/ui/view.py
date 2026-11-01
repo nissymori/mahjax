@@ -62,62 +62,62 @@ class SeatInfo:
 
 
 #: Display names, keyed by the env-independent yaku key used below. The Korean
-#: ones are from the translation in #86.
+#: ones are from the translation in #86, the Chinese ones from the UI before #147.
 YAKU_NAMES: Dict[str, Dict[str, str]] = {
-    "menzen_tsumo": {"ja": "門前清自摸和", "en": "Fully Concealed Hand", "ko": "멘젠쯔모"},
-    "riichi": {"ja": "立直", "en": "Riichi", "ko": "리치"},
-    "ippatsu": {"ja": "一発", "en": "Ippatsu", "ko": "일발"},
-    "chankan": {"ja": "搶槓", "en": "Robbing a Kan", "ko": "창깡"},
-    "rinshan": {"ja": "嶺上開花", "en": "After a Kan", "ko": "영상개화"},
-    "haitei": {"ja": "海底摸月", "en": "Under the Sea", "ko": "해저로월"},
-    "houtei": {"ja": "河底撈魚", "en": "Under the River", "ko": "하저로어"},
-    "pinfu": {"ja": "平和", "en": "Pinfu", "ko": "핑후"},
-    "tanyao": {"ja": "断么九", "en": "All Simples", "ko": "탕야오"},
-    "iipeiko": {"ja": "一盃口", "en": "Pure Double Chow", "ko": "이페코"},
-    "seat_wind": {"ja": "自風", "en": "Seat Wind", "ko": "자풍패"},
-    "seat_wind_east": {"ja": "自風 東", "en": "Seat Wind East", "ko": "자풍패 동"},
-    "seat_wind_south": {"ja": "自風 南", "en": "Seat Wind South", "ko": "자풍패 남"},
-    "seat_wind_west": {"ja": "自風 西", "en": "Seat Wind West", "ko": "자풍패 서"},
-    "seat_wind_north": {"ja": "自風 北", "en": "Seat Wind North", "ko": "자풍패 북"},
-    "round_wind": {"ja": "場風", "en": "Round Wind", "ko": "장풍패"},
-    "round_wind_east": {"ja": "場風 東", "en": "Round Wind East", "ko": "장풍패 동"},
-    "round_wind_south": {"ja": "場風 南", "en": "Round Wind South", "ko": "장풍패 남"},
-    "round_wind_west": {"ja": "場風 西", "en": "Round Wind West", "ko": "장풍패 서"},
-    "round_wind_north": {"ja": "場風 北", "en": "Round Wind North", "ko": "장풍패 북"},
-    "haku": {"ja": "白", "en": "White Dragon", "ko": "역패 백"},
-    "hatsu": {"ja": "發", "en": "Green Dragon", "ko": "역패 발"},
-    "chun": {"ja": "中", "en": "Red Dragon", "ko": "역패 중"},
-    "double_riichi": {"ja": "ダブル立直", "en": "Double Riichi", "ko": "더블리치"},
-    "chiitoitsu": {"ja": "七対子", "en": "Seven Pairs", "ko": "치또이츠"},
-    "chanta": {"ja": "混全帯么九", "en": "Outside Hand", "ko": "찬타"},
-    "ittsu": {"ja": "一気通貫", "en": "Pure Straight", "ko": "일기통관"},
-    "sanshoku": {"ja": "三色同順", "en": "Mixed Triple Chow", "ko": "삼색동순"},
-    "sanshoku_doukou": {"ja": "三色同刻", "en": "Triple Pung", "ko": "삼색동각"},
-    "sankantsu": {"ja": "三槓子", "en": "Three Kans", "ko": "산깡즈"},
-    "toitoi": {"ja": "対々和", "en": "All Pungs", "ko": "또이또이"},
-    "sanankou": {"ja": "三暗刻", "en": "Three Concealed Pungs", "ko": "산안커"},
-    "shousangen": {"ja": "小三元", "en": "Little Three Dragons", "ko": "소삼원"},
-    "honroutou": {"ja": "混老頭", "en": "All Terminals and Honors", "ko": "혼노두"},
-    "ryanpeikou": {"ja": "二盃口", "en": "Twice Pure Double Chow", "ko": "량페코"},
-    "junchan": {"ja": "純全帯么九", "en": "Terminals in All Sets", "ko": "준찬타"},
-    "honitsu": {"ja": "混一色", "en": "Half Flush", "ko": "혼일색"},
-    "chinitsu": {"ja": "清一色", "en": "Full Flush", "ko": "청일색"},
-    "renhou": {"ja": "人和", "en": "Hand of Man", "ko": "인화"},
-    "tenhou": {"ja": "天和", "en": "Blessing of Heaven", "ko": "천화"},
-    "chiihou": {"ja": "地和", "en": "Blessing of Earth", "ko": "지화"},
-    "daisangen": {"ja": "大三元", "en": "Big Three Dragons", "ko": "대삼원"},
-    "suuankou": {"ja": "四暗刻", "en": "Four Concealed Pungs", "ko": "스안커"},
-    "suuankou_tanki": {"ja": "四暗刻単騎", "en": "Four Concealed Pungs Single Wait", "ko": "스안커 단기"},
-    "tsuuiisou": {"ja": "字一色", "en": "All Honors", "ko": "자일색"},
-    "ryuuiisou": {"ja": "緑一色", "en": "All Green", "ko": "녹일색"},
-    "chinroutou": {"ja": "清老頭", "en": "All Terminals", "ko": "청노두"},
-    "chuuren": {"ja": "九蓮宝燈", "en": "Nine Gates", "ko": "구련보등"},
-    "junsei_chuuren": {"ja": "純正九蓮宝燈", "en": "True Nine Gates", "ko": "순정구련보등"},
-    "kokushi": {"ja": "国士無双", "en": "Thirteen Orphans", "ko": "국사무쌍"},
-    "kokushi_13": {"ja": "国士無双十三面待ち", "en": "Thirteen Orphans 13-Wait", "ko": "국사무쌍 13면 대기"},
-    "daisuushii": {"ja": "大四喜", "en": "Big Four Winds", "ko": "대사희"},
-    "shousuushii": {"ja": "小四喜", "en": "Little Four Winds", "ko": "소사희"},
-    "suukantsu": {"ja": "四槓子", "en": "Four Kans", "ko": "스깡즈"},
+    "menzen_tsumo": {"ja": "門前清自摸和", "en": "Fully Concealed Hand", "ko": "멘젠쯔모", "zh": "门前清自摸和"},
+    "riichi": {"ja": "立直", "en": "Riichi", "ko": "리치", "zh": "立直"},
+    "ippatsu": {"ja": "一発", "en": "Ippatsu", "ko": "일발", "zh": "一发"},
+    "chankan": {"ja": "搶槓", "en": "Robbing a Kan", "ko": "창깡", "zh": "抢杠"},
+    "rinshan": {"ja": "嶺上開花", "en": "After a Kan", "ko": "영상개화", "zh": "岭上开花"},
+    "haitei": {"ja": "海底摸月", "en": "Under the Sea", "ko": "해저로월", "zh": "海底摸月"},
+    "houtei": {"ja": "河底撈魚", "en": "Under the River", "ko": "하저로어", "zh": "河底捞鱼"},
+    "pinfu": {"ja": "平和", "en": "Pinfu", "ko": "핑후", "zh": "平和"},
+    "tanyao": {"ja": "断么九", "en": "All Simples", "ko": "탕야오", "zh": "断幺九"},
+    "iipeiko": {"ja": "一盃口", "en": "Pure Double Chow", "ko": "이페코", "zh": "一杯口"},
+    "seat_wind": {"ja": "自風", "en": "Seat Wind", "ko": "자풍패", "zh": "自风"},
+    "seat_wind_east": {"ja": "自風 東", "en": "Seat Wind East", "ko": "자풍패 동", "zh": "自风 东"},
+    "seat_wind_south": {"ja": "自風 南", "en": "Seat Wind South", "ko": "자풍패 남", "zh": "自风 南"},
+    "seat_wind_west": {"ja": "自風 西", "en": "Seat Wind West", "ko": "자풍패 서", "zh": "自风 西"},
+    "seat_wind_north": {"ja": "自風 北", "en": "Seat Wind North", "ko": "자풍패 북", "zh": "自风 北"},
+    "round_wind": {"ja": "場風", "en": "Round Wind", "ko": "장풍패", "zh": "场风"},
+    "round_wind_east": {"ja": "場風 東", "en": "Round Wind East", "ko": "장풍패 동", "zh": "场风 东"},
+    "round_wind_south": {"ja": "場風 南", "en": "Round Wind South", "ko": "장풍패 남", "zh": "场风 南"},
+    "round_wind_west": {"ja": "場風 西", "en": "Round Wind West", "ko": "장풍패 서", "zh": "场风 西"},
+    "round_wind_north": {"ja": "場風 北", "en": "Round Wind North", "ko": "장풍패 북", "zh": "场风 北"},
+    "haku": {"ja": "白", "en": "White Dragon", "ko": "역패 백", "zh": "白"},
+    "hatsu": {"ja": "發", "en": "Green Dragon", "ko": "역패 발", "zh": "发"},
+    "chun": {"ja": "中", "en": "Red Dragon", "ko": "역패 중", "zh": "中"},
+    "double_riichi": {"ja": "ダブル立直", "en": "Double Riichi", "ko": "더블리치", "zh": "两立直"},
+    "chiitoitsu": {"ja": "七対子", "en": "Seven Pairs", "ko": "치또이츠", "zh": "七对子"},
+    "chanta": {"ja": "混全帯么九", "en": "Outside Hand", "ko": "찬타", "zh": "混全带幺九"},
+    "ittsu": {"ja": "一気通貫", "en": "Pure Straight", "ko": "일기통관", "zh": "一气通贯"},
+    "sanshoku": {"ja": "三色同順", "en": "Mixed Triple Chow", "ko": "삼색동순", "zh": "三色同顺"},
+    "sanshoku_doukou": {"ja": "三色同刻", "en": "Triple Pung", "ko": "삼색동각", "zh": "三色同刻"},
+    "sankantsu": {"ja": "三槓子", "en": "Three Kans", "ko": "산깡즈", "zh": "三杠子"},
+    "toitoi": {"ja": "対々和", "en": "All Pungs", "ko": "또이또이", "zh": "对对和"},
+    "sanankou": {"ja": "三暗刻", "en": "Three Concealed Pungs", "ko": "산안커", "zh": "三暗刻"},
+    "shousangen": {"ja": "小三元", "en": "Little Three Dragons", "ko": "소삼원", "zh": "小三元"},
+    "honroutou": {"ja": "混老頭", "en": "All Terminals and Honors", "ko": "혼노두", "zh": "混老头"},
+    "ryanpeikou": {"ja": "二盃口", "en": "Twice Pure Double Chow", "ko": "량페코", "zh": "二杯口"},
+    "junchan": {"ja": "純全帯么九", "en": "Terminals in All Sets", "ko": "준찬타", "zh": "纯全带幺九"},
+    "honitsu": {"ja": "混一色", "en": "Half Flush", "ko": "혼일색", "zh": "混一色"},
+    "chinitsu": {"ja": "清一色", "en": "Full Flush", "ko": "청일색", "zh": "清一色"},
+    "renhou": {"ja": "人和", "en": "Hand of Man", "ko": "인화", "zh": "人和"},
+    "tenhou": {"ja": "天和", "en": "Blessing of Heaven", "ko": "천화", "zh": "天和"},
+    "chiihou": {"ja": "地和", "en": "Blessing of Earth", "ko": "지화", "zh": "地和"},
+    "daisangen": {"ja": "大三元", "en": "Big Three Dragons", "ko": "대삼원", "zh": "大三元"},
+    "suuankou": {"ja": "四暗刻", "en": "Four Concealed Pungs", "ko": "스안커", "zh": "四暗刻"},
+    "suuankou_tanki": {"ja": "四暗刻単騎", "en": "Four Concealed Pungs Single Wait", "ko": "스안커 단기", "zh": "四暗刻单骑"},
+    "tsuuiisou": {"ja": "字一色", "en": "All Honors", "ko": "자일색", "zh": "字一色"},
+    "ryuuiisou": {"ja": "緑一色", "en": "All Green", "ko": "녹일색", "zh": "绿一色"},
+    "chinroutou": {"ja": "清老頭", "en": "All Terminals", "ko": "청노두", "zh": "清老头"},
+    "chuuren": {"ja": "九蓮宝燈", "en": "Nine Gates", "ko": "구련보등", "zh": "九莲宝灯"},
+    "junsei_chuuren": {"ja": "純正九蓮宝燈", "en": "True Nine Gates", "ko": "순정구련보등", "zh": "纯正九莲宝灯"},
+    "kokushi": {"ja": "国士無双", "en": "Thirteen Orphans", "ko": "국사무쌍", "zh": "国士无双"},
+    "kokushi_13": {"ja": "国士無双十三面待ち", "en": "Thirteen Orphans 13-Wait", "ko": "국사무쌍 13면 대기", "zh": "国士无双十三面"},
+    "daisuushii": {"ja": "大四喜", "en": "Big Four Winds", "ko": "대사희", "zh": "大四喜"},
+    "shousuushii": {"ja": "小四喜", "en": "Little Four Winds", "ko": "소사희", "zh": "小四喜"},
+    "suukantsu": {"ja": "四槓子", "en": "Four Kans", "ko": "스깡즈", "zh": "四杠子"},
 }
 
 # Yaku index -> key, in the order ``mahjax.common.yaku`` numbers them.
@@ -150,7 +150,7 @@ def _tile_name(tile: int) -> str:
 def _yaku(key: str, han: int) -> Dict[str, Any]:
     """One line of a win's yaku list, named in each of the page's languages."""
     names = YAKU_NAMES[key]
-    return {"name": names["ja"], "nameEn": names["en"], "nameKo": names["ko"], "han": han}
+    return {"name": names["ja"], "nameEn": names["en"], "nameKo": names["ko"], "nameZh": names["zh"], "han": han}
 
 
 @dataclass(frozen=True)
@@ -306,20 +306,21 @@ def _judge_win(rules: Rules, state: Any, seat: int, is_ron: bool, cached_fan: in
 
 # ------------------------------------------------------------------- prompt
 
-#: Button labels, Japanese, English and Korean; the page shows the one its language picks.
+#: Button labels, Japanese, English, Korean and Chinese; the page shows the one its language picks.
 _ACTION_LABELS = {
-    "riichi": ("立直", "Riichi", "리치"),
-    "tsumo": ("ツモ", "Tsumo", "쯔모"),
-    "ron": ("ロン", "Ron", "론"),
-    "pon": ("ポン", "Pon", "퐁"),
-    "chi": ("チー", "Chi", "치"),
-    "kyuushu": ("九種九牌", "Nine Terminals", "구종구패"),
-    "kita": ("北抜き", "Kita", "북 빼기"),
-    "pass": ("パス", "Pass", "스킵"),
+    "riichi": ("立直", "Riichi", "리치", "立直"),
+    "tsumo": ("ツモ", "Tsumo", "쯔모", "自摸"),
+    "ron": ("ロン", "Ron", "론", "荣和"),
+    "pon": ("ポン", "Pon", "퐁", "碰"),
+    "chi": ("チー", "Chi", "치", "吃"),
+    "kyuushu": ("九種九牌", "Nine Terminals", "구종구패", "九种九牌"),
+    "kita": ("北抜き", "Kita", "북 빼기", "拔北"),
+    "pass": ("パス", "Pass", "스킵", "跳过"),
 }
 _OPTION_ORDER = ("ron", "tsumo", "riichi", "kita", "kan", "pon", "chi", "kyuushu", "pass")
 _TILE_NAMES_EN: Tuple[str, ...] = _TILE_NAMES[:27] + ("East", "South", "West", "North", "White", "Green", "Red")
 _TILE_NAMES_KO: Tuple[str, ...] = _TILE_NAMES[:27] + ("동", "남", "서", "북", "백", "발", "중")
+_TILE_NAMES_ZH: Tuple[str, ...] = _TILE_NAMES[:27] + ("东", "南", "西", "北", "白", "发", "中")
 
 
 def _is_added_kan(state: Any, seat: int, tile_type_: int) -> bool:
@@ -348,10 +349,13 @@ def _option(rules: Rules, state: Any, seat: int, action: int) -> Dict[str, Any]:
     if rules.is_chi(action):
         return _choice(action, "chi", rules.chi_tiles(action, target), *_ACTION_LABELS["chi"])
     if action == rules.OPEN_KAN:
-        return _choice(action, "kan", rules.open_kan_tiles(target), "明槓", "Open Kan", "대명깡")
+        return _choice(action, "kan", rules.open_kan_tiles(target), "明槓", "Open Kan", "대명깡", "明杠")
     if rules.is_kan(action):
         tile = rules.kan_tile_type(action)
-        ja, en, ko = ("加槓", "Added Kan", "소명깡") if _is_added_kan(state, seat, tile) else ("暗槓", "Closed Kan", "안깡")
+        if _is_added_kan(state, seat, tile):
+            ja, en, ko, zh = "加槓", "Added Kan", "소명깡", "加杠"
+        else:
+            ja, en, ko, zh = "暗槓", "Closed Kan", "안깡", "暗杠"
         return _choice(
             action,
             "kan",
@@ -359,14 +363,29 @@ def _option(rules: Rules, state: Any, seat: int, action: int) -> Dict[str, Any]:
             f"{ja} {_TILE_NAMES[tile]}",
             f"{en} {_TILE_NAMES_EN[tile]}",
             f"{ko} {_TILE_NAMES_KO[tile]}",
+            f"{zh} {_TILE_NAMES_ZH[tile]}",
         )
     raise ValueError(f"{rules.env_id}: action {action} is not an offerable choice")
 
 
 def _choice(
-    action: int, kind: str, tiles: Optional[List[int]], label: str, label_en: str, label_ko: str
+    action: int,
+    kind: str,
+    tiles: Optional[List[int]],
+    label: str,
+    label_en: str,
+    label_ko: str,
+    label_zh: str,
 ) -> Dict[str, Any]:
-    return {"action": action, "kind": kind, "tiles": tiles, "label": label, "labelEn": label_en, "labelKo": label_ko}
+    return {
+        "action": action,
+        "kind": kind,
+        "tiles": tiles,
+        "label": label,
+        "labelEn": label_en,
+        "labelKo": label_ko,
+        "labelZh": label_zh,
+    }
 
 
 def build_prompt(rules: Rules, state: Any, seat: int) -> Optional[Dict[str, Any]]:

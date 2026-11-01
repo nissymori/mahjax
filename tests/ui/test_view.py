@@ -134,8 +134,8 @@ def _check_prompt(roll: Rollout, state: Any) -> Optional[Dict[str, Any]]:
             roll.prompt_failures.append(f"{option['kind']} option without tiles")
         if option["kind"] in ("riichi", "tsumo", "ron", "kyuushu", "pass") and option["tiles"]:
             roll.prompt_failures.append(f"{option['kind']} option carries tiles")
-        if not (option["labelEn"] and option["labelKo"]):
-            roll.prompt_failures.append(f"{option['kind']} option without an English or Korean label")
+        if not (option["labelEn"] and option["labelKo"] and option["labelZh"]):
+            roll.prompt_failures.append(f"{option['kind']} option without a label in every language")
         if option["kind"] == "kan":
             _check_kan_label(roll, state, seat, option)
     return prompt
@@ -325,7 +325,7 @@ def test_yaku_han_reconciles_with_the_env(roll: Rollout) -> None:
         win = record["win"]
         total = sum(y["han"] for y in win["yaku"])
         where = f"{roll.rules.env_id} seat {record['seat']} {win}"
-        assert all(y["name"] and y["nameEn"] and y["nameKo"] for y in win["yaku"]), where
+        assert all(y["name"] and y["nameEn"] and y["nameKo"] and y["nameZh"] for y in win["yaku"]), where
         if win["yakuman"]:
             assert total == win["han"], where
             assert win["fu"] == 0, where
@@ -342,7 +342,7 @@ def test_yaku_han_reconciles_with_the_env(roll: Rollout) -> None:
 def test_every_yaku_is_named_in_every_language() -> None:
     # The rollout reaches only some of them.
     for key, names in YAKU_NAMES.items():
-        assert set(names) == {"ja", "en", "ko"} and all(names.values()), key
+        assert set(names) == {"ja", "en", "ko", "zh"} and all(names.values()), key
 
 
 def test_ura_dora_is_only_shown_to_a_riichi_winner(roll: Rollout) -> None:

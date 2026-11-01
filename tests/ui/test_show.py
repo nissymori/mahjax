@@ -185,5 +185,6 @@ def test_every_fixed_word_on_the_page_is_in_every_language() -> None:
     for attrs in translated:
         for name in [name for name in attrs if name.startswith("data-en")]:
             assert attrs.get(name.replace("data-en", "data-ko")), attrs
+            assert attrs.get(name.replace("data-en", "data-zh")), attrs
     menu = re.search(r'<select id="optLang">(.*?)</select>', page, re.S).group(1)
-    assert re.findall(r'<option value="(\w+)"', menu) == ["ja", "en", "ko"]
+    assert re.findall(r'<option value="(\w+)"', menu) == ["ja", "en", "ko", "zh"]

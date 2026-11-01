@@ -48,6 +48,12 @@ body {
   overflow: hidden;
 }
 
+/* A Japanese font draws the characters Chinese shares with it in their Japanese
+   forms, and lacks many simplified ones. */
+body:lang(zh) {
+  font-family: "PingFang SC", "Noto Sans SC", "Microsoft YaHei", system-ui, sans-serif;
+}
+
 button {
   font: inherit;
   color: inherit;
