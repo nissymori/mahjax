@@ -23,7 +23,7 @@
     <label><span data-en="Hands" data-ko="손패" data-zh="手牌">手牌</span>
       <select id="showAll">
         <option value="1" data-en="All" data-ko="전원" data-zh="全部">全員</option>
-        <option value="0" data-en="Viewpoint only" data-ko="시점만" data-zh="仅视角">視点のみ</option>
+        <option value="0" data-en="Viewpoint only" data-ko="시점 플레이어만" data-zh="仅视角">視点のみ</option>
       </select>
     </label>
   </div>
@@ -65,7 +65,7 @@
         <option value="no_red_3p" data-en="3-player, no red fives" data-ko="3인 마작 적도라 없음" data-zh="三人麻将 无赤牌">三人麻雀 赤なし</option>
       </select>
     </label>
-    <label><span data-en="Length" data-ko="길이" data-zh="长度">長さ</span>
+    <label><span data-en="Length" data-ko="대국 수" data-zh="长度">長さ</span>
       <select id="cfgMode">
         <option value="half" data-en="Half game" data-ko="반장전" data-zh="半庄战">半荘</option>
         <option value="east" data-en="East only" data-ko="동풍전" data-zh="东风战">東風</option>
@@ -77,7 +77,7 @@
     </label>
     <label><span data-en="Your seat" data-ko="내 자리" data-zh="我的座位">自席</span>
       <select id="cfgSeat">
-        <option value="random" data-en="Random" data-ko="무작위" data-zh="随机">ランダム</option>
+        <option value="random" data-en="Random" data-ko="랜덤" data-zh="随机">ランダム</option>
         <option value="0" data-en="East" data-ko="동" data-zh="东家">東</option>
         <option value="1" data-en="South" data-ko="남" data-zh="南家">南</option>
         <option value="2" data-en="West" data-ko="서" data-zh="西家">西</option>
@@ -86,7 +86,7 @@
       </select>
     </label>
     <label><span data-en="Seed" data-ko="시드" data-zh="随机种子">シード</span>
-      <input id="cfgSeed" type="number" min="0" placeholder="空欄でランダム" data-en-placeholder="Random if empty" data-ko-placeholder="비워 두면 무작위" data-zh-placeholder="留空则随机">
+      <input id="cfgSeed" type="number" min="0" placeholder="空欄でランダム" data-en-placeholder="Random if empty" data-ko-placeholder="미입력시 랜덤" data-zh-placeholder="留空则随机">
     </label>
     <label><span data-en="Name" data-ko="이름" data-zh="名称">名前</span>
       <input id="cfgName" type="text" value="You">
@@ -105,7 +105,7 @@
     <label class="check server-only">
       <input id="optNoCalls" type="checkbox"> <span data-en="No calls" data-ko="울기 없음" data-zh="自动跳过鸣牌">鳴きなし</span>
     </label>
-    <label><span data-en="Move delay" data-ko="수 간격" data-zh="行动间隔">手の間隔</span>
+    <label><span data-en="Move delay" data-ko="진행 딜레이" data-zh="行动间隔">手の間隔</span>
       <input id="optDelay" type="range" min="0" max="1600" step="100" value="700">
       <span id="optDelayValue" class="hint">700ms</span>
     </label>
