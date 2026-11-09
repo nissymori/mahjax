@@ -132,10 +132,15 @@ class MahjongEnv(Env):
         # same step instead of requiring four DUMMY rotations. If the round-end
         # coincides with the game-end, terminate=True and update the final score
         # with rank points + kyotaku.
-        if self.round_end == "auto":
+        if self.round_end == "auto" and not self.one_round:
+            # Dealt on every step and kept only where a round has ended, like the
+            # branches of the action dispatch. Not inside the cond: under ``vmap``,
+            # with a predicate per env, a cond copies each of its operands once per
+            # env, and the deal would make the 22 MiB yaku table one of them.
+            next_round_state = _start_next_round_or_end_game(state, key, self.game_config)
             state = jax.lax.cond(
-                state.round_state.terminated_round & ~state.terminated & ~jnp.bool_(self.one_round),
-                lambda: _start_next_round_or_end_game(state, key, self.game_config),
+                state.round_state.terminated_round & ~state.terminated,
+                lambda: next_round_state,
                 lambda: state,
             )
         state = jax.lax.cond(
