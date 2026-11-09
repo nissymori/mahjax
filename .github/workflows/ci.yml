@@ -121,3 +121,48 @@ jobs:
       - name: Run mypy
         run: |
           mypy mahjax
+
+  games:
+    # A pull request plays exactly as its base: random games are digested at every step
+    # on both trees, with the same JAX (benchmarks/trajectory_digest.py). A pull request
+    # that changes play on purpose fails here. Skipped when nothing outside the UI
+    # changed under mahjax/.
+    if: github.event_name == 'pull_request'
+    name: Same games as the base (${{ matrix.setting }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # East games end sooner than half games, so the game end is played too.
+        setting: ["red_4p single auto", "red_4p east auto", "red_4p east confirm", "red_3p east auto"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install -U pip
+          pip install jax jaxlib typing_extensions
+
+      - name: Digest the games on the base and on the pull request
+        run: |
+          base=${{ github.event.pull_request.base.sha }}
+          if git diff --quiet $base HEAD -- mahjax ':!mahjax/ui'; then
+            echo "Nothing outside the UI changed under mahjax/"
+            exit 0
+          fi
+          git worktree add --detach ../base $base
+          read -r env mode end <<< "${{ matrix.setting }}"
+          args="--env $env --round-mode $mode --round-end $end --seeds 0 --batch 16 --steps 1000"
+          args="$args --cache-dir ../jax_cache"
+          python -I benchmarks/trajectory_digest.py run base.txt --src ../base $args
+          python -I benchmarks/trajectory_digest.py run head.txt --src . $args
+          python -I benchmarks/trajectory_digest.py compare base.txt head.txt
